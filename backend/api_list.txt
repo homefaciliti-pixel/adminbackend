@@ -1,0 +1,179 @@
+=========================================
+ADMIN PANEL BACKEND REST API ENDPOINTS
+=========================================
+Base URL: http://localhost:5000/api
+
+-----------------------------------------
+1. IMAGE UPLOAD
+-----------------------------------------
+Endpoint: POST /api/upload
+Request: Multipart form-data with field name 'image' (image file or raw bytes)
+Response: JSON
+{
+  "url": "http://localhost:5000/uploads/image-[unique-suffix].jpg"
+}
+
+-----------------------------------------
+2. USERS MANAGEMENT
+-----------------------------------------
+* GET /api/users
+  - Fetch list of all users.
+* POST /api/users
+  - Create a new user.
+  - Body (JSON): { "name": "...", "email": "...", "mobile": "...", "address": "..." }
+* PUT /api/users/:id
+  - Update user details by ID.
+  - Body (JSON): { "name": "...", "email": "...", "mobile": "...", "address": "..." }
+* DELETE /api/users/:id
+  - Delete user by ID.
+
+-----------------------------------------
+3. PARTNERS MANAGEMENT
+-----------------------------------------
+* GET /api/partners
+  - Fetch list of all partners. Comma-separated list strings (services, documents) are parsed back into lists.
+* POST /api/partners
+  - Create a new partner.
+  - Body (JSON): { "name": "...", "email": "...", "mobile": "...", "city": "...", "state": "...", "locality": "...", "address": "...", "image": "...", "status": true, "isApproved": false, "gender": "...", "experience": "...", "services": [...], "aadhaarNumber": "...", "panNumber": "...", "bankName": "...", "accountNumber": "...", "ifscCode": "...", "documents": [...], "walletBalance": 0.0, "totalEarnings": 0.0, "withdrawnAmount": 0.0, "totalBookings": 0, "completedBookings": 0, "cancelledBookings": 0, "pendingBookings": 0, "rating": 0.0, "totalReviews": 0 }
+* PUT /api/partners/:id
+  - Update partner details by ID.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/partners/:id
+  - Delete partner by ID.
+
+-----------------------------------------
+4. CATEGORIES MANAGEMENT
+-----------------------------------------
+* GET /api/categories
+  - Fetch list of all categories.
+* POST /api/categories
+  - Create a new category.
+  - Body (JSON): { "title": "...", "parent": "...", "image": "...", "status": true }
+* PUT /api/categories/:id
+  - Update category details by ID.
+  - Body (JSON): { "title": "...", "parent": "...", "image": "...", "status": true }
+* DELETE /api/categories/:id
+  - Delete category by ID.
+
+-----------------------------------------
+5. SERVICES MANAGEMENT
+-----------------------------------------
+* GET /api/services
+  - Fetch list of all services.
+* POST /api/services
+  - Create a new service.
+  - Body (JSON): { "title": "...", "price": 499.0, "image": "...", "description": "...", "status": true }
+* PUT /api/services/:id
+  - Update service details by ID.
+  - Body (JSON): { "title": "...", "price": 499.0, "image": "...", "description": "...", "status": true }
+* DELETE /api/services/:id
+  - Delete service by ID.
+
+-----------------------------------------
+6. ORDERS / BOOKINGS MANAGEMENT
+-----------------------------------------
+* GET /api/orders
+  - Fetch list of all bookings.
+* POST /api/orders
+  - Create a new booking/order.
+  - Body (JSON): { "serviceRequestNumber": "...", "serviceName": "...", "serviceAmount": 299.0, "slotTime": "...", "serviceDate": "...", "city": "...", "locality": "...", "status": "...", "vendorName": "...", "address": "..." }
+* PUT /api/orders/:id
+  - Update booking status or vendor details.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/orders/:id
+  - Delete booking by ID.
+
+-----------------------------------------
+7. EARNINGS MANAGEMENT
+-----------------------------------------
+* GET /api/earnings/booking
+  - Fetch history of all booking earnings.
+* POST /api/earnings/booking
+  - Save booking earning transaction.
+  - Body (JSON): { "transactionId": "...", "serviceAmount": 499.0, "paymentMethod": "...", "extraServiceAmount": 0.0, "extraServicePaymentMethod": "...", "totalAmount": 499.0, "orderDate": "..." }
+* GET /api/earnings/subscription
+  - Fetch history of all partner subscriptions.
+* POST /api/earnings/subscription
+  - Save partner subscription transaction.
+  - Body (JSON): { "partnerName": "...", "amount": 999.0, "paymentMethod": "...", "purchaseDate": "...", "status": "Active" }
+
+-----------------------------------------
+8. BANNERS MANAGEMENT
+-----------------------------------------
+* GET /api/banners
+  - Fetch list of all banners.
+* POST /api/banners
+  - Add new banner.
+  - Body (JSON): { "title": "...", "image": "...", "status": true }
+* PUT /api/banners/:id
+  - Update banner details by ID.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/banners/:id
+  - Delete banner by ID.
+
+-----------------------------------------
+9. CITIES & STATES
+-----------------------------------------
+* GET /api/cities
+  - Fetch list of cities.
+* POST /api/cities
+  - Add a city.
+  - Body (JSON): { "cityName": "...", "stateName": "...", "status": true }
+* PUT /api/cities/:id
+  - Update a city.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/cities/:id
+  - Delete a city.
+
+* GET /api/states
+  - Fetch list of states.
+* POST /api/states
+  - Add a state.
+  - Body (JSON): { "name": "...", "status": true }
+* PUT /api/states/:id
+  - Update a state.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/states/:id
+  - Delete a state.
+
+-----------------------------------------
+10. LOCALITIES
+-----------------------------------------
+* GET /api/localities
+  - Fetch list of localities.
+* POST /api/localities
+  - Add a locality.
+  - Body (JSON): { "localityName": "...", "cityName": "...", "stateName": "...", "status": true }
+* PUT /api/localities/:id
+  - Update a locality.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/localities/:id
+  - Delete a locality.
+
+-----------------------------------------
+11. NOTIFICATIONS
+-----------------------------------------
+* GET /api/notifications
+  - Fetch list of all notifications.
+* POST /api/notifications
+  - Add a notification.
+  - Body (JSON): { "title": "...", "message": "...", "audience": "...", "status": true, "isSent": false, "sentAt": "" }
+* PUT /api/notifications/:id
+  - Update a notification.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/notifications/:id
+  - Delete a notification.
+
+-----------------------------------------
+12. REVIEWS
+-----------------------------------------
+* GET /api/reviews
+  - Fetch list of all reviews.
+* POST /api/reviews
+  - Add a review.
+  - Body (JSON): { "userName": "...", "partnerName": "...", "serviceName": "...", "rating": 5.0, "reviewText": "...", "status": true }
+* PUT /api/reviews/:id
+  - Update a review.
+  - Body (JSON): Same structure as POST.
+* DELETE /api/reviews/:id
+  - Delete a review by ID.
