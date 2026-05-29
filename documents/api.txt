@@ -1,0 +1,213 @@
+======================================================================
+HOME FACILITI ADMIN PANEL API LIST (TEXT REFERENCE)
+======================================================================
+
+Base URL: http://localhost:3000/api
+
+---
+1. DASHBOARD STATISTICS
+---
+Endpoint: GET /api/dashboard
+Description: Fetch counts and earning aggregates for dashboard cards.
+Response:
+{
+  "success": true,
+  "data": {
+    "totalUsers": 1250,
+    "totalCategories": 24,
+    "totalServices": 88,
+    "totalPartners": 320,
+    "totalOrders": 5420,
+    "todayOrders": 2,
+    "completeOrders": 4800,
+    "assignedOrders": 210,
+    "cancelOrders": 62,
+    "totalSupporters": 14,
+    "subscriptionEarning": "₹85,000",
+    "orderEarning": "₹1,85,000",
+    "rawSubscriptionEarning": 85000,
+    "rawOrderEarning": 185000
+  }
+}
+
+---
+2. USERS MANAGEMENT
+---
+Endpoint: GET /api/users
+Response Data: Array of Users
+
+Endpoint: POST /api/users
+Request Body:
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "mobile": "9876543210",
+  "address": "123 Street Name, Delhi"
+}
+
+Endpoint: DELETE /api/users/:id
+
+---
+3. CATEGORIES MANAGEMENT
+---
+Endpoint: GET /api/categories
+Response Data: Array of Categories
+
+Endpoint: POST /api/categories
+Request Body:
+{
+  "title": "Kitchen Cleaning",
+  "parent": "Cleaning",
+  "image": "https://url-to-image.png",
+  "status": true
+}
+
+Endpoint: PUT /api/categories/:id
+Request Body: { "title": "New Title", "status": false }
+
+Endpoint: DELETE /api/categories/:id
+
+---
+4. SERVICES MANAGEMENT
+---
+Endpoint: GET /api/services
+Response Data: Array of Services
+
+Endpoint: POST /api/services
+Request Body:
+{
+  "title": "Deep AC Repair",
+  "price": 799.00,
+  "image": "https://url-to-image.png",
+  "description": "Thorough repair and gas charging",
+  "status": true
+}
+
+Endpoint: PUT /api/services/:id
+Request Body: { "price": 850.00, "status": true }
+
+Endpoint: DELETE /api/services/:id
+
+---
+5. ORDERS (SERVICE REQUESTS)
+---
+Endpoint: GET /api/orders
+Response Data: Array of Orders
+
+Endpoint: POST /api/orders
+Request Body:
+{
+  "serviceRequestNumber": "REQ2001",
+  "serviceName": "AC Repair",
+  "serviceAmount": 499.00,
+  "slotTime": "11:00 AM - 01:00 PM",
+  "serviceDate": "20-05-2026",
+  "city": "Delhi",
+  "locality": "Connaught Place",
+  "status": "Pending",
+  "vendorName": "-",
+  "address": "Block C, Connaught Place, Delhi"
+}
+
+Endpoint: PUT /api/orders/:id
+Request Body: (Assign vendor or update status)
+{
+  "status": "Assigned",
+  "vendorName": "Govind"
+}
+
+Endpoint: DELETE /api/orders/:id
+
+---
+6. PARTNERS (VENDORS)
+---
+Endpoint: GET /api/partners
+Response Data: Array of Partners with KYC data
+
+Endpoint: POST /api/partners
+Request Body:
+{
+  "name": "Suresh Kumar",
+  "email": "suresh@gmail.com",
+  "mobile": "9911223344",
+  "city": "Delhi",
+  "state": "Delhi",
+  "locality": "Dwarka",
+  "address": "Sector 12, Dwarka, Delhi",
+  "image": "https://url.png",
+  "gender": "Male",
+  "experience": "4 Years",
+  "services": ["Plumbing", "AC Repair"],
+  "aadhaarNumber": "123456789012",
+  "panNumber": "ABCDE1234F",
+  "bankName": "ICICI Bank",
+  "accountNumber": "98765432101",
+  "ifscCode": "ICIC0000456",
+  "documents": ["aadhaar.pdf"]
+}
+
+Endpoint: PUT /api/partners/:id
+Request Body: (KYC Approval / Edit)
+{
+  "isApproved": true,
+  "status": true
+}
+
+Endpoint: DELETE /api/partners/:id
+
+---
+7. EARNINGS
+---
+Endpoint: GET /api/earnings/bookings
+Endpoint: POST /api/earnings/bookings
+Request Body:
+{
+  "transactionId": "TXN1004",
+  "serviceAmount": 500.00,
+  "paymentMethod": "UPI",
+  "extraServiceAmount": 50.00,
+  "extraServicePaymentMethod": "Cash",
+  "totalAmount": 550.00,
+  "orderDate": "15-05-2026"
+}
+
+Endpoint: GET /api/earnings/subscriptions
+Endpoint: POST /api/earnings/subscriptions
+Request Body:
+{
+  "partnerName": "Govind",
+  "amount": 100.00,
+  "paymentMethod": "UPI",
+  "purchaseDate": "16-05-2026",
+  "status": "Paid"
+}
+
+---
+8. CONTENT PAGES
+---
+Endpoint: GET /api/pages
+Endpoint: PUT /api/pages/:id
+Request Body: { "description": "Updated content goes here..." }
+
+---
+9. CONFIGURATION & SETTINGS
+---
+Endpoints:
+- Banners: GET|POST|PUT|DELETE /api/settings/banners
+  Body sample: { "title": "Offer", "image": "url", "status": true }
+
+- States: GET|POST|PUT|DELETE /api/settings/states
+  Body sample: { "name": "Haryana", "status": true }
+
+- Cities: GET|POST|PUT|DELETE /api/settings/cities
+  Body sample: { "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+
+- Localities: GET|POST|PUT|DELETE /api/settings/localities
+  Body sample: { "localityName": "Sector 54", "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+
+- Reviews: GET|POST|PUT|DELETE /api/settings/reviews
+  Body sample: { "userName": "Rahul", "partnerName": "Govind", "rating": 5.0, "reviewText": "Good" }
+
+- Notifications: GET|POST|PUT|DELETE /api/settings/notifications
+  Body sample: { "title": "Alert", "message": "KYC needed", "audience": "All Partners" }
+  Body sample for sending: { "isSent": true }
