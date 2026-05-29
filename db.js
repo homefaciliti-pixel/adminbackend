@@ -2,12 +2,15 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 // Create connection pool
+// NOTE: Environment variables take priority. If not set, falls back to BigRock remote database.
+// For LOCAL development: set DB_HOST=127.0.0.1, DB_USER=root, DB_PASSWORD= in your .env file
+// For RENDER/PRODUCTION: set DB_HOST=homefaciliti.com and other credentials in Render Dashboard
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'homefaciliti.com',
-  user: process.env.DB_USER || 'homef4fw_homefaci',
-  password: process.env.DB_PASSWORD ?? 'Xnj3*t%F36RDK+!',
-  database: process.env.DB_NAME || 'homef4fw_homefaci',
-  port: parseInt(process.env.DB_PORT || '3306'),
+  host: process.env.DB_HOST !== undefined ? process.env.DB_HOST : 'homefaciliti.com',
+  user: process.env.DB_USER !== undefined ? process.env.DB_USER : 'homef4fw_homefaci',
+  password: process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : 'Xnj3*t%F36RDK+!',
+  database: process.env.DB_NAME !== undefined ? process.env.DB_NAME : 'homef4fw_homefaci',
+  port: parseInt(process.env.DB_PORT !== undefined ? process.env.DB_PORT : '3306'),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
