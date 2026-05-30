@@ -94,7 +94,7 @@ Description: Delete category by ID.
 4. SERVICES MANAGEMENT
 ---
 Endpoint: GET /api/services
-Response Data: Array of Services
+Response Data: Array of Services (includes `category_id` and `categoryId` if table supports it).
 
 Endpoint: POST /api/services
 Request Body:
@@ -103,11 +103,12 @@ Request Body:
   "price": 799.00,
   "image": "https://url-to-image.png",
   "description": "Thorough repair and gas charging",
-  "status": true
+  "status": true,
+  "categoryId": 3 (Optional / Required if database schema defines a NOT NULL foreign key. Alias: "category_id")
 }
 
 Endpoint: PUT /api/services/:id
-Request Body: { "price": 850.00, "status": true }
+Request Body: { "price": 850.00, "status": true, "categoryId": 1 }
 
 Endpoint: DELETE /api/services/:id
 

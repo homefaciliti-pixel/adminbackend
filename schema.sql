@@ -42,13 +42,15 @@ CREATE TABLE IF NOT EXISTS `services` (
   `price` DECIMAL(10, 2) NOT NULL,
   `image` VARCHAR(500) NOT NULL,
   `description` TEXT NOT NULL,
-  `status` TINYINT(1) NOT NULL DEFAULT 1
+  `status` TINYINT(1) NOT NULL DEFAULT 1,
+  `category_id` INT DEFAULT NULL,
+  CONSTRAINT `services_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO `services` (`id`, `title`, `price`, `image`, `description`, `status`) VALUES
-(1, 'AC Repair', 499.00, 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png', 'Professional AC repair service for home and office.', 1),
-(2, 'Plumbing', 299.00, 'https://cdn-icons-png.flaticon.com/512/1684/1684375.png', 'Complete plumbing solution including leakage fixing.', 1),
-(3, 'Electrician', 399.00, 'https://cdn-icons-png.flaticon.com/512/942/942748.png', 'Electric fitting and repair service.', 0);
+INSERT INTO `services` (`id`, `title`, `price`, `image`, `description`, `status`, `category_id`) VALUES
+(1, 'AC Repair', 499.00, 'https://cdn-icons-png.flaticon.com/512/2933/2933245.png', 'Professional AC repair service for home and office.', 1, 3),
+(2, 'Plumbing', 299.00, 'https://cdn-icons-png.flaticon.com/512/1684/1684375.png', 'Complete plumbing solution including leakage fixing.', 1, 3),
+(3, 'Electrician', 399.00, 'https://cdn-icons-png.flaticon.com/512/942/942748.png', 'Electric fitting and repair service.', 0, 3);
 
 -- 4. Orders Table
 CREATE TABLE IF NOT EXISTS `orders` (

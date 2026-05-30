@@ -8,6 +8,18 @@ process.env.PORT = PORT; // override port
 const app = server.listen(PORT, async () => {
   console.log(`🧪 Test server booted on port ${PORT}`);
   try {
+    const db = require('./db');
+    const [cols] = await db.query('SHOW COLUMNS FROM services LIKE "category_id"');
+    if (cols.length === 0) {
+      console.log('Altering local test database "services" table to add category_id column...');
+      await db.query('ALTER TABLE services ADD COLUMN category_id INT DEFAULT NULL');
+      try {
+        await db.query('ALTER TABLE services ADD CONSTRAINT services_category_id_foreign FOREIGN KEY (category_id) REFERENCES categories (id) ON DELETE CASCADE');
+      } catch (err) {
+        console.log('Constraint already exists or could not be added:', err.message);
+      }
+    }
+
     // Helper to perform GET request
     function fetchJson(url) {
       return new Promise((resolve, reject) => {
@@ -193,6 +205,53 @@ const app = server.listen(PORT, async () => {
       throw new Error('Image upload endpoint accepted a .txt file when it should have rejected it!');
     }
     console.log('✅ Disallowed file extension correctly rejected with error:', uploadTxtRes.body.message);
+
+    // ==========================================================
+    // SERVICES CATEGORY ID TESTS
+    // ==========================================================
+    console.log('\n--- Running Services Category ID Tests ---');
+    console.log('Testing POST /api/services with categoryId = 3...');
+    const createServiceRes = await makeRequest(`http://localhost:${PORT}/api/services`, 'POST', {
+      title: 'Test Service With Category',
+      price: 199.99,
+      image: 'http://icon.png',
+      description: 'A test service for checking category constraint mapping',
+      status: true,
+      categoryId: 3
+    });
+    if (createServiceRes.statusCode !== 201 || !createServiceRes.body.success) {
+      throw new Error(`Failed to create service with categoryId: ${JSON.stringify(createServiceRes.body)}`);
+    }
+    const serviceId = createServiceRes.body.data.id;
+    console.log(`✅ Service created successfully with ID ${serviceId}.`);
+
+    // Verify it returns categoryId on GET
+    console.log('Verifying categoryId populated in GET services...');
+    const checkServices = await fetchJson(`http://localhost:${PORT}/api/services`);
+    const serviceFound = checkServices.data.find(s => s.id === serviceId);
+    if (!serviceFound) {
+      throw new Error(`Created service ID ${serviceId} not found in GET response`);
+    }
+    if (serviceFound.categoryId !== 3 && serviceFound.category_id !== 3) {
+      throw new Error(`Service categoryId is not correctly set. Response: ${JSON.stringify(serviceFound)}`);
+    }
+    console.log(`✅ Service returns categoryId: ${serviceFound.categoryId} (category_id: ${serviceFound.category_id})`);
+
+    // Test PUT update category_id
+    console.log(`Testing PUT /api/services/${serviceId} to update categoryId to 1...`);
+    const updateServiceRes = await makeRequest(`http://localhost:${PORT}/api/services/${serviceId}`, 'PUT', {
+      categoryId: 1
+    });
+    if (updateServiceRes.statusCode !== 200 || !updateServiceRes.body.success) {
+      throw new Error(`Failed to update service: ${JSON.stringify(updateServiceRes.body)}`);
+    }
+    if (updateServiceRes.body.data.categoryId !== 1) {
+      throw new Error(`Updated service does not have new categoryId. Body: ${JSON.stringify(updateServiceRes.body)}`);
+    }
+    console.log('✅ Service categoryId updated successfully.');
+
+    // Cleanup service
+    await makeRequest(`http://localhost:${PORT}/api/services/${serviceId}`, 'DELETE');
 
     // ==========================================================
     // CASCADING DELETION TESTS

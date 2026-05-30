@@ -6,11 +6,17 @@ const db = require('../db');
 router.get('/', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
-    const mapped = rows.map(r => ({
-      ...r,
-      price: parseFloat(r.price),
-      status: r.status === 1
-    }));
+    const mapped = rows.map(r => {
+      const item = {
+        ...r,
+        price: parseFloat(r.price),
+        status: r.status === 1
+      };
+      if (r.category_id !== undefined) {
+        item.categoryId = r.category_id;
+      }
+      return item;
+    });
     res.json({
       success: true,
       data: mapped
@@ -24,6 +30,8 @@ router.get('/', async (req, res) => {
 // POST create service
 router.post('/', async (req, res) => {
   const { title, price, image, description, status } = req.body;
+  const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
+
   if (!title || price === undefined || !description) {
     return res.status(400).json({ success: false, message: 'Title, Price, and Description are required' });
   }
@@ -33,21 +41,38 @@ router.post('/', async (req, res) => {
   const imageVal = image || '';
 
   try {
-    const [result] = await db.query(
-      'INSERT INTO services (title, price, image, description, status) VALUES (?, ?, ?, ?, ?)',
-      [title, priceFloat, imageVal, description, statusInt]
-    );
+    let query = 'INSERT INTO services (title, price, image, description, status';
+    const params = [title, priceFloat, imageVal, description, statusInt];
+    let placeholders = '?, ?, ?, ?, ?';
+
+    if (categoryIdVal !== undefined && categoryIdVal !== null) {
+      query += ', category_id';
+      placeholders += ', ?';
+      params.push(categoryIdVal);
+    }
+
+    query += `) VALUES (${placeholders})`;
+
+    const [result] = await db.query(query, params);
+
+    const responseData = {
+      id: result.insertId,
+      title,
+      price: priceFloat,
+      image: imageVal,
+      description,
+      status: statusInt === 1
+    };
+
+    if (categoryIdVal !== undefined && categoryIdVal !== null) {
+      responseData.category_id = categoryIdVal;
+      responseData.categoryId = categoryIdVal;
+    }
+
     res.status(201).json({
       success: true,
       message: 'Service created successfully',
-      data: {
-        id: result.insertId,
-        title,
-        price: priceFloat,
-        image: imageVal,
-        description,
-        status: statusInt === 1
-      }
+      data: responseData
     });
   } catch (error) {
     console.error('Error creating service:', error);
@@ -59,6 +84,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { title, price, image, description, status } = req.body;
+  const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
 
   try {
     const fields = [];
@@ -84,6 +110,10 @@ router.put('/:id', async (req, res) => {
       fields.push('`status` = ?');
       values.push(status === true || status === 1 || status === 'true' ? 1 : 0);
     }
+    if (categoryIdVal !== undefined) {
+      fields.push('`category_id` = ?');
+      values.push(categoryIdVal);
+    }
 
     if (fields.length === 0) {
       return res.status(400).json({ success: false, message: 'No fields to update' });
@@ -99,14 +129,19 @@ router.put('/:id', async (req, res) => {
 
     // Retrieve updated service
     const [rows] = await db.query('SELECT * FROM services WHERE id = ?', [id]);
+    const responseData = {
+      ...rows[0],
+      price: parseFloat(rows[0].price),
+      status: rows[0].status === 1
+    };
+    if (rows[0].category_id !== undefined && rows[0].category_id !== null) {
+      responseData.categoryId = rows[0].category_id;
+    }
+
     res.json({
       success: true,
       message: 'Service updated successfully',
-      data: {
-        ...rows[0],
-        price: parseFloat(rows[0].price),
-        status: rows[0].status === 1
-      }
+      data: responseData
     });
   } catch (error) {
     console.error('Error updating service:', error);
