@@ -60,21 +60,35 @@ Description: Delete user by ID.
 3. CATEGORIES MANAGEMENT
 ---
 Endpoint: GET /api/categories
+Description: Retrieve list of categories. Supports searching/filtering via query parameters.
+Query Params (Optional):
+- title OR categoryName: Search category name (LIKE)
+- parent OR mainCategory: Filter by parent category (LIKE)
+- status OR emailStatus: Filter by status (true or false / 1 or 0)
 Response Data: Array of Categories
 
 Endpoint: POST /api/categories
-Request Body:
+Description: Add a new category.
+Request Body Option A (Standard):
 {
   "title": "Kitchen Cleaning",
   "parent": "Cleaning",
   "image": "https://url-to-image.png",
   "status": true
 }
+Request Body Option B (Alias Fields):
+{
+  "categoryName": "Kitchen Cleaning",
+  "mainCategory": "Cleaning",
+  "image": "https://url-to-image.png",
+  "emailStatus": true
+}
 
 Endpoint: PUT /api/categories/:id
-Request Body: { "title": "New Title", "status": false }
+Description: Update category details. Accepts any properties from Option A or Option B.
 
 Endpoint: DELETE /api/categories/:id
+Description: Delete category by ID.
 
 ---
 4. SERVICES MANAGEMENT
