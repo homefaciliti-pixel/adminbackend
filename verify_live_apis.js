@@ -101,6 +101,100 @@ const app = server.listen(PORT, async () => {
     console.log(`✅ Support Tickets: returned ${supportRes.data.length} tickets.`);
 
     // ==========================================================
+    // IMAGE UPLOAD TESTS
+    // ==========================================================
+    
+    // HTTP helper for multipart upload
+    function uploadMockImage(url, fieldName, filename, fileContent, mimeType) {
+      return new Promise((resolve, reject) => {
+        const parsedUrl = new URL(url);
+        const boundary = '----TestBoundary' + Math.random().toString(36).substring(2);
+        
+        let header = `--${boundary}\r\n`;
+        header += `Content-Disposition: form-data; name="${fieldName}"; filename="${filename}"\r\n`;
+        header += `Content-Type: ${mimeType}\r\n\r\n`;
+        
+        const footer = `\r\n--${boundary}--\r\n`;
+        
+        const bodyBuffer = Buffer.concat([
+          Buffer.from(header, 'utf-8'),
+          Buffer.from(fileContent),
+          Buffer.from(footer, 'utf-8')
+        ]);
+        
+        const options = {
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port,
+          path: parsedUrl.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+            'Content-Length': bodyBuffer.length
+          }
+        };
+        
+        const req = http.request(options, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            try {
+              resolve({ statusCode: res.statusCode, body: JSON.parse(data) });
+            } catch (err) {
+              reject(new Error(`Failed to parse JSON: ${data}`));
+            }
+          });
+        }).on('error', reject);
+        
+        req.write(bodyBuffer);
+        req.end();
+      });
+    }
+
+    console.log('\n--- Running Image Upload Tests ---');
+    console.log('Testing POST /api/upload with mock PNG...');
+    // PNG signature block
+    const mockPngData = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const uploadRes = await uploadMockImage(
+      `http://localhost:${PORT}/api/upload`,
+      'image',
+      'test_upload.png',
+      mockPngData,
+      'image/png'
+    );
+
+    if (uploadRes.statusCode !== 201 || !uploadRes.body.success || !uploadRes.body.data.url) {
+      throw new Error(`Image upload failed: ${JSON.stringify(uploadRes)}`);
+    }
+    console.log(`✅ Image uploaded successfully. URL: ${uploadRes.body.data.url}`);
+
+    // Verify file is statically served and accessible
+    console.log('Verifying uploaded image URL accessibility...');
+    const accessRes = await new Promise((resolve, reject) => {
+      http.get(uploadRes.body.data.url, (res) => {
+        resolve(res.statusCode);
+      }).on('error', reject);
+    });
+    if (accessRes !== 200) {
+      throw new Error(`Served uploaded image returned non-200 status code: ${accessRes}`);
+    }
+    console.log('✅ Uploaded image statically hosted and reachable.');
+
+    // Test rejection of non-image files
+    console.log('Testing POST /api/upload with disallowed file extension (.txt)...');
+    const mockTxtData = Buffer.from('hello world');
+    const uploadTxtRes = await uploadMockImage(
+      `http://localhost:${PORT}/api/upload`,
+      'image',
+      'test_upload.txt',
+      mockTxtData,
+      'text/plain'
+    );
+    if (uploadTxtRes.statusCode === 201) {
+      throw new Error('Image upload endpoint accepted a .txt file when it should have rejected it!');
+    }
+    console.log('✅ Disallowed file extension correctly rejected with error:', uploadTxtRes.body.message);
+
+    // ==========================================================
     // CASCADING DELETION TESTS
     // ==========================================================
     

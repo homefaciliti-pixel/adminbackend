@@ -331,3 +331,29 @@ Endpoints:
   Request Body: { "status": "Closed" }
 - Delete Ticket: DELETE /api/support/:id
 
+---
+12. IMAGE UPLOAD
+---
+Endpoint: POST /api/upload
+Description: Upload an image file (multipart/form-data) to the server and receive a dynamically hosted URL.
+Request Format: multipart/form-data
+Body Field:
+- image: The image file to upload (JPEG, JPG, PNG, GIF, WEBP allowed). Max size 5MB.
+Response:
+{
+  "success": true,
+  "message": "Image uploaded successfully",
+  "data": {
+    "filename": "1717056000000-839201928.png",
+    "originalName": "avatar.png",
+    "mimetype": "image/png",
+    "size": 15420,
+    "url": "http://localhost:3000/uploads/1717056000000-839201928.png"
+  }
+}
+
+Statically Served Assets:
+URL: http://localhost:3000/uploads/:filename
+Description: Uploaded image files are publicly available and can be served statically by appending the filename to the host's `/uploads` path.
+
+

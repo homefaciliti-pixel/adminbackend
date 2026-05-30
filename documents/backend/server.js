@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const server = express();
@@ -11,6 +12,9 @@ server.use(cors());
 // Middleware for parsing JSON and urlencoded request bodies
 server.use(express.json());
 server.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded images statically
+server.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Root Route / Health Check
 server.get('/', (req, res) => {
@@ -34,6 +38,7 @@ const pagesRouter = require('./routes/pages');
 const settingsRouter = require('./routes/settings');
 const reportsRouter = require('./routes/reports');
 const supportRouter = require('./routes/support');
+const uploadRouter = require('./routes/upload');
 
 // Register API Routes
 server.use('/api/dashboard', dashboardRouter);
@@ -47,6 +52,7 @@ server.use('/api/pages', pagesRouter);
 server.use('/api/settings', settingsRouter);
 server.use('/api/reports', reportsRouter);
 server.use('/api/support', supportRouter);
+server.use('/api/upload', uploadRouter);
 
 // Page Not Found (404) Route
 server.use((req, res) => {
