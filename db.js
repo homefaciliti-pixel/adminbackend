@@ -16,6 +16,53 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+const dbHost = process.env.DB_HOST !== undefined ? process.env.DB_HOST : 'homefaciliti.com';
+const tablePrefix = process.env.DB_PREFIX !== undefined 
+  ? process.env.DB_PREFIX 
+  : (dbHost === 'homefaciliti.com' ? 'node_' : '');
+
+if (tablePrefix) {
+  console.log(`🔧 SQL Table prefixing active: prepending "${tablePrefix}" to table names.`);
+}
+
+function prefixQuery(sql) {
+  if (!tablePrefix) return sql;
+  
+  const tables = [
+    'users', 'categories', 'services', 'orders', 'pages', 'partners',
+    'booking_earnings', 'subscription_earnings', 'banners', 'states',
+    'cities', 'localities', 'notifications', 'reviews', 'settings_config',
+    'support_tickets'
+  ];
+
+  const regex = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|DESCRIBE|TABLE)\\s+\`?(${tables.join('|')})\`?\\b`, 'gi');
+  
+  return sql.replace(regex, (match, keyword, tableName) => {
+    return `${keyword} \`${tablePrefix}${tableName}\``;
+  });
+}
+
+// Override query and execute to dynamically translate table references
+const originalQuery = pool.query;
+pool.query = function (sql, values) {
+  if (typeof sql === 'string') {
+    sql = prefixQuery(sql);
+  } else if (sql && typeof sql.sql === 'string') {
+    sql.sql = prefixQuery(sql.sql);
+  }
+  return originalQuery.call(this, sql, values);
+};
+
+const originalExecute = pool.execute;
+pool.execute = function (sql, values) {
+  if (typeof sql === 'string') {
+    sql = prefixQuery(sql);
+  } else if (sql && typeof sql.sql === 'string') {
+    sql.sql = prefixQuery(sql.sql);
+  }
+  return originalExecute.call(this, sql, values);
+};
+
 // Test connection on startup
 (async () => {
   try {
