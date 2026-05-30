@@ -12,13 +12,14 @@ CREATE TABLE IF NOT EXISTS `users` (
   `name` VARCHAR(255) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
   `mobile` VARCHAR(20) NOT NULL,
-  `address` TEXT NOT NULL
+  `address` TEXT NOT NULL,
+  `createdAt` VARCHAR(100) NOT NULL DEFAULT '15-05-2026'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO `users` (`id`, `name`, `email`, `mobile`, `address`) VALUES
-(1, 'Rahul Sharma', 'rahul@gmail.com', '9876543210', 'Delhi, India'),
-(2, 'Aman Verma', 'aman@gmail.com', '9988776655', 'Jaipur, Rajasthan'),
-(3, 'Neha Singh', 'neha@gmail.com', '9123456780', 'Noida, Uttar Pradesh');
+INSERT INTO `users` (`id`, `name`, `email`, `mobile`, `address`, `createdAt`) VALUES
+(1, 'Rahul Sharma', 'rahul@gmail.com', '9876543210', 'Delhi, India', '15-05-2026'),
+(2, 'Aman Verma', 'aman@gmail.com', '9988776655', 'Jaipur, Rajasthan', '18-05-2026'),
+(3, 'Neha Singh', 'neha@gmail.com', '9123456780', 'Noida, Uttar Pradesh', '20-05-2026');
 
 -- 2. Categories Table
 CREATE TABLE IF NOT EXISTS `categories` (
@@ -239,3 +240,29 @@ INSERT INTO `reviews` (`id`, `userName`, `partnerName`, `serviceName`, `rating`,
 (1, 'Rahul Sharma', 'Govind', 'Deep House Cleaning', 5.00, 'Excellent service, Govind was very polite and thorough with his work. Highly recommended!', 1),
 (2, 'Aman Verma', 'Mahesh Kumar', 'AC Repair', 4.00, 'Fixed the AC cooling issue, work was good but arrived 30 mins late.', 1),
 (3, 'Sneha Patel', 'Govind', 'Sofa Cleaning', 4.50, 'Cleaned all the stains, very good service.', 0);
+
+-- 15. Settings Config Table
+CREATE TABLE IF NOT EXISTS `settings_config` (
+  `key` VARCHAR(255) PRIMARY KEY,
+  `value` VARCHAR(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `settings_config` (`key`, `value`) VALUES
+('commission_rate', '10')
+ON DUPLICATE KEY UPDATE `value`=`value`;
+
+-- 16. Support Tickets Table
+CREATE TABLE IF NOT EXISTS `support_tickets` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `userName` VARCHAR(255) NOT NULL,
+  `email` VARCHAR(255) NOT NULL,
+  `mobile` VARCHAR(20) NOT NULL,
+  `subject` VARCHAR(255) NOT NULL,
+  `message` TEXT NOT NULL,
+  `status` VARCHAR(50) NOT NULL DEFAULT 'Open',
+  `createdAt` VARCHAR(100) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `support_tickets` (`id`, `userName`, `email`, `mobile`, `subject`, `message`, `status`, `createdAt`) VALUES
+(1, 'Rahul Sharma', 'rahul@gmail.com', '9876543210', 'AC not cooling after repair', 'The technician Govind repaired my AC yesterday, but it is still not cooling properly. Please help.', 'Open', '29-05-2026'),
+(2, 'Aman Verma', 'aman@gmail.com', '9988776655', 'Refund status for cancellation', 'I cancelled my Sofa Cleaning request REQ1004. When will I get my refund?', 'Closed', '28-05-2026');

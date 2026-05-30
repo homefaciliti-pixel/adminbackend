@@ -2,6 +2,22 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// Automatically seed Refund and Cancellation Policy page if it doesn't exist
+async function seedPages() {
+  try {
+    const [rows] = await db.query("SELECT * FROM pages WHERE title = 'Refund and Cancellation Policy' OR title = 'Refund and Cancellation'");
+    if (rows.length === 0) {
+      await db.query(
+        "INSERT INTO pages (title, description) VALUES ('Refund and Cancellation Policy', 'We offer a full refund if the service request is cancelled at least 24 hours before the scheduled time slot. For cancellations within 24 hours, a processing fee may apply.')"
+      );
+      console.log('✅ Seeded Refund & Cancellation Policy page.');
+    }
+  } catch (error) {
+    console.error('Error seeding pages:', error);
+  }
+}
+seedPages();
+
 // GET all pages
 router.get('/', async (req, res) => {
   try {

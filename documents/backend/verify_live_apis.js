@@ -69,6 +69,37 @@ const app = server.listen(PORT, async () => {
     console.log(`✅ Users search returned ${usersRes.data.length} users (Expected matches: Rahul Sharma).`);
     usersRes.data.forEach(u => console.log(`  - ${u.name} (${u.email})`));
 
+    // Test 6: Settings Banners Search & Commission Settings
+    console.log('Testing GET /api/settings/banners?title=Summer...');
+    const bannerRes = await fetchJson(`http://localhost:${PORT}/api/settings/banners?title=Summer`);
+    if (!bannerRes.success || !Array.isArray(bannerRes.data)) {
+      throw new Error(`Invalid Banners search response: ${JSON.stringify(bannerRes)}`);
+    }
+    console.log(`✅ Banners search returned ${bannerRes.data.length} banners.`);
+
+    console.log('Testing GET /api/settings/commission...');
+    const commRes = await fetchJson(`http://localhost:${PORT}/api/settings/commission`);
+    if (!commRes.success || commRes.commissionRate === undefined) {
+      throw new Error(`Invalid Commission response: ${JSON.stringify(commRes)}`);
+    }
+    console.log(`✅ Commission Rate: ${commRes.commissionRate}%`);
+
+    // Test 7: Reports
+    console.log('Testing GET /api/reports/users (date range filtered)...');
+    const usersRepRes = await fetchJson(`http://localhost:${PORT}/api/reports/users?startDate=15-05-2026&endDate=19-05-2026`);
+    if (!usersRepRes.success || !Array.isArray(usersRepRes.data)) {
+      throw new Error(`Invalid Users report response: ${JSON.stringify(usersRepRes)}`);
+    }
+    console.log(`✅ Users report in range (15-05-2026 to 19-05-2026) returned ${usersRepRes.data.length} users.`);
+
+    // Test 8: Support Tickets List
+    console.log('Testing GET /api/support...');
+    const supportRes = await fetchJson(`http://localhost:${PORT}/api/support`);
+    if (!supportRes.success || !Array.isArray(supportRes.data)) {
+      throw new Error(`Invalid Support response: ${JSON.stringify(supportRes)}`);
+    }
+    console.log(`✅ Support Tickets: returned ${supportRes.data.length} tickets.`);
+
     console.log('\n🎉 ALL LIVE API TESTS PASSED SUCCESSFULLY!');
     process.exit(0);
   } catch (error) {

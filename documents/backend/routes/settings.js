@@ -6,10 +6,18 @@ const db = require('../db');
 // 1. BANNERS API
 // ==========================================
 
-// GET all banners
+// GET all banners (with search)
 router.get('/banners', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM banners ORDER BY id DESC');
+    const { title } = req.query;
+    let query = 'SELECT * FROM banners';
+    const params = [];
+    if (title) {
+      query += ' WHERE title LIKE ?';
+      params.push(`%${title}%`);
+    }
+    query += ' ORDER BY id DESC';
+    const [rows] = await db.query(query, params);
     res.json({
       success: true,
       data: rows.map(r => ({ ...r, status: r.status === 1 }))
@@ -81,10 +89,18 @@ router.delete('/banners/:id', async (req, res) => {
 // 2. STATES API
 // ==========================================
 
-// GET all states
+// GET all states (with search)
 router.get('/states', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM states ORDER BY name ASC');
+    const { name } = req.query;
+    let query = 'SELECT * FROM states';
+    const params = [];
+    if (name) {
+      query += ' WHERE name LIKE ?';
+      params.push(`%${name}%`);
+    }
+    query += ' ORDER BY name ASC';
+    const [rows] = await db.query(query, params);
     res.json({
       success: true,
       data: rows.map(r => ({ ...r, status: r.status === 1 }))
@@ -150,10 +166,22 @@ router.delete('/states/:id', async (req, res) => {
 // 3. CITIES API
 // ==========================================
 
-// GET all cities
+// GET all cities (with search)
 router.get('/cities', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM cities ORDER BY cityName ASC');
+    const { cityName, stateName } = req.query;
+    let query = 'SELECT * FROM cities WHERE 1=1';
+    const params = [];
+    if (cityName) {
+      query += ' AND cityName LIKE ?';
+      params.push(`%${cityName}%`);
+    }
+    if (stateName) {
+      query += ' AND stateName LIKE ?';
+      params.push(`%${stateName}%`);
+    }
+    query += ' ORDER BY cityName ASC';
+    const [rows] = await db.query(query, params);
     res.json({
       success: true,
       data: rows.map(r => ({ ...r, status: r.status === 1 }))
@@ -223,10 +251,26 @@ router.delete('/cities/:id', async (req, res) => {
 // 4. LOCALITIES API
 // ==========================================
 
-// GET all localities
+// GET all localities (with search)
 router.get('/localities', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM localities ORDER BY localityName ASC');
+    const { localityName, cityName, stateName } = req.query;
+    let query = 'SELECT * FROM localities WHERE 1=1';
+    const params = [];
+    if (localityName) {
+      query += ' AND localityName LIKE ?';
+      params.push(`%${localityName}%`);
+    }
+    if (cityName) {
+      query += ' AND cityName LIKE ?';
+      params.push(`%${cityName}%`);
+    }
+    if (stateName) {
+      query += ' AND stateName LIKE ?';
+      params.push(`%${stateName}%`);
+    }
+    query += ' ORDER BY localityName ASC';
+    const [rows] = await db.query(query, params);
     res.json({
       success: true,
       data: rows.map(r => ({ ...r, status: r.status === 1 }))
@@ -375,10 +419,27 @@ router.delete('/reviews/:id', async (req, res) => {
 // 6. NOTIFICATIONS API
 // ==========================================
 
-// GET all notifications
+// GET all notifications (with search)
 router.get('/notifications', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM notifications ORDER BY id DESC');
+    const { title, audience, status } = req.query;
+    let query = 'SELECT * FROM notifications WHERE 1=1';
+    const params = [];
+    if (title) {
+      query += ' AND title LIKE ?';
+      params.push(`%${title}%`);
+    }
+    if (audience) {
+      query += ' AND audience LIKE ?';
+      params.push(`%${audience}%`);
+    }
+    if (status !== undefined) {
+      const statusInt = status === 'true' || status === '1' ? 1 : 0;
+      query += ' AND status = ?';
+      params.push(statusInt);
+    }
+    query += ' ORDER BY id DESC';
+    const [rows] = await db.query(query, params);
     res.json({
       success: true,
       data: rows.map(r => ({
@@ -465,5 +526,47 @@ router.delete('/notifications/:id', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to delete notification', error: error.message });
   }
 });
+
+
+// ==========================================
+// 7. COMMISSION SETTINGS API
+// ==========================================
+
+// GET commission settings
+router.get('/commission', async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT * FROM settings_config WHERE `key` = 'commission_rate'");
+    const rate = rows.length > 0 ? parseFloat(rows[0].value) : 10.0;
+    res.json({
+      success: true,
+      commissionRate: rate
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch commission setting', error: error.message });
+  }
+});
+
+// PUT update commission settings
+router.put('/commission', async (req, res) => {
+  const { commissionRate } = req.body;
+  if (commissionRate === undefined) {
+    return res.status(400).json({ success: false, message: 'commissionRate is required' });
+  }
+  const rateVal = parseFloat(commissionRate);
+  try {
+    await db.query(
+      "INSERT INTO settings_config (`key`, `value`) VALUES ('commission_rate', ?) ON DUPLICATE KEY UPDATE `value` = ?",
+      [String(rateVal), String(rateVal)]
+    );
+    res.json({
+      success: true,
+      message: 'Commission rate updated successfully',
+      commissionRate: rateVal
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update commission setting', error: error.message });
+  }
+});
+
 
 module.exports = router;

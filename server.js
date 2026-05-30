@@ -32,6 +32,8 @@ const partnersRouter = require('./routes/partners');
 const earningsRouter = require('./routes/earnings');
 const pagesRouter = require('./routes/pages');
 const settingsRouter = require('./routes/settings');
+const reportsRouter = require('./routes/reports');
+const supportRouter = require('./routes/support');
 
 // Register API Routes
 server.use('/api/dashboard', dashboardRouter);
@@ -43,6 +45,8 @@ server.use('/api/partners', partnersRouter);
 server.use('/api/earnings', earningsRouter);
 server.use('/api/pages', pagesRouter);
 server.use('/api/settings', settingsRouter);
+server.use('/api/reports', reportsRouter);
+server.use('/api/support', supportRouter);
 
 // Page Not Found (404) Route
 server.use((req, res) => {

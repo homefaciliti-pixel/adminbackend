@@ -247,28 +247,73 @@ Request Body:
 8. CONTENT PAGES
 ---
 Endpoint: GET /api/pages
+Description: Retrieve list of content pages (About Us, Refund and Cancellation Policy, Terms and Conditions, Privacy Policy).
+Response: Array of Pages
+
 Endpoint: PUT /api/pages/:id
-Request Body: { "description": "Updated content goes here..." }
+Description: Update content page details.
+Request Body: { "title": "Updated Title", "description": "Updated content..." }
 
 ---
 9. CONFIGURATION & SETTINGS
 ---
 Endpoints:
 - Banners: GET|POST|PUT|DELETE /api/settings/banners
+  Description: Manage banners. GET supports query filter parameter "title" (LIKE).
   Body sample: { "title": "Offer", "image": "url", "status": true }
 
 - States: GET|POST|PUT|DELETE /api/settings/states
+  Description: Manage states. GET supports query filter parameter "name" (LIKE).
   Body sample: { "name": "Haryana", "status": true }
 
 - Cities: GET|POST|PUT|DELETE /api/settings/cities
+  Description: Manage cities. GET supports query filter parameters "cityName" (LIKE), "stateName" (LIKE).
   Body sample: { "cityName": "Gurugram", "stateName": "Haryana", "status": true }
 
 - Localities: GET|POST|PUT|DELETE /api/settings/localities
+  Description: Manage localities. GET supports query filter parameters "localityName" (LIKE), "cityName" (LIKE), "stateName" (LIKE).
   Body sample: { "localityName": "Sector 54", "cityName": "Gurugram", "stateName": "Haryana", "status": true }
 
-- Reviews: GET|POST|PUT|DELETE /api/settings/reviews
+- Commission Setting: GET|PUT /api/settings/commission
+  Description: Manage commission settings.
+  GET returns: { "success": true, "commissionRate": 10.0 }
+  PUT Request Body: { "commissionRate": 15.0 }
+
+- Reviews & Ratings: GET|POST|PUT|DELETE /api/settings/reviews
   Body sample: { "userName": "Rahul", "partnerName": "Govind", "rating": 5.0, "reviewText": "Good" }
 
 - Notifications: GET|POST|PUT|DELETE /api/settings/notifications
+  Description: Manage notification logs. GET supports query filter parameters "title" (LIKE), "audience" (LIKE), "status" (1 or 0).
   Body sample: { "title": "Alert", "message": "KYC needed", "audience": "All Partners" }
   Body sample for sending: { "isSent": true }
+
+---
+10. REPORTS
+---
+Endpoints:
+- Users Report: GET /api/reports/users
+- Partners Report: GET /api/reports/partners
+- Earnings Report: GET /api/reports/earnings
+- Subscriptions Report: GET /api/reports/subscriptions
+
+Query Params (Optional):
+- startDate: Filter start date (YYYY-MM-DD or DD-MM-YYYY)
+- endDate: Filter end date (YYYY-MM-DD or DD-MM-YYYY)
+- query: General search keyword (LIKE)
+- export: Pass "csv" to download report as CSV file
+
+---
+11. SUPPORT TICKETS
+---
+Endpoints:
+- Support Ticket List: GET /api/support
+  Query Params (Optional):
+  - query: Search UserName, Email, Subject, Message (LIKE)
+  - status: Filter by status (Open, Closed, etc.)
+- Ticket Details: GET /api/support/:id
+- Create Ticket: POST /api/support
+  Request Body: { "userName": "Rahul", "email": "rahul@gmail.com", "mobile": "9876543210", "subject": "AC Issue", "message": "AC not cooling" }
+- Update Ticket: PUT /api/support/:id
+  Request Body: { "status": "Closed" }
+- Delete Ticket: DELETE /api/support/:id
+
