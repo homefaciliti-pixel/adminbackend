@@ -350,11 +350,18 @@ Endpoints:
   - Booking Earnings Report: GET /api/reports/earnings
   - Subscriptions Report: GET /api/reports/subscriptions
 
-Query Parameters (Optional):
+Query Parameters (Required):
   - startDate: Start date filter (DD-MM-YYYY or YYYY-MM-DD format)
   - endDate: End date filter (DD-MM-YYYY or YYYY-MM-DD format)
-  - query: General search keyword (LIKE match)
-  - export: Send "csv" to download report as a raw CSV file response.
+  - query: General search keyword (LIKE match) — pass empty string "" to skip filtering
+  - export: Pass "csv" to download report as a raw CSV file — pass empty string "" for JSON response
+
+Error (400) if any parameter is missing:
+{ "success": false, "message": "startDate, endDate, query, and export parameters are required" }
+
+Example:
+  GET /api/reports/users?startDate=01-05-2026&endDate=31-05-2026&query=Rahul&export=
+  GET /api/reports/users?startDate=01-05-2026&endDate=31-05-2026&query=&export=csv
 
 ----------------------------------------------------------------------
 11. SUPPORT TICKETS

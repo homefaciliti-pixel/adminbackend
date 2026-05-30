@@ -105,13 +105,48 @@ const app = server.listen(PORT, async () => {
     }
     console.log(`✅ Commission Rate: ${commRes.commissionRate}%`);
 
-    // Test 7: Reports
-    console.log('Testing GET /api/reports/users (date range filtered)...');
-    const usersRepRes = await fetchJson(`http://localhost:${PORT}/api/reports/users?startDate=15-05-2026&endDate=19-05-2026`);
+    // Test 7: Reports - all 4 endpoints with required params
+    console.log('\n--- Running Reports Tests ---');
+
+    // 7a. Missing params should return 400
+    console.log('Testing GET /api/reports/users without required params (expects 400)...');
+    const reportMissingRes = await fetchJson(`http://localhost:${PORT}/api/reports/users?startDate=15-05-2026`);
+    if (reportMissingRes.success !== false) {
+      throw new Error(`Expected 400 error for missing params but got: ${JSON.stringify(reportMissingRes)}`);
+    }
+    console.log('✅ Missing params correctly rejected with:', reportMissingRes.message);
+
+    // 7b. Users Report with all required params
+    console.log('Testing GET /api/reports/users with all required params...');
+    const usersRepRes = await fetchJson(`http://localhost:${PORT}/api/reports/users?startDate=01-01-2026&endDate=31-12-2026&query=&export=`);
     if (!usersRepRes.success || !Array.isArray(usersRepRes.data)) {
       throw new Error(`Invalid Users report response: ${JSON.stringify(usersRepRes)}`);
     }
-    console.log(`✅ Users report in range (15-05-2026 to 19-05-2026) returned ${usersRepRes.data.length} users.`);
+    console.log(`✅ Users report returned ${usersRepRes.data.length} users.`);
+
+    // 7c. Partners Report with all required params
+    console.log('Testing GET /api/reports/partners with all required params...');
+    const partnersRepRes = await fetchJson(`http://localhost:${PORT}/api/reports/partners?startDate=01-01-2026&endDate=31-12-2026&query=&export=`);
+    if (!partnersRepRes.success || !Array.isArray(partnersRepRes.data)) {
+      throw new Error(`Invalid Partners report response: ${JSON.stringify(partnersRepRes)}`);
+    }
+    console.log(`✅ Partners report returned ${partnersRepRes.data.length} partners.`);
+
+    // 7d. Earnings Report with all required params
+    console.log('Testing GET /api/reports/earnings with all required params...');
+    const earningsRepRes = await fetchJson(`http://localhost:${PORT}/api/reports/earnings?startDate=01-01-2026&endDate=31-12-2026&query=&export=`);
+    if (!earningsRepRes.success || !Array.isArray(earningsRepRes.data)) {
+      throw new Error(`Invalid Earnings report response: ${JSON.stringify(earningsRepRes)}`);
+    }
+    console.log(`✅ Earnings report returned ${earningsRepRes.data.length} records.`);
+
+    // 7e. Subscriptions Report with all required params
+    console.log('Testing GET /api/reports/subscriptions with all required params...');
+    const subsRepRes = await fetchJson(`http://localhost:${PORT}/api/reports/subscriptions?startDate=01-01-2026&endDate=31-12-2026&query=&export=`);
+    if (!subsRepRes.success || !Array.isArray(subsRepRes.data)) {
+      throw new Error(`Invalid Subscriptions report response: ${JSON.stringify(subsRepRes)}`);
+    }
+    console.log(`✅ Subscriptions report returned ${subsRepRes.data.length} records.`);
 
     // Test 8: Support Tickets List
     console.log('Testing GET /api/support...');

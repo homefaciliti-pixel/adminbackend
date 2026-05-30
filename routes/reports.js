@@ -60,6 +60,12 @@ function mapPartner(r) {
 router.get('/users', async (req, res) => {
   try {
     const { startDate, endDate, query: searchQuery, export: exportType } = req.query;
+    if (!startDate || !endDate || searchQuery === undefined || exportType === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate, endDate, query, and export parameters are required'
+      });
+    }
     let sqlStr = 'SELECT * FROM users WHERE 1=1';
     const params = [];
 
@@ -104,6 +110,12 @@ router.get('/users', async (req, res) => {
 router.get('/partners', async (req, res) => {
   try {
     const { startDate, endDate, query: searchQuery, export: exportType } = req.query;
+    if (!startDate || !endDate || searchQuery === undefined || exportType === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate, endDate, query, and export parameters are required'
+      });
+    }
     let sqlStr = 'SELECT * FROM partners WHERE 1=1';
     const params = [];
 
@@ -153,6 +165,12 @@ router.get('/partners', async (req, res) => {
 router.get('/earnings', async (req, res) => {
   try {
     const { startDate, endDate, query: searchQuery, export: exportType } = req.query;
+    if (!startDate || !endDate || searchQuery === undefined || exportType === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate, endDate, query, and export parameters are required'
+      });
+    }
     let sqlStr = 'SELECT * FROM booking_earnings WHERE 1=1';
     const params = [];
 
@@ -204,6 +222,12 @@ router.get('/earnings', async (req, res) => {
 router.get('/subscriptions', async (req, res) => {
   try {
     const { startDate, endDate, query: searchQuery, export: exportType } = req.query;
+    if (!startDate || !endDate || searchQuery === undefined || exportType === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate, endDate, query, and export parameters are required'
+      });
+    }
     let sqlStr = 'SELECT * FROM subscription_earnings WHERE 1=1';
     const params = [];
 
