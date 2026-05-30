@@ -153,9 +153,21 @@ router.put('/states/:id', async (req, res) => {
 router.delete('/states/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const [result] = await db.query('DELETE FROM states WHERE id = ?', [id]);
-    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'State not found' });
-    res.json({ success: true, message: 'State deleted successfully' });
+    // Fetch state name to perform programmatic cascade delete of cities and localities
+    const [rows] = await db.query('SELECT name FROM states WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'State not found' });
+    const stateName = rows[0].name;
+
+    // Delete all localities in this state
+    await db.query('DELETE FROM localities WHERE stateName = ?', [stateName]);
+
+    // Delete all cities in this state
+    await db.query('DELETE FROM cities WHERE stateName = ?', [stateName]);
+
+    // Delete state record
+    await db.query('DELETE FROM states WHERE id = ?', [id]);
+
+    res.json({ success: true, message: 'State and its cities and localities deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete state', error: error.message });
   }
@@ -238,9 +250,18 @@ router.put('/cities/:id', async (req, res) => {
 router.delete('/cities/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const [result] = await db.query('DELETE FROM cities WHERE id = ?', [id]);
-    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'City not found' });
-    res.json({ success: true, message: 'City deleted successfully' });
+    // Fetch city name to perform programmatic cascade delete of localities
+    const [rows] = await db.query('SELECT cityName FROM cities WHERE id = ?', [id]);
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'City not found' });
+    const cityName = rows[0].cityName;
+
+    // Delete all localities in this city
+    await db.query('DELETE FROM localities WHERE cityName = ?', [cityName]);
+
+    // Delete city record
+    await db.query('DELETE FROM cities WHERE id = ?', [id]);
+
+    res.json({ success: true, message: 'City and its localities deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete city', error: error.message });
   }

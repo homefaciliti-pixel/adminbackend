@@ -140,13 +140,22 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const [result] = await db.query('DELETE FROM categories WHERE id = ?', [id]);
-    if (result.affectedRows === 0) {
+    // Fetch category title first to perform programmatic cascade delete of sub-categories
+    const [rows] = await db.query('SELECT title FROM categories WHERE id = ?', [id]);
+    if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
+    const categoryTitle = rows[0].title;
+
+    // Delete sub-categories referencing this category title as parent
+    await db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]);
+
+    // Delete parent category
+    await db.query('DELETE FROM categories WHERE id = ?', [id]);
+
     res.json({
       success: true,
-      message: 'Category deleted successfully'
+      message: 'Category and its sub-categories deleted successfully'
     });
   } catch (error) {
     console.error('Error deleting category:', error);

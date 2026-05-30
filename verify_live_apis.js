@@ -100,6 +100,175 @@ const app = server.listen(PORT, async () => {
     }
     console.log(`✅ Support Tickets: returned ${supportRes.data.length} tickets.`);
 
+    // ==========================================================
+    // CASCADING DELETION TESTS
+    // ==========================================================
+    
+    // HTTP helper for POST/DELETE methods
+    function makeRequest(url, method, body = null) {
+      return new Promise((resolve, reject) => {
+        const parsedUrl = new URL(url);
+        const options = {
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port,
+          path: parsedUrl.pathname + parsedUrl.search,
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        };
+        const req = http.request(options, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            try {
+              resolve({ statusCode: res.statusCode, body: JSON.parse(data) });
+            } catch (err) {
+              reject(new Error(`Failed to parse JSON: ${data}`));
+            }
+          });
+        }).on('error', reject);
+        if (body) {
+          req.write(JSON.stringify(body));
+        }
+        req.end();
+      });
+    }
+
+    console.log('\n--- Running Deletion & Cascade Tests ---');
+
+    // 1. Categories Cascade Delete
+    console.log('1. Testing category cascade deletion...');
+    const createParentRes = await makeRequest(`http://localhost:${PORT}/api/categories`, 'POST', {
+      title: 'TestParentClean',
+      parent: 'None',
+      image: 'img',
+      status: true
+    });
+    if (createParentRes.statusCode !== 201 || !createParentRes.body.success) {
+      throw new Error(`Failed to create parent category: ${JSON.stringify(createParentRes.body)}`);
+    }
+    const parentId = createParentRes.body.data.id;
+
+    const createSubRes = await makeRequest(`http://localhost:${PORT}/api/categories`, 'POST', {
+      title: 'TestSubClean',
+      parent: 'TestParentClean',
+      image: 'img',
+      status: true
+    });
+    if (createSubRes.statusCode !== 201 || !createSubRes.body.success) {
+      throw new Error(`Failed to create subcategory: ${JSON.stringify(createSubRes.body)}`);
+    }
+    const subId = createSubRes.body.data.id;
+
+    console.log(`Created parent category ID ${parentId} and subcategory ID ${subId}. Now deleting parent...`);
+    const delCatRes = await makeRequest(`http://localhost:${PORT}/api/categories/${parentId}`, 'DELETE');
+    if (delCatRes.statusCode !== 200 || !delCatRes.body.success) {
+      throw new Error(`Failed to delete category: ${JSON.stringify(delCatRes.body)}`);
+    }
+
+    // Verify parent is deleted
+    const checkCats = await fetchJson(`http://localhost:${PORT}/api/categories`);
+    const parentExists = checkCats.data.some(c => c.id === parentId);
+    const subExists = checkCats.data.some(c => c.id === subId);
+    if (parentExists) {
+      throw new Error('Parent category was not deleted!');
+    }
+    if (subExists) {
+      throw new Error('Subcategory was not cascade deleted!');
+    }
+    console.log('✅ Category cascade deletion test passed successfully.');
+
+    // 2. States, Cities & Localities Cascade Delete
+    console.log('2. Testing state cascade deletion...');
+    const createStRes = await makeRequest(`http://localhost:${PORT}/api/settings/states`, 'POST', {
+      name: 'TestStateDelete',
+      status: true
+    });
+    if (createStRes.statusCode !== 201 || !createStRes.body.success) {
+      throw new Error(`Failed to create state: ${JSON.stringify(createStRes.body)}`);
+    }
+    const stId = createStRes.body.data.id;
+
+    const createCiRes = await makeRequest(`http://localhost:${PORT}/api/settings/cities`, 'POST', {
+      cityName: 'TestCityDelete',
+      stateName: 'TestStateDelete',
+      status: true
+    });
+    if (createCiRes.statusCode !== 201 || !createCiRes.body.success) {
+      throw new Error(`Failed to create city: ${JSON.stringify(createCiRes.body)}`);
+    }
+    const ciId = createCiRes.body.data.id;
+
+    const createLocRes = await makeRequest(`http://localhost:${PORT}/api/settings/localities`, 'POST', {
+      localityName: 'TestLocalityDelete',
+      cityName: 'TestCityDelete',
+      stateName: 'TestStateDelete',
+      status: true
+    });
+    if (createLocRes.statusCode !== 201 || !createLocRes.body.success) {
+      throw new Error(`Failed to create locality: ${JSON.stringify(createLocRes.body)}`);
+    }
+    const locId = createLocRes.body.data.id;
+
+    console.log(`Created state ID ${stId}, city ID ${ciId}, and locality ID ${locId}. Deleting state...`);
+    const delStateRes = await makeRequest(`http://localhost:${PORT}/api/settings/states/${stId}`, 'DELETE');
+    if (delStateRes.statusCode !== 200 || !delStateRes.body.success) {
+      throw new Error(`Failed to delete state: ${JSON.stringify(delStateRes.body)}`);
+    }
+
+    // Verify state, city and locality are deleted
+    const statesList = await fetchJson(`http://localhost:${PORT}/api/settings/states`);
+    const citiesList = await fetchJson(`http://localhost:${PORT}/api/settings/cities`);
+    const localitiesList = await fetchJson(`http://localhost:${PORT}/api/settings/localities`);
+
+    if (statesList.data.some(s => s.id === stId)) throw new Error('State was not deleted!');
+    if (citiesList.data.some(c => c.id === ciId)) throw new Error('City was not cascade deleted!');
+    if (localitiesList.data.some(l => l.id === locId)) throw new Error('Locality was not cascade deleted!');
+    console.log('✅ State cascade deletion test passed successfully.');
+
+    // 3. Cities & Localities Cascade Delete
+    console.log('3. Testing city cascade deletion...');
+    const createSt2Res = await makeRequest(`http://localhost:${PORT}/api/settings/states`, 'POST', {
+      name: 'TestStateDelete2',
+      status: true
+    });
+    const st2Id = createSt2Res.body.data.id;
+
+    const createCi2Res = await makeRequest(`http://localhost:${PORT}/api/settings/cities`, 'POST', {
+      cityName: 'TestCityDelete2',
+      stateName: 'TestStateDelete2',
+      status: true
+    });
+    const ci2Id = createCi2Res.body.data.id;
+
+    const createLoc2Res = await makeRequest(`http://localhost:${PORT}/api/settings/localities`, 'POST', {
+      localityName: 'TestLocalityDelete2',
+      cityName: 'TestCityDelete2',
+      stateName: 'TestStateDelete2',
+      status: true
+    });
+    const loc2Id = createLoc2Res.body.data.id;
+
+    console.log(`Created state ID ${st2Id}, city ID ${ci2Id}, and locality ID ${loc2Id}. Deleting city...`);
+    const delCityRes = await makeRequest(`http://localhost:${PORT}/api/settings/cities/${ci2Id}`, 'DELETE');
+    if (delCityRes.statusCode !== 200 || !delCityRes.body.success) {
+      throw new Error(`Failed to delete city: ${JSON.stringify(delCityRes.body)}`);
+    }
+
+    // Verify city and locality are deleted, but state still exists
+    const states2List = await fetchJson(`http://localhost:${PORT}/api/settings/states`);
+    const cities2List = await fetchJson(`http://localhost:${PORT}/api/settings/cities`);
+    const localities2List = await fetchJson(`http://localhost:${PORT}/api/settings/localities`);
+
+    if (!states2List.data.some(s => s.id === st2Id)) throw new Error('State should still exist but was deleted!');
+    if (cities2List.data.some(c => c.id === ci2Id)) throw new Error('City was not deleted!');
+    if (localities2List.data.some(l => l.id === loc2Id)) throw new Error('Locality was not cascade deleted!');
+
+    // Cleanup state 2
+    await makeRequest(`http://localhost:${PORT}/api/settings/states/${st2Id}`, 'DELETE');
+    console.log('✅ City cascade deletion test passed successfully.');
+
     console.log('\n🎉 ALL LIVE API TESTS PASSED SUCCESSFULLY!');
     process.exit(0);
   } catch (error) {
