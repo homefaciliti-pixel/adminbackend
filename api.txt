@@ -290,13 +290,32 @@ Response Data: Created Subscription Earning object.
 8. CONTENT PAGES
 ----------------------------------------------------------------------
 Endpoint: GET /api/pages
-Description: Retrieve list of content pages (About Us, Refund and Cancellation Policy, Terms and Conditions, Privacy Policy).
-Response Data: Array of Page objects. (Seeding self-heals missing policy pages automatically on boot).
+Description: Retrieve list of all content pages (About Us, Terms and Conditions, Privacy Policy, Refund and Cancellation Policy).
+Note: Table is auto-created and seeded with 4 default pages on server boot if empty.
+Response Data: Array of Page objects.
+
+Endpoint: GET /api/pages/:id
+Description: Fetch a single content page by ID.
+Response Data: Single Page object.
+Error (404): { "success": false, "message": "Page not found" }
+
+Endpoint: POST /api/pages
+Description: Add a new content page.
+Request Body (JSON):
+{
+  "title": "About Us",
+  "description": "We provide the best on-demand home services."
+}
+Response Data: Created Page object.
 
 Endpoint: PUT /api/pages/:id
-Description: Update content page details.
+Description: Update content page title and/or description.
 Request Body (JSON): { "title": "Updated Title", "description": "Updated content..." }
 Response Data: Updated Page object.
+
+Endpoint: DELETE /api/pages/:id
+Description: Delete a content page by ID.
+Response Data: { "success": true, "message": "Page deleted successfully" }
 
 ----------------------------------------------------------------------
 9. CONFIGURATION & SETTINGS
