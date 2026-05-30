@@ -22,10 +22,46 @@ function mapPartner(r) {
   };
 }
 
-// GET all partners
+// GET all partners (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM partners ORDER BY id DESC');
+    const { name, mobile, city, state, date, status, isApproved } = req.query;
+    let query = 'SELECT * FROM partners WHERE 1=1';
+    const params = [];
+
+    if (name) {
+      query += ' AND name LIKE ?';
+      params.push(`%${name}%`);
+    }
+    if (mobile) {
+      query += ' AND mobile LIKE ?';
+      params.push(`%${mobile}%`);
+    }
+    if (city) {
+      query += ' AND city LIKE ?';
+      params.push(`%${city}%`);
+    }
+    if (state) {
+      query += ' AND state LIKE ?';
+      params.push(`%${state}%`);
+    }
+    if (date) {
+      query += ' AND createdAt LIKE ?';
+      params.push(`%${date}%`);
+    }
+    if (status !== undefined) {
+      const statusVal = (status === 'true' || status === '1') ? 1 : 0;
+      query += ' AND status = ?';
+      params.push(statusVal);
+    }
+    if (isApproved !== undefined) {
+      const isApprovedVal = (isApproved === 'true' || isApproved === '1') ? 1 : 0;
+      query += ' AND isApproved = ?';
+      params.push(isApprovedVal);
+    }
+
+    query += ' ORDER BY id DESC';
+    const [rows] = await db.query(query, params);
     res.json({
       success: true,
       data: rows.map(mapPartner)
@@ -86,6 +122,109 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error registering partner:', error);
     res.status(500).json({ success: false, message: 'Failed to register partner', error: error.message });
+  }
+});
+
+// GET pending approval partners (with optional search/filtering)
+router.get('/pending', async (req, res) => {
+  try {
+    const { name, mobile, city, state, date, status } = req.query;
+    let query = 'SELECT * FROM partners WHERE isApproved = 0';
+    const params = [];
+
+    if (name) {
+      query += ' AND name LIKE ?';
+      params.push(`%${name}%`);
+    }
+    if (mobile) {
+      query += ' AND mobile LIKE ?';
+      params.push(`%${mobile}%`);
+    }
+    if (city) {
+      query += ' AND city LIKE ?';
+      params.push(`%${city}%`);
+    }
+    if (state) {
+      query += ' AND state LIKE ?';
+      params.push(`%${state}%`);
+    }
+    if (date) {
+      query += ' AND createdAt LIKE ?';
+      params.push(`%${date}%`);
+    }
+    if (status !== undefined) {
+      const statusVal = (status === 'true' || status === '1') ? 1 : 0;
+      query += ' AND status = ?';
+      params.push(statusVal);
+    }
+
+    query += ' ORDER BY id DESC';
+    const [rows] = await db.query(query, params);
+    res.json({
+      success: true,
+      data: rows.map(mapPartner)
+    });
+  } catch (error) {
+    console.error('Error fetching pending partners:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch pending partners', error: error.message });
+  }
+});
+
+// PUT approve partner
+router.put('/:id/approve', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query('UPDATE partners SET isApproved = 1, status = 1 WHERE id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Partner not found' });
+    }
+    const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [id]);
+    res.json({
+      success: true,
+      message: 'Partner approved successfully',
+      data: mapPartner(rows[0])
+    });
+  } catch (error) {
+    console.error('Error approving partner:', error);
+    res.status(500).json({ success: false, message: 'Failed to approve partner', error: error.message });
+  }
+});
+
+// PUT disapprove partner
+router.put('/:id/disapprove', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await db.query('UPDATE partners SET isApproved = 0 WHERE id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Partner not found' });
+    }
+    const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [id]);
+    res.json({
+      success: true,
+      message: 'Partner disapproved successfully',
+      data: mapPartner(rows[0])
+    });
+  } catch (error) {
+    console.error('Error disapproving partner:', error);
+    res.status(500).json({ success: false, message: 'Failed to disapprove partner', error: error.message });
+  }
+});
+
+// GET single partner details
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Partner not found' });
+    }
+    res.json({
+      success: true,
+      data: mapPartner(rows[0])
+    });
+  } catch (error) {
+    console.error('Error fetching partner details:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch partner details', error: error.message });
   }
 });
 

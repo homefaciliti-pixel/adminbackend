@@ -8,33 +8,41 @@ Base URL: http://localhost:3000/api
 1. DASHBOARD STATISTICS
 ---
 Endpoint: GET /api/dashboard
-Description: Fetch counts and earning aggregates for dashboard cards.
+Description: Fetch dashboard summary statistics (counts and total earnings).
 Response:
 {
   "success": true,
-  "data": {
-    "totalUsers": 1250,
-    "totalCategories": 24,
-    "totalServices": 88,
-    "totalPartners": 320,
-    "totalOrders": 5420,
-    "todayOrders": 2,
-    "completeOrders": 4800,
-    "assignedOrders": 210,
-    "cancelOrders": 62,
-    "totalSupporters": 14,
-    "subscriptionEarning": "₹85,000",
-    "orderEarning": "₹1,85,000",
-    "rawSubscriptionEarning": 85000,
-    "rawOrderEarning": 185000
-  }
+  "data": [
+    { "name": "Total Users", "totalAmount": 1250, "imageIcon": "http://localhost:3000/icons/users.png" },
+    { "name": "Total Categories", "totalAmount": 24, "imageIcon": "http://localhost:3000/icons/categories.png" },
+    { "name": "Total Services", "totalAmount": 88, "imageIcon": "http://localhost:3000/icons/services.png" },
+    { "name": "Total Partners", "totalAmount": 320, "imageIcon": "http://localhost:3000/icons/partners.png" },
+    { "name": "Total Orders", "totalAmount": 5420, "imageIcon": "http://localhost:3000/icons/orders.png" },
+    { "name": "Today Orders", "totalAmount": 2, "imageIcon": "http://localhost:3000/icons/today_orders.png" },
+    { "name": "Complete Orders", "totalAmount": 4800, "imageIcon": "http://localhost:3000/icons/complete_orders.png" },
+    { "name": "Assigned Orders", "totalAmount": 210, "imageIcon": "http://localhost:3000/icons/assigned_orders.png" },
+    { "name": "Cancel Orders", "totalAmount": 62, "imageIcon": "http://localhost:3000/icons/cancel_orders.png" },
+    { "name": "Total Supporters", "totalAmount": 14, "imageIcon": "http://localhost:3000/icons/supporters.png" },
+    { "name": "Subscription Earnings", "totalAmount": 85000, "imageIcon": "http://localhost:3000/icons/subscription_earnings.png" },
+    { "name": "Order Earnings", "totalAmount": 185000, "imageIcon": "http://localhost:3000/icons/order_earnings.png" }
+  ]
 }
 
 ---
 2. USERS MANAGEMENT
 ---
 Endpoint: GET /api/users
+Description: Retrieve list of users. Supports search via query parameters.
+Query Params (Optional):
+- query: Searches name, email, or mobile (LIKE)
+- name: Filter by name (LIKE)
+- email: Filter by email (LIKE)
+- mobile: Filter by mobile (LIKE)
 Response Data: Array of Users
+
+Endpoint: GET /api/users/:id
+Description: Fetch details of a single user by ID.
+Response Data: Single User Object
 
 Endpoint: POST /api/users
 Request Body:
@@ -46,6 +54,7 @@ Request Body:
 }
 
 Endpoint: DELETE /api/users/:id
+Description: Delete user by ID.
 
 ---
 3. CATEGORIES MANAGEMENT
@@ -122,7 +131,22 @@ Endpoint: DELETE /api/orders/:id
 6. PARTNERS (VENDORS)
 ---
 Endpoint: GET /api/partners
+Description: Retrieve list of partners. Supports filtering and searching via query parameters.
+Query Params (Optional):
+- name: Search by partner name (LIKE)
+- mobile: Search by mobile number (LIKE)
+- city: Filter by city (LIKE)
+- state: Filter by state (LIKE)
+- date: Filter by createdAt date (LIKE)
+- status: Filter by status (1 or 0 / true or false)
+- isApproved: Filter by approval status (1 or 0 / true or false)
 Response Data: Array of Partners with KYC data
+
+Endpoint: GET /api/partners/pending
+Description: Retrieve list of partners pending approval (isApproved = 0). Supports the same query parameters as the GET /api/partners route.
+
+Endpoint: GET /api/partners/:id
+Description: Get full details of a single partner by ID.
 
 Endpoint: POST /api/partners
 Request Body:
@@ -147,18 +171,38 @@ Request Body:
 }
 
 Endpoint: PUT /api/partners/:id
-Request Body: (KYC Approval / Edit)
-{
-  "isApproved": true,
-  "status": true
-}
+Description: Update/Edit partner details.
+Request Body: Dynamic properties to edit
+
+Endpoint: PUT /api/partners/:id/approve
+Description: Approve partner. Sets isApproved = 1 and status = 1.
+
+Endpoint: PUT /api/partners/:id/disapprove
+Description: Disapprove partner. Sets isApproved = 0.
 
 Endpoint: DELETE /api/partners/:id
+Description: Delete partner by ID.
 
 ---
 7. EARNINGS
 ---
 Endpoint: GET /api/earnings/bookings
+Description: Fetch booking transactions. Supports filters and search, and returns aggregates.
+Query Params (Optional):
+- query: Searches transactionId, paymentMethod, extraServicePaymentMethod, orderDate
+- transactionId: Filter by transactionId (LIKE)
+- paymentMethod: Filter by paymentMethod (LIKE)
+- orderDate: Filter by orderDate (LIKE)
+Response Schema:
+{
+  "success": true,
+  "totalBookingEarnings": 2800.00,
+  "totalTransactions": 3,
+  "filteredBookingEarnings": 2800.00,
+  "filteredTransactions": 3,
+  "data": [ ... ]
+}
+
 Endpoint: POST /api/earnings/bookings
 Request Body:
 {
@@ -172,6 +216,23 @@ Request Body:
 }
 
 Endpoint: GET /api/earnings/subscriptions
+Description: Fetch subscription purchases. Supports filters and search, and returns aggregates.
+Query Params (Optional):
+- query: Searches partnerName, paymentMethod, status, purchaseDate
+- partnerName: Filter by partner name (LIKE)
+- paymentMethod: Filter by payment method (LIKE)
+- status: Filter by payment status (Paid, etc.)
+- purchaseDate: Filter by purchase date (LIKE)
+Response Schema:
+{
+  "success": true,
+  "totalSubscriptionsEarnings": 200.00,
+  "totalPlans": 2,
+  "filteredSubscriptionsEarnings": 200.00,
+  "filteredPlans": 2,
+  "data": [ ... ]
+}
+
 Endpoint: POST /api/earnings/subscriptions
 Request Body:
 {

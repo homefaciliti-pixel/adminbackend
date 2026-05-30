@@ -71,24 +71,24 @@ router.get('/', async (req, res) => {
     // 12. Supporters (Fixed count as there is no support table, but we can query it)
     const totalSupporters = 14;
 
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
     res.json({
       success: true,
-      data: {
-        totalUsers,
-        totalCategories,
-        totalServices,
-        totalPartners,
-        totalOrders,
-        todayOrders,
-        completeOrders,
-        assignedOrders,
-        cancelOrders,
-        totalSupporters,
-        subscriptionEarning: `₹${subEarningsVal.toLocaleString('en-IN')}`,
-        orderEarning: `₹${orderEarningsVal.toLocaleString('en-IN')}`,
-        rawSubscriptionEarning: subEarningsVal,
-        rawOrderEarning: orderEarningsVal
-      }
+      data: [
+        { name: 'Total Users', totalAmount: totalUsers, imageIcon: `${baseUrl}/icons/users.png` },
+        { name: 'Total Categories', totalAmount: totalCategories, imageIcon: `${baseUrl}/icons/categories.png` },
+        { name: 'Total Services', totalAmount: totalServices, imageIcon: `${baseUrl}/icons/services.png` },
+        { name: 'Total Partners', totalAmount: totalPartners, imageIcon: `${baseUrl}/icons/partners.png` },
+        { name: 'Total Orders', totalAmount: totalOrders, imageIcon: `${baseUrl}/icons/orders.png` },
+        { name: 'Today Orders', totalAmount: todayOrders, imageIcon: `${baseUrl}/icons/today_orders.png` },
+        { name: 'Complete Orders', totalAmount: completeOrders, imageIcon: `${baseUrl}/icons/complete_orders.png` },
+        { name: 'Assigned Orders', totalAmount: assignedOrders, imageIcon: `${baseUrl}/icons/assigned_orders.png` },
+        { name: 'Cancel Orders', totalAmount: cancelOrders, imageIcon: `${baseUrl}/icons/cancel_orders.png` },
+        { name: 'Total Supporters', totalAmount: totalSupporters, imageIcon: `${baseUrl}/icons/supporters.png` },
+        { name: 'Subscription Earnings', totalAmount: subEarningsVal, imageIcon: `${baseUrl}/icons/subscription_earnings.png` },
+        { name: 'Order Earnings', totalAmount: orderEarningsVal, imageIcon: `${baseUrl}/icons/order_earnings.png` }
+      ]
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);

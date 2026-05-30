@@ -2,10 +2,32 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// GET all users
+// GET all users (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM users ORDER BY id DESC');
+    const { query: searchQuery, name, email, mobile } = req.query;
+    let sqlStr = 'SELECT * FROM users WHERE 1=1';
+    const params = [];
+
+    if (searchQuery) {
+      sqlStr += ' AND (name LIKE ? OR email LIKE ? OR mobile LIKE ?)';
+      params.push(`%${searchQuery}%`, `%${searchQuery}%`, `%${searchQuery}%`);
+    }
+    if (name) {
+      sqlStr += ' AND name LIKE ?';
+      params.push(`%${name}%`);
+    }
+    if (email) {
+      sqlStr += ' AND email LIKE ?';
+      params.push(`%${email}%`);
+    }
+    if (mobile) {
+      sqlStr += ' AND mobile LIKE ?';
+      params.push(`%${mobile}%`);
+    }
+
+    sqlStr += ' ORDER BY id DESC';
+    const [rows] = await db.query(sqlStr, params);
     res.json({
       success: true,
       data: rows
@@ -41,6 +63,24 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error creating user:', error);
     res.status(500).json({ success: false, message: 'Failed to create user', error: error.message });
+  }
+});
+
+// GET single user details
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await db.query('SELECT * FROM users WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({
+      success: true,
+      data: rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch user details', error: error.message });
   }
 });
 
