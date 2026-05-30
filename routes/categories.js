@@ -2,11 +2,34 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// GET all categories
+// GET all categories (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM categories ORDER BY id DESC');
-    // Map status from TINYINT (0/1) to boolean for Flutter
+    const { title, categoryName, parent, mainCategory, status, emailStatus } = req.query;
+    let query = 'SELECT * FROM categories WHERE 1=1';
+    const params = [];
+
+    const searchTitle = title || categoryName;
+    if (searchTitle) {
+      query += ' AND title LIKE ?';
+      params.push(`%${searchTitle}%`);
+    }
+
+    const searchParent = parent || mainCategory;
+    if (searchParent) {
+      query += ' AND parent LIKE ?';
+      params.push(`%${searchParent}%`);
+    }
+
+    const searchStatus = status !== undefined ? status : emailStatus;
+    if (searchStatus !== undefined) {
+      const statusInt = searchStatus === 'true' || searchStatus === '1' ? 1 : 0;
+      query += ' AND status = ?';
+      params.push(statusInt);
+    }
+
+    query += ' ORDER BY id DESC';
+    const [rows] = await db.query(query, params);
     const mapped = rows.map(r => ({
       ...r,
       status: r.status === 1
@@ -23,27 +46,29 @@ router.get('/', async (req, res) => {
 
 // POST create category
 router.post('/', async (req, res) => {
-  const { title, parent, image, status } = req.body;
-  if (!title || !parent) {
-    return res.status(400).json({ success: false, message: 'Title and Parent are required' });
+  const titleVal = req.body.title || req.body.categoryName;
+  const parentVal = req.body.parent || req.body.mainCategory;
+  const imageVal = req.body.image || '';
+  const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
+  
+  if (!titleVal || !parentVal) {
+    return res.status(400).json({ success: false, message: 'Category Name (title) and Main Category (parent) are required' });
   }
   
-  // Status is boolean or int
-  const statusInt = status === true || status === 1 || status === 'true' ? 1 : 0;
-  const imageVal = image || '';
+  const statusInt = statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0;
 
   try {
     const [result] = await db.query(
       'INSERT INTO categories (title, parent, image, status) VALUES (?, ?, ?, ?)',
-      [title, parent, imageVal, statusInt]
+      [titleVal, parentVal, imageVal, statusInt]
     );
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
       data: {
         id: result.insertId,
-        title,
-        parent,
+        title: titleVal,
+        parent: parentVal,
         image: imageVal,
         status: statusInt === 1
       }
@@ -57,28 +82,30 @@ router.post('/', async (req, res) => {
 // PUT update category
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { title, parent, image, status } = req.body;
+  const titleVal = req.body.title || req.body.categoryName;
+  const parentVal = req.body.parent || req.body.mainCategory;
+  const imageVal = req.body.image;
+  const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
   
   try {
-    // Build update query dynamically
     const fields = [];
     const values = [];
 
-    if (title !== undefined) {
+    if (titleVal !== undefined) {
       fields.push('`title` = ?');
-      values.push(title);
+      values.push(titleVal);
     }
-    if (parent !== undefined) {
+    if (parentVal !== undefined) {
       fields.push('`parent` = ?');
-      values.push(parent);
+      values.push(parentVal);
     }
-    if (image !== undefined) {
+    if (imageVal !== undefined) {
       fields.push('`image` = ?');
-      values.push(image);
+      values.push(imageVal);
     }
-    if (status !== undefined) {
+    if (statusVal !== undefined) {
       fields.push('`status` = ?');
-      values.push(status === true || status === 1 || status === 'true' ? 1 : 0);
+      values.push(statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0);
     }
 
     if (fields.length === 0) {
