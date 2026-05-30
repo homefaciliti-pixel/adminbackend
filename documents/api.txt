@@ -1,125 +1,141 @@
 ======================================================================
-HOME FACILITI ADMIN PANEL API LIST (TEXT REFERENCE)
+HOME FACILITI ADMIN PANEL - BACKEND API DOCUMENTATION
 ======================================================================
 
 Base URL: http://localhost:3000/api
 
----
+----------------------------------------------------------------------
 1. DASHBOARD STATISTICS
----
+----------------------------------------------------------------------
 Endpoint: GET /api/dashboard
 Description: Fetch dashboard summary statistics (counts and total earnings).
-Response:
+Response Format: JSON
+Response Example:
 {
   "success": true,
   "data": [
-    { "name": "Total Users", "totalAmount": 1250, "imageIcon": "http://localhost:3000/icons/users.png" },
-    { "name": "Total Categories", "totalAmount": 24, "imageIcon": "http://localhost:3000/icons/categories.png" },
-    { "name": "Total Services", "totalAmount": 88, "imageIcon": "http://localhost:3000/icons/services.png" },
-    { "name": "Total Partners", "totalAmount": 320, "imageIcon": "http://localhost:3000/icons/partners.png" },
-    { "name": "Total Orders", "totalAmount": 5420, "imageIcon": "http://localhost:3000/icons/orders.png" },
+    { "name": "Total Users", "totalAmount": 3, "imageIcon": "http://localhost:3000/icons/users.png" },
+    { "name": "Total Categories", "totalAmount": 3, "imageIcon": "http://localhost:3000/icons/categories.png" },
+    { "name": "Total Services", "totalAmount": 3, "imageIcon": "http://localhost:3000/icons/services.png" },
+    { "name": "Total Partners", "totalAmount": 2, "imageIcon": "http://localhost:3000/icons/partners.png" },
+    { "name": "Total Orders", "totalAmount": 4, "imageIcon": "http://localhost:3000/icons/orders.png" },
     { "name": "Today Orders", "totalAmount": 2, "imageIcon": "http://localhost:3000/icons/today_orders.png" },
-    { "name": "Complete Orders", "totalAmount": 4800, "imageIcon": "http://localhost:3000/icons/complete_orders.png" },
-    { "name": "Assigned Orders", "totalAmount": 210, "imageIcon": "http://localhost:3000/icons/assigned_orders.png" },
-    { "name": "Cancel Orders", "totalAmount": 62, "imageIcon": "http://localhost:3000/icons/cancel_orders.png" },
-    { "name": "Total Supporters", "totalAmount": 14, "imageIcon": "http://localhost:3000/icons/supporters.png" },
-    { "name": "Subscription Earnings", "totalAmount": 85000, "imageIcon": "http://localhost:3000/icons/subscription_earnings.png" },
-    { "name": "Order Earnings", "totalAmount": 185000, "imageIcon": "http://localhost:3000/icons/order_earnings.png" }
+    { "name": "Complete Orders", "totalAmount": 1, "imageIcon": "http://localhost:3000/icons/complete_orders.png" },
+    { "name": "Assigned Orders", "totalAmount": 1, "imageIcon": "http://localhost:3000/icons/assigned_orders.png" },
+    { "name": "Cancel Orders", "totalAmount": 1, "imageIcon": "http://localhost:3000/icons/cancel_orders.png" },
+    { "name": "Total Supporters", "totalAmount": 2, "imageIcon": "http://localhost:3000/icons/supporters.png" },
+    { "name": "Subscription Earnings", "totalAmount": 200, "imageIcon": "http://localhost:3000/icons/subscription_earnings.png" },
+    { "name": "Order Earnings", "totalAmount": 2800, "imageIcon": "http://localhost:3000/icons/order_earnings.png" }
   ]
 }
 
----
+----------------------------------------------------------------------
 2. USERS MANAGEMENT
----
+----------------------------------------------------------------------
 Endpoint: GET /api/users
-Description: Retrieve list of users. Supports search via query parameters.
-Query Params (Optional):
-- query: Searches name, email, or mobile (LIKE)
-- name: Filter by name (LIKE)
-- email: Filter by email (LIKE)
-- mobile: Filter by mobile (LIKE)
-Response Data: Array of Users
+Description: Retrieve a list of users.
+Query Parameters (Optional):
+  - query: Search by name, email, or mobile (LIKE match)
+  - name: Filter by name (LIKE match)
+  - email: Filter by email (LIKE match)
+  - mobile: Filter by mobile number (LIKE match)
+Response Data: Array of User objects.
 
 Endpoint: GET /api/users/:id
 Description: Fetch details of a single user by ID.
-Response Data: Single User Object
+Response Data: Single User object.
 
 Endpoint: POST /api/users
-Request Body:
+Description: Create a new user.
+Request Body (JSON):
 {
   "name": "John Doe",
   "email": "john@example.com",
   "mobile": "9876543210",
   "address": "123 Street Name, Delhi"
 }
+Response Data: Created User object.
 
 Endpoint: DELETE /api/users/:id
-Description: Delete user by ID.
+Description: Delete a user by ID.
+Response Data: { "success": true, "message": "User deleted successfully" }
 
----
+----------------------------------------------------------------------
 3. CATEGORIES MANAGEMENT
----
+----------------------------------------------------------------------
 Endpoint: GET /api/categories
-Description: Retrieve list of categories. Supports searching/filtering via query parameters.
-Query Params (Optional):
-- title OR categoryName: Search category name (LIKE)
-- parent OR mainCategory: Filter by parent category (LIKE)
-- status OR emailStatus: Filter by status (true or false / 1 or 0)
-Response Data: Array of Categories
+Description: Retrieve a list of categories.
+Query Parameters (Optional):
+  - title OR categoryName: Filter by category name (LIKE match)
+  - parent OR mainCategory: Filter by parent category name (LIKE match)
+  - status OR emailStatus: Filter by status ('true'/'false' or '1'/'0')
+Response Data: Array of Category objects. Note: parent category 'None' maps to database NULL.
 
 Endpoint: POST /api/categories
 Description: Add a new category.
 Request Body Option A (Standard):
 {
   "title": "Kitchen Cleaning",
-  "parent": "Cleaning",
+  "parent": "Cleaning",        // Use 'None' if it has no parent
   "image": "https://url-to-image.png",
   "status": true
 }
 Request Body Option B (Alias Fields):
 {
   "categoryName": "Kitchen Cleaning",
-  "mainCategory": "Cleaning",
+  "mainCategory": "Cleaning",  // Use 'None' if it has no parent
   "image": "https://url-to-image.png",
   "emailStatus": true
 }
+Response Data: Created Category object.
 
 Endpoint: PUT /api/categories/:id
 Description: Update category details. Accepts any properties from Option A or Option B.
+Response Data: Updated Category object.
 
 Endpoint: DELETE /api/categories/:id
-Description: Delete category by ID.
+Description: Delete category by ID. Cascade-deletes all sub-categories having this category title as parent.
+Response Data: { "success": true, "message": "Category and its sub-categories deleted successfully" }
 
----
+----------------------------------------------------------------------
 4. SERVICES MANAGEMENT
----
+----------------------------------------------------------------------
 Endpoint: GET /api/services
-Response Data: Array of Services (includes `category_id` and `categoryId` if table supports it).
+Description: Retrieve a list of services.
+Response Data: Array of Service objects. If the table contains `category_id`, it is mapped to both `category_id` and `categoryId`.
 
 Endpoint: POST /api/services
-Request Body:
+Description: Add a new service.
+Request Body (JSON):
 {
   "title": "Deep AC Repair",
   "price": 799.00,
   "image": "https://url-to-image.png",
   "description": "Thorough repair and gas charging",
   "status": true,
-  "categoryId": 3 (Optional / Required if database schema defines a NOT NULL foreign key. Alias: "category_id")
+  "categoryId": 3             // Optional/Required depending on foreign key constraints (Alias: "category_id")
 }
+Response Data: Created Service object.
 
 Endpoint: PUT /api/services/:id
-Request Body: { "price": 850.00, "status": true, "categoryId": 1 }
+Description: Update service details.
+Request Body (JSON): Accepts title, price, image, description, status, categoryId.
+Response Data: Updated Service object.
 
 Endpoint: DELETE /api/services/:id
+Description: Delete service by ID.
+Response Data: { "success": true, "message": "Service deleted successfully" }
 
----
+----------------------------------------------------------------------
 5. ORDERS (SERVICE REQUESTS)
----
+----------------------------------------------------------------------
 Endpoint: GET /api/orders
-Response Data: Array of Orders
+Description: Retrieve a list of all service requests/orders.
+Response Data: Array of Order objects. Assigned vendor name 'None' or no vendor maps to database NULL (returns '-' in response).
 
 Endpoint: POST /api/orders
-Request Body:
+Description: Create a new order.
+Request Body (JSON):
 {
   "serviceRequestNumber": "REQ2001",
   "serviceName": "AC Repair",
@@ -129,42 +145,46 @@ Request Body:
   "city": "Delhi",
   "locality": "Connaught Place",
   "status": "Pending",
-  "vendorName": "-",
+  "vendorName": "-",          // Use '-' or null if not yet assigned
   "address": "Block C, Connaught Place, Delhi"
 }
+Response Data: Created Order object.
 
 Endpoint: PUT /api/orders/:id
-Request Body: (Assign vendor or update status)
-{
-  "status": "Assigned",
-  "vendorName": "Govind"
-}
+Description: Update order details (e.g. assign vendor, update status, change slots).
+Request Body (JSON): Supports status, vendorName, slotTime, serviceDate, city, locality, address.
+Response Data: Updated Order object.
 
 Endpoint: DELETE /api/orders/:id
+Description: Delete an order by ID.
+Response Data: { "success": true, "message": "Order deleted successfully" }
 
----
+----------------------------------------------------------------------
 6. PARTNERS (VENDORS)
----
+----------------------------------------------------------------------
 Endpoint: GET /api/partners
-Description: Retrieve list of partners. Supports filtering and searching via query parameters.
-Query Params (Optional):
-- name: Search by partner name (LIKE)
-- mobile: Search by mobile number (LIKE)
-- city: Filter by city (LIKE)
-- state: Filter by state (LIKE)
-- date: Filter by createdAt date (LIKE)
-- status: Filter by status (1 or 0 / true or false)
-- isApproved: Filter by approval status (1 or 0 / true or false)
-Response Data: Array of Partners with KYC data
+Description: Retrieve a list of partners.
+Query Parameters (Optional):
+  - name: Search by partner name (LIKE match)
+  - mobile: Search by mobile number (LIKE match)
+  - city: Filter by city (LIKE match)
+  - state: Filter by state (LIKE match)
+  - date: Filter by joining date (LIKE match)
+  - status: Filter by status ('true'/'false' or '1'/'0')
+  - isApproved: Filter by approval status ('true'/'false' or '1'/'0')
+Response Data: Array of Partner objects.
 
 Endpoint: GET /api/partners/pending
-Description: Retrieve list of partners pending approval (isApproved = 0). Supports the same query parameters as the GET /api/partners route.
+Description: Retrieve a list of partners pending approval (isApproved = 0). Supports the same query parameters as the GET /api/partners route.
+Response Data: Array of Partner objects.
 
 Endpoint: GET /api/partners/:id
 Description: Get full details of a single partner by ID.
+Response Data: Single Partner object.
 
 Endpoint: POST /api/partners
-Request Body:
+Description: Register a new partner.
+Request Body (JSON):
 {
   "name": "Suresh Kumar",
   "email": "suresh@gmail.com",
@@ -176,39 +196,43 @@ Request Body:
   "image": "https://url.png",
   "gender": "Male",
   "experience": "4 Years",
-  "services": ["Plumbing", "AC Repair"],
+  "services": ["Plumbing", "AC Repair"],  // Can be array or comma-separated string
   "aadhaarNumber": "123456789012",
   "panNumber": "ABCDE1234F",
   "bankName": "ICICI Bank",
   "accountNumber": "98765432101",
   "ifscCode": "ICIC0000456",
-  "documents": ["aadhaar.pdf"]
+  "documents": ["aadhaar.pdf"]           // Can be array or comma-separated string
 }
+Response Data: Registered Partner object.
 
 Endpoint: PUT /api/partners/:id
-Description: Update/Edit partner details.
-Request Body: Dynamic properties to edit
+Description: Update partner details. Supports dynamic properties.
+Response Data: Updated Partner object.
 
 Endpoint: PUT /api/partners/:id/approve
 Description: Approve partner. Sets isApproved = 1 and status = 1.
+Response Data: Approved Partner object.
 
 Endpoint: PUT /api/partners/:id/disapprove
 Description: Disapprove partner. Sets isApproved = 0.
+Response Data: Disapproved Partner object.
 
 Endpoint: DELETE /api/partners/:id
 Description: Delete partner by ID.
+Response Data: { "success": true, "message": "Partner deleted successfully" }
 
----
+----------------------------------------------------------------------
 7. EARNINGS
----
+----------------------------------------------------------------------
 Endpoint: GET /api/earnings/bookings
-Description: Fetch booking transactions. Supports filters and search, and returns aggregates.
-Query Params (Optional):
-- query: Searches transactionId, paymentMethod, extraServicePaymentMethod, orderDate
-- transactionId: Filter by transactionId (LIKE)
-- paymentMethod: Filter by paymentMethod (LIKE)
-- orderDate: Filter by orderDate (LIKE)
-Response Schema:
+Description: Fetch booking transactions and total aggregates.
+Query Parameters (Optional):
+  - query: Search transactionId, paymentMethod, extraServicePaymentMethod, or orderDate (LIKE match)
+  - transactionId: Filter by transactionId (LIKE match)
+  - paymentMethod: Filter by paymentMethod (LIKE match)
+  - orderDate: Filter by orderDate (LIKE match)
+Response Data Schema:
 {
   "success": true,
   "totalBookingEarnings": 2800.00,
@@ -219,7 +243,8 @@ Response Schema:
 }
 
 Endpoint: POST /api/earnings/bookings
-Request Body:
+Description: Add a new booking transaction.
+Request Body (JSON):
 {
   "transactionId": "TXN1004",
   "serviceAmount": 500.00,
@@ -229,16 +254,17 @@ Request Body:
   "totalAmount": 550.00,
   "orderDate": "15-05-2026"
 }
+Response Data: Created Transaction object.
 
 Endpoint: GET /api/earnings/subscriptions
-Description: Fetch subscription purchases. Supports filters and search, and returns aggregates.
-Query Params (Optional):
-- query: Searches partnerName, paymentMethod, status, purchaseDate
-- partnerName: Filter by partner name (LIKE)
-- paymentMethod: Filter by payment method (LIKE)
-- status: Filter by payment status (Paid, etc.)
-- purchaseDate: Filter by purchase date (LIKE)
-Response Schema:
+Description: Fetch subscription purchases and aggregates.
+Query Parameters (Optional):
+  - query: Search partnerName, paymentMethod, status, or purchaseDate (LIKE match)
+  - partnerName: Filter by partner name (LIKE match)
+  - paymentMethod: Filter by payment method (LIKE match)
+  - status: Filter by status
+  - purchaseDate: Filter by purchase date (LIKE match)
+Response Data Schema:
 {
   "success": true,
   "totalSubscriptionsEarnings": 200.00,
@@ -249,7 +275,8 @@ Response Schema:
 }
 
 Endpoint: POST /api/earnings/subscriptions
-Request Body:
+Description: Add a subscription transaction record.
+Request Body (JSON):
 {
   "partnerName": "Govind",
   "amount": 100.00,
@@ -257,104 +284,134 @@ Request Body:
   "purchaseDate": "16-05-2026",
   "status": "Paid"
 }
+Response Data: Created Subscription Earning object.
 
----
+----------------------------------------------------------------------
 8. CONTENT PAGES
----
+----------------------------------------------------------------------
 Endpoint: GET /api/pages
 Description: Retrieve list of content pages (About Us, Refund and Cancellation Policy, Terms and Conditions, Privacy Policy).
-Response: Array of Pages
+Response Data: Array of Page objects. (Seeding self-heals missing policy pages automatically on boot).
 
 Endpoint: PUT /api/pages/:id
 Description: Update content page details.
-Request Body: { "title": "Updated Title", "description": "Updated content..." }
+Request Body (JSON): { "title": "Updated Title", "description": "Updated content..." }
+Response Data: Updated Page object.
 
----
+----------------------------------------------------------------------
 9. CONFIGURATION & SETTINGS
----
-Endpoints:
-- Banners: GET|POST|PUT|DELETE /api/settings/banners
-  Description: Manage banners. GET supports query filter parameter "title" (LIKE).
-  Body sample: { "title": "Offer", "image": "url", "status": true }
+----------------------------------------------------------------------
+- BANNERS:
+  * GET /api/settings/banners: List all banners. Query param "title" filters (LIKE match).
+  * POST /api/settings/banners: Add banner. Body: { "title": "Offer", "image": "url", "status": true }
+  * PUT /api/settings/banners/:id: Update banner.
+  * DELETE /api/settings/banners/:id: Delete banner.
 
-- States: GET|POST|PUT|DELETE /api/settings/states
-  Description: Manage states. GET supports query filter parameter "name" (LIKE).
-  Body sample: { "name": "Haryana", "status": true }
+- STATES:
+  * GET /api/settings/states: List states. Query param "name" filters (LIKE match).
+  * POST /api/settings/states: Add state. Body: { "name": "Haryana", "status": true }
+  * PUT /api/settings/states/:id: Update state.
+  * DELETE /api/settings/states/:id: Delete state. Cascade-deletes all cities and localities under this state name.
 
-- Cities: GET|POST|PUT|DELETE /api/settings/cities
-  Description: Manage cities. GET supports query filter parameters "cityName" (LIKE), "stateName" (LIKE).
-  Body sample: { "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+- CITIES:
+  * GET /api/settings/cities: List cities. Query params "cityName" and "stateName" filter.
+  * POST /api/settings/cities: Add city. Body: { "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+  * PUT /api/settings/cities/:id: Update city.
+  * DELETE /api/settings/cities/:id: Delete city. Cascade-deletes all localities under this city name.
 
-- Localities: GET|POST|PUT|DELETE /api/settings/localities
-  Description: Manage localities. GET supports query filter parameters "localityName" (LIKE), "cityName" (LIKE), "stateName" (LIKE).
-  Body sample: { "localityName": "Sector 54", "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+- LOCALITIES:
+  * GET /api/settings/localities: List localities. Query params "localityName", "cityName", "stateName" filter.
+  * POST /api/settings/localities: Add locality. Body: { "localityName": "Sector 54", "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+  * PUT /api/settings/localities/:id: Update locality.
+  * DELETE /api/settings/localities/:id: Delete locality.
 
-- Commission Setting: GET|PUT /api/settings/commission
-  Description: Manage commission settings.
-  GET returns: { "success": true, "commissionRate": 10.0 }
-  PUT Request Body: { "commissionRate": 15.0 }
+- COMMISSION SETTING:
+  * GET /api/settings/commission: Retrieve commission rate. Response: { "success": true, "commissionRate": 10.0 }
+  * PUT /api/settings/commission: Update commission rate. Body: { "commissionRate": 15.0 }
 
-- Reviews & Ratings: GET|POST|PUT|DELETE /api/settings/reviews
-  Body sample: { "userName": "Rahul", "partnerName": "Govind", "rating": 5.0, "reviewText": "Good" }
+- REVIEWS & RATINGS:
+  * GET /api/settings/reviews: Retrieve reviews list.
+  * POST /api/settings/reviews: Add review. Body: { "userName": "Rahul", "partnerName": "Govind", "serviceName": "AC Repair", "rating": 5.0, "reviewText": "Good" }
+  * PUT /api/settings/reviews/:id: Toggle review status. Body: { "status": true }
+  * DELETE /api/settings/reviews/:id: Delete review.
 
-- Notifications: GET|POST|PUT|DELETE /api/settings/notifications
-  Description: Manage notification logs. GET supports query filter parameters "title" (LIKE), "audience" (LIKE), "status" (1 or 0).
-  Body sample: { "title": "Alert", "message": "KYC needed", "audience": "All Partners" }
-  Body sample for sending: { "isSent": true }
+- NOTIFICATIONS LOGS:
+  * GET /api/settings/notifications: List notification logs. Query params "title", "audience", "status" filter.
+  * POST /api/settings/notifications: Add notification log. Body: { "title": "Alert", "message": "Details", "audience": "All Partners", "status": true }
+  * PUT /api/settings/notifications/:id: Update log / Mark as sent. Body: { "isSent": true }
+  * DELETE /api/settings/notifications/:id: Delete notification.
 
----
+----------------------------------------------------------------------
 10. REPORTS
----
+----------------------------------------------------------------------
 Endpoints:
-- Users Report: GET /api/reports/users
-- Partners Report: GET /api/reports/partners
-- Earnings Report: GET /api/reports/earnings
-- Subscriptions Report: GET /api/reports/subscriptions
+  - Users Report: GET /api/reports/users
+  - Partners Report: GET /api/reports/partners
+  - Booking Earnings Report: GET /api/reports/earnings
+  - Subscriptions Report: GET /api/reports/subscriptions
 
-Query Params (Optional):
-- startDate: Filter start date (YYYY-MM-DD or DD-MM-YYYY)
-- endDate: Filter end date (YYYY-MM-DD or DD-MM-YYYY)
-- query: General search keyword (LIKE)
-- export: Pass "csv" to download report as CSV file
+Query Parameters (Optional):
+  - startDate: Start date filter (DD-MM-YYYY or YYYY-MM-DD format)
+  - endDate: End date filter (DD-MM-YYYY or YYYY-MM-DD format)
+  - query: General search keyword (LIKE match)
+  - export: Send "csv" to download report as a raw CSV file response.
 
----
+----------------------------------------------------------------------
 11. SUPPORT TICKETS
----
-Endpoints:
-- Support Ticket List: GET /api/support
-  Query Params (Optional):
-  - query: Search UserName, Email, Subject, Message (LIKE)
+----------------------------------------------------------------------
+Endpoint: GET /api/support
+Description: Retrieve support tickets list.
+Query Parameters (Optional):
+  - query: Search UserName, Email, Subject, or Message (LIKE match)
   - status: Filter by status (Open, Closed, etc.)
-- Ticket Details: GET /api/support/:id
-- Create Ticket: POST /api/support
-  Request Body: { "userName": "Rahul", "email": "rahul@gmail.com", "mobile": "9876543210", "subject": "AC Issue", "message": "AC not cooling" }
-- Update Ticket: PUT /api/support/:id
-  Request Body: { "status": "Closed" }
-- Delete Ticket: DELETE /api/support/:id
+Response Data: Array of Ticket objects.
 
----
+Endpoint: GET /api/support/:id
+Description: Fetch details of a single ticket by ID.
+Response Data: Ticket object.
+
+Endpoint: POST /api/support
+Description: File a new support ticket.
+Request Body (JSON):
+{
+  "userName": "Rahul",
+  "email": "rahul@gmail.com",
+  "mobile": "9876543210",
+  "subject": "AC cooling issue",
+  "message": "The repair did not fix the cooling problem."
+}
+Response Data: Created Support Ticket object.
+
+Endpoint: PUT /api/support/:id
+Description: Update support ticket status/details.
+Request Body (JSON): { "status": "Closed" }
+Response Data: Updated Ticket object.
+
+Endpoint: DELETE /api/support/:id
+Description: Delete support ticket by ID.
+Response Data: { "success": true, "message": "Ticket deleted successfully" }
+
+----------------------------------------------------------------------
 12. IMAGE UPLOAD
----
+----------------------------------------------------------------------
 Endpoint: POST /api/upload
 Description: Upload an image file (multipart/form-data) to the server and receive a dynamically hosted URL.
 Request Format: multipart/form-data
 Body Field:
-- image: The image file to upload (JPEG, JPG, PNG, GIF, WEBP allowed). Max size 5MB.
+  - image: The image file to upload (JPEG, JPG, PNG, GIF, WEBP allowed). Max size 5MB.
 Response:
 {
   "success": true,
   "message": "Image uploaded successfully",
   "data": {
-    "filename": "1717056000000-839201928.png",
+    "filename": "1780120322787-108485750.png",
     "originalName": "avatar.png",
     "mimetype": "image/png",
     "size": 15420,
-    "url": "http://localhost:3000/uploads/1717056000000-839201928.png"
+    "url": "http://localhost:3000/uploads/1780120322787-108485750.png"
   }
 }
 
 Statically Served Assets:
 URL: http://localhost:3000/uploads/:filename
 Description: Uploaded image files are publicly available and can be served statically by appending the filename to the host's `/uploads` path.
-
-
