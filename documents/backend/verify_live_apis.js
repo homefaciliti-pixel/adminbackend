@@ -9,6 +9,8 @@ const app = server.listen(PORT, async () => {
   console.log(`🧪 Test server booted on port ${PORT}`);
   try {
     const db = require('./db');
+    
+    // Ensure local test database has category_id column and foreign key constraint
     const [cols] = await db.query('SHOW COLUMNS FROM services LIKE "category_id"');
     if (cols.length === 0) {
       console.log('Altering local test database "services" table to add category_id column...');
@@ -19,6 +21,13 @@ const app = server.listen(PORT, async () => {
         console.log('Constraint already exists or could not be added:', err.message);
       }
     }
+
+    // Make categories.parent and orders.vendorName columns nullable to accommodate NULL foreign keys
+    console.log('Altering local test database: making categories.parent nullable...');
+    await db.query('ALTER TABLE categories MODIFY COLUMN parent VARCHAR(255) DEFAULT NULL');
+    
+    console.log('Altering local test database: making orders.vendorName nullable...');
+    await db.query('ALTER TABLE orders MODIFY COLUMN vendorName VARCHAR(255) DEFAULT NULL');
 
     // Helper to perform GET request
     function fetchJson(url) {

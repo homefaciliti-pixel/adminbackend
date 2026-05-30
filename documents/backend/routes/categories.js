@@ -32,6 +32,7 @@ router.get('/', async (req, res) => {
     const [rows] = await db.query(query, params);
     const mapped = rows.map(r => ({
       ...r,
+      parent: r.parent === null ? 'None' : r.parent,
       status: r.status === 1
     }));
     res.json({
@@ -56,11 +57,12 @@ router.post('/', async (req, res) => {
   }
   
   const statusInt = statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0;
+  const dbParentVal = parentVal === 'None' || !parentVal ? null : parentVal;
 
   try {
     const [result] = await db.query(
       'INSERT INTO categories (title, parent, image, status) VALUES (?, ?, ?, ?)',
-      [titleVal, parentVal, imageVal, statusInt]
+      [titleVal, dbParentVal, imageVal, statusInt]
     );
     res.status(201).json({
       success: true,
@@ -97,7 +99,7 @@ router.put('/:id', async (req, res) => {
     }
     if (parentVal !== undefined) {
       fields.push('`parent` = ?');
-      values.push(parentVal);
+      values.push(parentVal === 'None' || !parentVal ? null : parentVal);
     }
     if (imageVal !== undefined) {
       fields.push('`image` = ?');
@@ -127,6 +129,7 @@ router.put('/:id', async (req, res) => {
       message: 'Category updated successfully',
       data: {
         ...rows[0],
+        parent: rows[0].parent === null ? 'None' : rows[0].parent,
         status: rows[0].status === 1
       }
     });

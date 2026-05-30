@@ -8,6 +8,7 @@ router.get('/', async (req, res) => {
     const [rows] = await db.query('SELECT * FROM orders ORDER BY id DESC');
     const mapped = rows.map(r => ({
       ...r,
+      vendorName: r.vendorName === null ? '-' : r.vendorName,
       serviceAmount: parseFloat(r.serviceAmount)
     }));
     res.json({
@@ -41,7 +42,8 @@ router.post('/', async (req, res) => {
   }
 
   const amt = parseFloat(serviceAmount);
-  const vName = vendorName || '-';
+  const rawVendorName = vendorName || '-';
+  const dbVendorName = rawVendorName === '-' ? null : rawVendorName;
   const cTime = createdAt || new Date().toLocaleString();
 
   try {
@@ -49,7 +51,7 @@ router.post('/', async (req, res) => {
       `INSERT INTO orders 
       (serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, address, createdAt) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [serviceRequestNumber, serviceName, amt, slotTime, serviceDate, city, locality, status, vName, address, cTime]
+      [serviceRequestNumber, serviceName, amt, slotTime, serviceDate, city, locality, status, dbVendorName, address, cTime]
     );
 
     res.status(201).json({
@@ -65,7 +67,7 @@ router.post('/', async (req, res) => {
         city,
         locality,
         status,
-        vendorName: vName,
+        vendorName: rawVendorName,
         address,
         createdAt: cTime
       }
@@ -91,7 +93,7 @@ router.put('/:id', async (req, res) => {
     }
     if (vendorName !== undefined) {
       fields.push('`vendorName` = ?');
-      values.push(vendorName);
+      values.push(vendorName === '-' || !vendorName ? null : vendorName);
     }
     if (slotTime !== undefined) {
       fields.push('`slotTime` = ?');
@@ -133,6 +135,7 @@ router.put('/:id', async (req, res) => {
       message: 'Order updated successfully',
       data: {
         ...rows[0],
+        vendorName: rows[0].vendorName === null ? '-' : rows[0].vendorName,
         serviceAmount: parseFloat(rows[0].serviceAmount)
       }
     });
