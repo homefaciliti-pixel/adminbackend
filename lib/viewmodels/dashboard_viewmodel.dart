@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../data/services/api_service.dart';
 
 class DashboardViewModel extends ChangeNotifier {
   bool isLoading = true;
@@ -22,23 +25,80 @@ class DashboardViewModel extends ChangeNotifier {
   }
 
   Future<void> loadDashboard() async {
-    await Future.delayed(const Duration(milliseconds: 800));
+    try {
+      isLoading = true;
+      notifyListeners();
 
-    totalUsers = 1250;
-    totalCategories = 24;
-    totalServices = 88;
-    totalPartners = 320;
-    totalOrders = 5420;
-    todayOrders = 36;
-    completeOrders = 4800;
-    assignedOrders = 210;
-    cancelOrders = 62;
-    totalSupporters = 14;
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/dashboard'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Accept': 'application/json',
+        },
+      );
 
-    subscriptionEarning = "₹85,000";
-    orderEarning = "₹1,85,000";
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> body = jsonDecode(response.body);
+        if (body['success'] == true) {
+          final List<dynamic> stats = body['data'];
+          
+          for (var item in stats) {
+            final String name = item['name'] ?? '';
+            final dynamic amount = item['totalAmount'];
+            
+            int intAmount = 0;
+            if (amount is num) {
+              intAmount = amount.toInt();
+            } else if (amount != null) {
+              intAmount = int.tryParse(amount.toString()) ?? 0;
+            }
 
-    isLoading = false;
-    notifyListeners();
+            switch (name) {
+              case 'Total Users':
+                totalUsers = intAmount;
+                break;
+              case 'Total Categories':
+                totalCategories = intAmount;
+                break;
+              case 'Total Services':
+                totalServices = intAmount;
+                break;
+              case 'Total Partners':
+                totalPartners = intAmount;
+                break;
+              case 'Total Orders':
+                totalOrders = intAmount;
+                break;
+              case 'Today Orders':
+                todayOrders = intAmount;
+                break;
+              case 'Complete Orders':
+                completeOrders = intAmount;
+                break;
+              case 'Assigned Orders':
+                assignedOrders = intAmount;
+                break;
+              case 'Cancel Orders':
+                cancelOrders = intAmount;
+                break;
+              case 'Total Supporters':
+                totalSupporters = intAmount;
+                break;
+              case 'Subscription Earnings':
+                subscriptionEarning = "₹${amount.toString()}";
+                break;
+              case 'Order Earnings':
+                orderEarning = "₹${amount.toString()}";
+                break;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading dashboard: $e');
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 }
