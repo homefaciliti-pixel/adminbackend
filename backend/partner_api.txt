@@ -2,7 +2,7 @@
 HOME FACILITI PARTNER MOBILE APP - BACKEND REST API DOCUMENTATION
 ======================================================================
 
-Base URL: http://localhost:3000/api
+Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:3000/api)
 
 ----------------------------------------------------------------------
 1. PARTNER AUTHENTICATION
@@ -36,7 +36,7 @@ Request Fields:
   * accountNumber (String, Optional) - e.g., "30291827361"
   * ifscCode (String, Optional) - e.g., "SBIN0001234"
 
-- File Upload Fields (Optional / Recommended):
+- File Upload Fields (MANDATORY):
   * profileImage - File upload for partner's photo (saves to 'image' column)
   * aadharFront - File upload for Aadhar Card front
   * aadharBack - File upload for Aadhar Card back
@@ -571,5 +571,51 @@ Response Example (Status 200 OK):
   "Sofa Deep Cleaning",
   "Sofa Sanitization"
 ]
+
+
+----------------------------------------------------------------------
+8. CONTENT PAGES (PUBLIC)
+----------------------------------------------------------------------
+
+8.1 GET ALL PAGES
+-----------------
+Endpoint: GET /api/pages
+Description: Retrieve list of all content pages (About Us, Terms and Conditions, Privacy Policy, Refund and Cancellation Policy).
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "title": "About Us",
+      "description": "We provide the best on-demand home services..."
+    },
+    {
+      "id": 8,
+      "title": "Terms and Conditions",
+      "description": "Please read these terms and conditions carefully..."
+    },
+    {
+      "id": 9,
+      "title": "Privacy Policy",
+      "description": "We value your privacy..."
+    }
+  ]
+}
+
+8.2 GET SINGLE PAGE BY ID
+-------------------------
+Endpoint: GET /api/pages/:id
+Description: Fetch details of a single page by ID.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "data": {
+    "id": 9,
+    "title": "Privacy Policy",
+    "description": "We value your privacy..."
+  }
+}
+
 
 

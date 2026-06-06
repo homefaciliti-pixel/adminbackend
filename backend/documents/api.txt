@@ -2,7 +2,7 @@
 HOME FACILITI ADMIN PANEL - BACKEND API DOCUMENTATION
 ======================================================================
 
-Base URL: http://localhost:3000/api
+Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:3000/api)
 
 ----------------------------------------------------------------------
 1. DASHBOARD STATISTICS
@@ -453,7 +453,7 @@ Endpoint: POST /api/auth/register
 Request Format: multipart/form-data
 Description: Registers a new partner. Uploads documents and hashes the password.
 Request Fields (Text): name, phone (mobile), email, address, state, city, locality, password, gender, category, subCategory, hasVehicle, services, aadharNumber, panNumber, bankName, accountHolder, accountNumber, ifscCode.
-Request Fields (Files): profileImage, aadharFront, aadharBack, panImage, policeVerification.
+Request Fields (Files - MANDATORY): profileImage, aadharFront, aadharBack, panImage, policeVerification.
 
 13.2 LOGIN PARTNER
 -----------------

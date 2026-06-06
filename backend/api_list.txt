@@ -1,7 +1,7 @@
 ======================================================================
 HOME FACILITI BACKEND REST API ENDPOINTS - COMPLETE INDEX
 ======================================================================
-Base URL: http://localhost:5000/api
+Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:5000/api)
 
 ----------------------------------------------------------------------
 1. IMAGE UPLOAD
@@ -187,7 +187,7 @@ Base URL: http://localhost:5000/api
 13. PARTNER MOBILE APP ENDPOINTS
 ----------------------------------------------------------------------
 - AUTHENTICATION:
-  * POST /api/auth/register - Register a partner (multipart/form-data).
+  * POST /api/auth/register - Register a partner (multipart/form-data). Mandatory files: profileImage, aadharFront, aadharBack, panImage, policeVerification.
   * POST /api/auth/login - Login partner using phone and password.
   * POST /api/auth/forgot-password - Reset password for a mobile number.
   * POST /api/auth/logout - End partner session.
