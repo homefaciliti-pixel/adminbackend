@@ -83,6 +83,80 @@ function mapPartnerForApp(r) {
   };
 }
 
+// In-memory mock data store for Partner ID 10 testing
+const mockBookingsStore = {
+  "101": {
+    id: "101",
+    status: "pending",
+    service: "AC Service & Repairing",
+    date: "06-06-2026",
+    time: "10:00 AM - 12:00 PM",
+    serviceAmount: "499",
+    serviceRequestNumber: "REQ-2026-101",
+    address: "H.No 12, Block B, Connaught Place",
+    city: "Delhi",
+    locality: "Connaught Place",
+    customerName: "Rahul Sharma",
+    customerPhone: "9876543210"
+  },
+  "102": {
+    id: "102",
+    status: "upcoming",
+    service: "Deep Sofa Cleaning",
+    date: "06-06-2026",
+    time: "01:00 PM - 03:00 PM",
+    serviceAmount: "799",
+    serviceRequestNumber: "REQ-2026-102",
+    address: "Flat 402, Sector 15, Vasundhara",
+    city: "Ghaziabad",
+    locality: "Vasundhara",
+    customerName: "Aarav Gupta",
+    customerPhone: "9112233445"
+  },
+  "103": {
+    id: "103",
+    status: "in_progress",
+    service: "Kitchen Deep Cleaning",
+    date: "05-06-2026",
+    time: "09:00 AM - 01:00 PM",
+    serviceAmount: "1499",
+    serviceRequestNumber: "REQ-2026-103",
+    address: "Villa 18, Golf Course Road",
+    city: "Gurugram",
+    locality: "Sector 42",
+    customerName: "Priyanka Sen",
+    customerPhone: "9223344556"
+  },
+  "104": {
+    id: "104",
+    status: "completed",
+    service: "Fan Repairing & Installation",
+    date: "04-06-2026",
+    time: "04:00 PM - 05:00 PM",
+    serviceAmount: "199",
+    serviceRequestNumber: "REQ-2026-104",
+    address: "H.No 45, Gali 2, Raja Park",
+    city: "Jaipur",
+    locality: "Raja Park",
+    customerName: "Mahendra Singh",
+    customerPhone: "9334455667"
+  },
+  "105": {
+    id: "105",
+    status: "cancel",
+    service: "Electric Wire & Switch Fitting",
+    date: "03-06-2026",
+    time: "03:00 PM - 04:00 PM",
+    serviceAmount: "299",
+    serviceRequestNumber: "REQ-2026-105",
+    address: "B-12, Malviya Industrial Area",
+    city: "Jaipur",
+    locality: "Malviya Nagar",
+    customerName: "Vikas Verma",
+    customerPhone: "9445566778"
+  }
+};
+
 // Helper to get image URL path
 function getFileUrl(req, fileName) {
   if (!fileName) return '';
@@ -527,6 +601,19 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     return res.json([]);
   }
 
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+    let list = Object.values(mockBookingsStore);
+    if (filterStatus) {
+      if (filterStatus === 'upcoming') {
+        list = list.filter(b => b.status === 'upcoming' || b.status === 'pending');
+      } else {
+        list = list.filter(b => b.status === filterStatus);
+      }
+    }
+    return res.json(list);
+  }
+
   const partnerCity = req.partner.city;
   const partnerLocality = req.partner.locality;
 
@@ -613,6 +700,32 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
     });
   }
 
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+    const list = Object.values(mockBookingsStore);
+    let total = list.length;
+    let upcoming = 0;
+    let inProgress = 0;
+    let completed = 0;
+    let cancel = 0;
+
+    list.forEach(o => {
+      if (o.status === 'upcoming' || o.status === 'pending') upcoming++;
+      else if (o.status === 'in_progress') inProgress++;
+      else if (o.status === 'completed') completed++;
+      else if (o.status === 'cancel') cancel++;
+    });
+
+    return res.json({
+      totalBooking: total,
+      upcomingBooking: upcoming,
+      inProgressBooking: inProgress,
+      acceptedBooking: upcoming + inProgress,
+      completedBooking: completed,
+      cancelBooking: cancel
+    });
+  }
+
   const partnerCity = req.partner.city;
   const partnerLocality = req.partner.locality;
 
@@ -662,6 +775,15 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
 
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
+  }
+
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+    if (mockBookingsStore[id]) {
+      mockBookingsStore[id].status = 'upcoming';
+      return res.json({ success: true, message: 'Order accepted successfully!' });
+    }
+    return res.status(404).json({ error: 'Order not found' });
   }
 
   try {
@@ -1304,6 +1426,15 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+    if (mockBookingsStore[id]) {
+      mockBookingsStore[id].status = 'in_progress';
+      return res.json({ success: true, message: 'Work started successfully!', status: 'in_progress' });
+    }
+    return res.status(404).json({ error: 'Order not found' });
+  }
+
   try {
     const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
     if (rows.length === 0) {
@@ -1339,6 +1470,32 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
 
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
+  }
+
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+    if (mockBookingsStore[id]) {
+      mockBookingsStore[id].status = 'completed';
+      const serviceAmount = parseFloat(mockBookingsStore[id].serviceAmount || 0);
+      const commissionAmount = (serviceAmount * 25) / 100;
+      const partnerShare = serviceAmount - commissionAmount;
+
+      return res.json({
+        success: true,
+        message: 'Work completed successfully and earnings updated!',
+        status: 'completed',
+        earnings: {
+          serviceAmount: serviceAmount,
+          paymentMethod: 'UPI',
+          commissionRate: 25,
+          commissionAmount: commissionAmount,
+          partnerShare: partnerShare,
+          walletBalanceAdded: partnerShare,
+          payToCompanyAdded: 0.00
+        }
+      });
+    }
+    return res.status(404).json({ error: 'Order not found' });
   }
 
   try {
@@ -1441,6 +1598,46 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     banners = bannersRes.map(b => b.image);
   } catch (err) {
     console.error('Error fetching banners:', err);
+  }
+
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+    const list = Object.values(mockBookingsStore);
+    let totalBooking = list.length;
+    let upcomingBooking = 0;
+    let inProgressBooking = 0;
+    let completedBooking = 0;
+    let cancelBooking = 0;
+
+    list.forEach(o => {
+      if (o.status === 'upcoming' || o.status === 'pending') upcomingBooking++;
+      else if (o.status === 'in_progress') inProgressBooking++;
+      else if (o.status === 'completed') completedBooking++;
+      else if (o.status === 'cancel') cancelBooking++;
+    });
+
+    return res.json({
+      isPaid: true,
+      isApproved: true,
+      bookingsStats: {
+        totalBooking,
+        upcomingBooking,
+        inProgressBooking,
+        acceptedBooking: upcomingBooking + inProgressBooking,
+        completedBooking,
+        cancelBooking
+      },
+      earningsStats: {
+        totalEarning: 25000,
+        todayEarning: 10000,
+        monthlyEarning: 15000,
+        onlineEarning: 12000,
+        cashEarning: 13000,
+        payToCompany: parseFloat(req.partner.payToCompany || 0),
+        walletBalance: parseFloat(req.partner.walletBalance || 0)
+      },
+      banners
+    });
   }
 
   // If partner is not paid or not approved, return default blank counts
