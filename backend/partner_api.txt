@@ -1,0 +1,575 @@
+======================================================================
+HOME FACILITI PARTNER MOBILE APP - BACKEND REST API DOCUMENTATION
+======================================================================
+
+Base URL: http://localhost:3000/api
+
+----------------------------------------------------------------------
+1. PARTNER AUTHENTICATION
+----------------------------------------------------------------------
+
+1.1 REGISTER AS NEW PARTNER
+---------------------------
+Endpoint: POST /api/auth/register
+Request Format: multipart/form-data
+Description: Registers a new partner. Uploads documents and hashes the password.
+
+Request Fields:
+- Text Fields:
+  * name (String, Required) - e.g., "Amit Kumar"
+  * phone (String, Required) - e.g., "9911223344" (Saves to 'mobile' column in database)
+  * email (String, Required) - e.g., "amit@gmail.com"
+  * address (String, Required) - e.g., "Sector 15, Jaipur"
+  * state (String, Required) - e.g., "Rajasthan"
+  * city (String, Required) - e.g., "Jaipur"
+  * locality (String, Required) - e.g., "Mansarovar"
+  * password (String, Required) - e.g., "secure123"
+  * gender (String, Optional) - "Male" or "Female"
+  * category (String, Optional) - e.g., "Electrician"
+  * subCategory (String, Optional) - e.g., "Repair"
+  * hasVehicle (String, Optional) - "Yes" or "No"
+  * services (String, Optional) - Comma-separated services, e.g., "AC Repair,Fan Repair"
+  * aadharNumber (String, Optional) - e.g., "123456789012"
+  * panNumber (String, Optional) - e.g., "ABCDE1234F"
+  * bankName (String, Optional) - e.g., "State Bank of India"
+  * accountHolder (String, Optional) - e.g., "Amit Kumar"
+  * accountNumber (String, Optional) - e.g., "30291827361"
+  * ifscCode (String, Optional) - e.g., "SBIN0001234"
+
+- File Upload Fields (Optional / Recommended):
+  * profileImage - File upload for partner's photo (saves to 'image' column)
+  * aadharFront - File upload for Aadhar Card front
+  * aadharBack - File upload for Aadhar Card back
+  * panImage - File upload for PAN Card photo
+  * policeVerification - File upload for Police Verification document (saves to 'policeVerificationImage' column)
+
+Response Example (Status 201 Created):
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "partner": {
+    "id": 3,
+    "name": "Amit Kumar",
+    "phone": "9911223344",
+    "email": "amit@gmail.com",
+    "gender": "Male",
+    "address": "Sector 15, Jaipur",
+    "state": "Rajasthan",
+    "city": "Jaipur",
+    "locality": "Mansarovar",
+    "category": "Electrician",
+    "subCategory": "Repair",
+    "hasVehicle": "Yes",
+    "services": "AC Repair,Fan Repair",
+    "aadharNumber": "123456789012",
+    "aadharFront": "http://localhost:3000/uploads/aadharFront-1780120.jpg",
+    "aadharBack": "http://localhost:3000/uploads/aadharBack-1780121.jpg",
+    "panNumber": "ABCDE1234F",
+    "panImage": "http://localhost:3000/uploads/panImage-1780122.jpg",
+    "bankName": "State Bank of India",
+    "accountHolder": "Amit Kumar",
+    "accountNumber": "30291827361",
+    "ifscCode": "SBIN0001234",
+    "profileImage": "http://localhost:3000/uploads/profileImage-1780119.jpg",
+    "status": true,
+    "isApproved": false
+  }
+}
+
+1.2 LOGIN PARTNER
+-----------------
+Endpoint: POST /api/auth/login
+Request Format: application/json
+Description: Logs in a partner using their phone number and password.
+
+Request Body:
+{
+  "phone": "9911223344",
+  "password": "secure123"
+}
+
+Response Example (Status 200 OK):
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "partner": { ...partnerDetails... }
+}
+
+1.3 FORGOT PASSWORD
+-------------------
+Endpoint: POST /api/auth/forgot-password
+Request Format: application/json
+Description: Resets the password for a registered mobile number.
+
+Request Body:
+{
+  "phone": "9911223344",
+  "newPassword": "newSecurePassword123"
+}
+
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Password reset successful!"
+}
+
+1.4 LOGOUT
+----------
+Endpoint: POST /api/auth/logout
+Description: Ends partner session.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+
+1.5 SEND OTP
+------------
+Endpoint: POST /api/auth/send-otp
+Request Format: application/json
+Description: Generates a 4-digit OTP for phone verification.
+Request Body:
+{
+  "phone": "9911223344"
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "OTP sent successfully",
+  "otp": "8676"
+}
+
+1.6 VERIFY OTP
+--------------
+Endpoint: POST /api/auth/verify-otp
+Request Format: application/json
+Description: Verifies the 4-digit OTP code sent to the phone number.
+Request Body:
+{
+  "phone": "9911223344",
+  "otp": "8676"
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Phone number verified successfully"
+}
+
+
+----------------------------------------------------------------------
+2. PARTNER PROFILE (PROTECTED - Requires Bearer Token)
+----------------------------------------------------------------------
+Add Header: `Authorization: Bearer <token>` to all subsequent requests.
+
+2.1 GET PROFILE
+---------------
+Endpoint: GET /api/partner/profile
+Description: Fetches details of the authenticated partner.
+Response Example:
+{
+  "partner": { ...partnerDetails... }
+}
+
+2.2 UPDATE PROFILE
+------------------
+Endpoint: PUT /api/partner/profile
+Request Format: multipart/form-data
+Description: Updates partner details and/or uploads a new profile photo.
+
+Request Fields:
+- Text Fields: name, email, address, state, city, locality, category, subCategory, services
+- File Field: profileImage (Optional)
+
+Response Example:
+{
+  "partner": { ...updatedPartnerDetails... }
+}
+
+
+----------------------------------------------------------------------
+3. BOOKINGS MANAGEMENT (PROTECTED - Requires Bearer Token)
+----------------------------------------------------------------------
+
+3.1 LIST ASSIGNED BOOKINGS (FLUTTER FORMAT)
+-------------------------------------------
+Endpoint: GET /api/bookings
+Query Parameters (Optional):
+  - status: Filter by lowercase app status ('upcoming', 'completed', 'cancel', 'in_progress')
+Description: Fetches list of bookings assigned to the logged-in partner. Mapped directly to the JSON format expected by Flutter.
+Response Example (Status 200 OK - Raw JSON Array):
+[
+  {
+    "id": "1",
+    "status": "upcoming",
+    "service": "Sofa Cleaning",
+    "date": "15-05-2026",
+    "time": "10:00 AM - 12:00 PM",
+    "serviceAmount": 599.00,
+    "serviceRequestNumber": "REQ1001",
+    "address": "H.No 12, Block B, CP, New Delhi",
+    "city": "Delhi",
+    "locality": "Connaught Place",
+    "customerName": "Rahul Sharma",
+    "customerPhone": "9876543210"
+  }
+]
+
+3.1b GET SINGLE BOOKING DETAILS
+-------------------------------
+Endpoint: GET /api/bookings/:id (PROTECTED)
+Description: Fetches full details of a single booking by ID.
+Response Example (Status 200 OK):
+{
+  "id": "1",
+  "status": "upcoming",
+  "service": "AC Deep Repairing",
+  "date": "06-06-2026",
+  "time": "10:00 AM - 12:00 PM",
+  "serviceAmount": 499.00,
+  "serviceRequestNumber": "REQ-2026-0001",
+  "address": "H.No 12, Block B, Connaught Place, New Delhi",
+  "city": "Delhi",
+  "locality": "Connaught Place",
+  "paymentMethod": "UPI",
+  "customerName": "Rahul Sharma",
+  "customerPhone": "9876543210",
+  "createdAt": "05-06-2026 10:15 AM"
+}
+
+3.2 BOOKING STATS (DASHBOARD)
+-----------------------------
+Endpoint: GET /api/bookings/stats
+Description: Fetches total, upcoming, completed, cancelled, in-progress, and accepted bookings count for the dashboard.
+Response Example:
+{
+  "totalBooking": 5,
+  "upcomingBooking": 2,
+  "inProgressBooking": 1,
+  "acceptedBooking": 3,
+  "completedBooking": 2,
+  "cancelBooking": 1
+}
+
+3.3 ACCEPT BOOKING
+------------------
+Endpoint: POST /api/bookings/:id/accept
+Description: Assigns the booking to the logged-in partner and moves its status to 'Assigned'.
+Response Example:
+{
+  "success": true,
+  "message": "Order accepted successfully!"
+}
+
+3.4 REJECT BOOKING
+------------------
+Endpoint: POST /api/bookings/:id/reject
+Description: Unassigns the booking from the partner, setting it back to 'Pending' (null vendor).
+Response Example:
+{
+  "success": true,
+  "message": "Order rejected/unassigned successfully!"
+}
+
+3.5 PENDING POPUP ALERTS
+------------------------
+Endpoint: GET /api/bookings/pending-popup
+Description: Returns the next available pending order in the partner's city & locality that does not have any assigned vendor. Used to show alert/popups in the mobile application.
+Response Example:
+{
+  "message": "New order available!",
+  "order": {
+    "id": "4",
+    "serviceRequestNumber": "REQ1004",
+    "serviceName": "Fan Repairing",
+    "serviceAmount": 150.00,
+    "slotTime": "04:00 PM - 05:00 PM",
+    "serviceDate": "10-05-2026",
+    "city": "Delhi",
+    "locality": "Connaught Place",
+    "address": "Pocket 1, Sector 10, Dwarka, Delhi"
+  }
+}
+
+
+----------------------------------------------------------------------
+4. EARNINGS (PROTECTED - Requires Bearer Token)
+----------------------------------------------------------------------
+
+4.1 GET EARNINGS
+----------------
+Endpoint: GET /api/earnings
+Description: Retrieves total earnings, today's earnings, monthly earnings, online earnings, cash earnings, amount due to company, and current wallet balance.
+Response Example:
+{
+  "totalEarning": 25000,
+  "todayEarning": 10000,
+  "monthlyEarning": 15000,
+  "onlineEarning": 12000,
+  "cashEarning": 13000,
+  "payToCompany": 3250.00,
+  "walletBalance": 8750.00
+}
+
+
+
+----------------------------------------------------------------------
+5. MANDATORY REGISTRATION PAYMENT & SECURITY (PROTECTED)
+----------------------------------------------------------------------
+
+5.1 PROCESS ₹350 REGISTRATION FEE PAYMENT
+-----------------------------------------
+Endpoint: POST /api/partner/pay-registration
+Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning.
+Request Body (JSON):
+{
+  "paymentMethod": "UPI",
+  "transactionId": "TXN_REG_1098234"
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "₹350 registration payment received successfully! You can access the dashboard once approved by the admin.",
+  "partner": { ...updatedPartnerDetailsWithIsPaidTrue... }
+}
+
+5.2 CHANGE PASSWORD
+-------------------
+Endpoint: POST /api/partner/change-password
+Description: Updates partner account password.
+Request Body (JSON):
+{
+  "oldPassword": "secureOldPassword",
+  "newPassword": "newSecurePassword"
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Password updated successfully!"
+}
+
+
+----------------------------------------------------------------------
+6. ADD-ON SUPPORT & REVIEW APIs (PROTECTED)
+----------------------------------------------------------------------
+
+6.1 FILE SUPPORT TICKET
+-----------------------
+Endpoint: POST /api/partner/support
+Description: Registers a support ticket linked to this partner's profile.
+Request Body (JSON):
+{
+  "subject": "App Crash on Bookings Screen",
+  "message": "The bookings list does not load when I click it. Please fix."
+}
+Response Example (Status 201 Created):
+{
+  "success": true,
+  "message": "Support ticket registered successfully!",
+  "ticketId": 3
+}
+
+6.2 VIEW OWN SUPPORT TICKETS
+----------------------------
+Endpoint: GET /api/partner/support
+Description: Retrieves all support tickets filed by this partner.
+Response Example:
+[
+  {
+    "id": 3,
+    "userName": "Amit Kumar",
+    "email": "amit@gmail.com",
+    "mobile": "9911223344",
+    "subject": "App Crash on Bookings Screen",
+    "message": "The bookings list does not load when I click it. Please fix.",
+    "status": "Open",
+    "createdAt": "02-06-2026"
+  }
+]
+
+6.3 GET CLIENT REVIEWS
+----------------------
+Endpoint: GET /api/partner/reviews
+Description: Retrieves all public reviews written by customers about this partner.
+Response Example:
+[
+  {
+    "id": 1,
+    "userName": "Rahul Sharma",
+    "partnerName": "Amit Kumar",
+    "serviceName": "Deep House Cleaning",
+    "rating": 5.00,
+    "reviewText": "Excellent service, very polite and thorough with his work.",
+    "status": 1
+  }
+]
+
+----------------------------------------------------------------------
+7. METADATA, DYNAMIC DROPDOWNS & LIFECYCLE APIs (PROTECTED / PUBLIC)
+----------------------------------------------------------------------
+
+7.1 GET DYNAMIC LOCATION DROPDOWNS
+----------------------------------
+Endpoint: GET /api/metadata/locations
+Description: Fetches nested active states, cities, and localities from the database for dynamic dropdown lists during registration.
+Response Example (Status 200 OK):
+{
+  "Delhi": {
+    "New Delhi": ["Connaught Place", "Dwarka Sector 10"]
+  },
+  "Rajasthan": {
+    "Jaipur": ["Malviya Nagar"]
+  }
+}
+
+7.2 GET DYNAMIC CATEGORY & SERVICE DROPDOWNS
+--------------------------------------------
+Endpoint: GET /api/metadata/categories
+Description: Fetches active main categories and nested subcategories with service title lists for dynamic selection.
+Response Example (Status 200 OK):
+{
+  "categories": ["Cleaning", "Repairing"],
+  "categoryData": {
+    "Cleaning": {
+      "Sofa Cleaning": ["Sofa Deep Cleaning", "Sofa Sanitization"]
+    },
+    "Repairing": {
+      "AC Repair": ["AC Repair", "AC Installation"]
+    }
+  }
+}
+
+7.3 GET UNIFIED PARTNER DASHBOARD
+---------------------------------
+Endpoint: GET /api/partner/dashboard (PROTECTED)
+Description: Retrieves active banners, booking status stats, monthly and daily earnings, and partner KYC payment/approval status in a single aggregated payload.
+Response Example (Status 200 OK):
+{
+  "isPaid": true,
+  "isApproved": true,
+  "bookingsStats": {
+    "totalBooking": 5,
+    "upcomingBooking": 2,
+    "inProgressBooking": 1,
+    "acceptedBooking": 3,
+    "completedBooking": 2,
+    "cancelBooking": 1
+  },
+  "earningsStats": {
+    "totalEarning": 25000,
+    "todayEarning": 10000,
+    "monthlyEarning": 15000,
+    "onlineEarning": 12000,
+    "cashEarning": 13000,
+    "payToCompany": 3250.00,
+    "walletBalance": 8750.00
+  },
+  "banners": [
+    "https://images.unsplash.com/photo-1504384308090-c894fdcc538d"
+  ]
+}
+
+7.4 START BOOKING WORK
+----------------------
+Endpoint: POST /api/bookings/:id/start (PROTECTED)
+Description: Moves the booking status to 'In Progress'.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Work started successfully!",
+  "status": "in_progress"
+}
+
+7.5 COMPLETE BOOKING WORK & COMMISSIONS
+---------------------------------------
+Endpoint: POST /api/bookings/:id/complete (PROTECTED)
+Description: Completes booking, processes commission, updates wallet/earnings, and logs transaction details inside database tables.
+Request Body (JSON - Optional):
+{
+  "paymentMethod": "Cash" // Can be "Cash" or "UPI". Defaults to "UPI".
+}
+Note on Commissions and Balances:
+- If paymentMethod is "Cash", the commission rate is 25%. Since the partner collects the cash directly, no walletBalance is added. Instead, the 25% commission is added to "payToCompany" (which the partner owes to the company).
+- If paymentMethod is "UPI", the standard commission rate (from settings, default 10%) is used. The partner's share is credited to their "walletBalance".
+Response Example (Status 200 OK - Cash Payment):
+{
+  "success": true,
+  "message": "Work completed successfully and earnings updated!",
+  "status": "completed",
+  "earnings": {
+    "serviceAmount": 500.00,
+    "paymentMethod": "Cash",
+    "commissionRate": 25,
+    "commissionAmount": 125.00,
+    "partnerShare": 375.00,
+    "walletBalanceAdded": 0.00,
+    "payToCompanyAdded": 125.00
+  }
+}
+
+
+7.6 GET ACTIVE STATES
+---------------------
+Endpoint: GET /api/locations/states (PUBLIC)
+Description: Retrieves a list of active state names.
+Response Example (Status 200 OK):
+[
+  "Delhi",
+  "Rajasthan"
+]
+
+7.7 GET ACTIVE CITIES
+---------------------
+Endpoint: GET /api/locations/cities (PUBLIC)
+Description: Retrieves a list of active city names in a state.
+Query Parameters:
+  - state (Required) - Name of the state (e.g., "Delhi")
+Response Example (Status 200 OK):
+[
+  "New Delhi"
+]
+
+7.8 GET ACTIVE LOCALITIES
+-------------------------
+Endpoint: GET /api/locations/localities (PUBLIC)
+Description: Retrieves a list of active locality names in a city.
+Query Parameters:
+  - city (Required) - Name of the city (e.g., "New Delhi")
+Response Example (Status 200 OK):
+[
+  "Connaught Place",
+  "Dwarka Sector 10"
+]
+
+7.9 GET ACTIVE MAIN CATEGORIES
+------------------------------
+Endpoint: GET /api/services/categories (PUBLIC)
+Description: Retrieves active main categories (with parent as 'None' or NULL).
+Response Example (Status 200 OK):
+[
+  "Cleaning",
+  "Repairing"
+]
+
+7.10 GET ACTIVE SUBCATEGORIES
+-----------------------------
+Endpoint: GET /api/services/subcategories (PUBLIC)
+Description: Retrieves active subcategories under a main category.
+Query Parameters:
+  - category (Required) - Parent category title (e.g., "Cleaning")
+Response Example (Status 200 OK):
+[
+  "Sofa Cleaning",
+  "Kitchen Cleaning"
+]
+
+7.11 GET ACTIVE SERVICES UNDER CATEGORY
+---------------------------------------
+Endpoint: GET /api/services/list-by-category (PUBLIC)
+Description: Retrieves active service titles belonging to a specific category.
+Query Parameters:
+  - category (Required) - Category title (e.g., "Sofa Cleaning")
+Response Example (Status 200 OK):
+[
+  "Sofa Deep Cleaning",
+  "Sofa Sanitization"
+]
+
+

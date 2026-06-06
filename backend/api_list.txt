@@ -1,179 +1,230 @@
-=========================================
-ADMIN PANEL BACKEND REST API ENDPOINTS
-=========================================
+======================================================================
+HOME FACILITI BACKEND REST API ENDPOINTS - COMPLETE INDEX
+======================================================================
 Base URL: http://localhost:5000/api
 
------------------------------------------
+----------------------------------------------------------------------
 1. IMAGE UPLOAD
------------------------------------------
-Endpoint: POST /api/upload
-Request: Multipart form-data with field name 'image' (image file or raw bytes)
-Response: JSON
-{
-  "url": "http://localhost:5000/uploads/image-[unique-suffix].jpg"
-}
+----------------------------------------------------------------------
+* POST /api/upload
+  - Upload image file (multipart/form-data, field 'image')
+  - Response: { "url": "http://localhost:5000/uploads/..." }
 
------------------------------------------
+----------------------------------------------------------------------
 2. USERS MANAGEMENT
------------------------------------------
+----------------------------------------------------------------------
 * GET /api/users
-  - Fetch list of all users.
+  - Fetch all users. Optional query params: 'query', 'name', 'email', 'mobile'.
 * POST /api/users
-  - Create a new user.
-  - Body (JSON): { "name": "...", "email": "...", "mobile": "...", "address": "..." }
+  - Create a new user. Body: { "name": "...", "email": "...", "mobile": "...", "address": "..." }
 * PUT /api/users/:id
   - Update user details by ID.
-  - Body (JSON): { "name": "...", "email": "...", "mobile": "...", "address": "..." }
 * DELETE /api/users/:id
   - Delete user by ID.
 
------------------------------------------
-3. PARTNERS MANAGEMENT
------------------------------------------
+----------------------------------------------------------------------
+3. PARTNERS (VENDORS) MANAGEMENT
+----------------------------------------------------------------------
 * GET /api/partners
-  - Fetch list of all partners. Comma-separated list strings (services, documents) are parsed back into lists.
+  - Fetch all partners. Optional query params: 'name', 'mobile', 'city', 'state', 'status', 'isApproved'.
+* GET /api/partners/pending
+  - Fetch partners pending approval (isApproved = 0).
+* GET /api/partners/:id
+  - Fetch details of a single partner by ID.
 * POST /api/partners
-  - Create a new partner.
-  - Body (JSON): { "name": "...", "email": "...", "mobile": "...", "city": "...", "state": "...", "locality": "...", "address": "...", "image": "...", "status": true, "isApproved": false, "gender": "...", "experience": "...", "services": [...], "aadhaarNumber": "...", "panNumber": "...", "bankName": "...", "accountNumber": "...", "ifscCode": "...", "documents": [...], "walletBalance": 0.0, "totalEarnings": 0.0, "withdrawnAmount": 0.0, "totalBookings": 0, "completedBookings": 0, "cancelledBookings": 0, "pendingBookings": 0, "rating": 0.0, "totalReviews": 0 }
+  - Register a new partner. Body: { "name": "...", "email": "...", "mobile": "...", "city": "...", "state": "...", "locality": "...", "address": "...", "image": "...", "gender": "...", "experience": "...", "services": [...], "aadhaarNumber": "...", "panNumber": "...", "bankName": "...", "accountNumber": "...", "ifscCode": "...", "documents": [...] }
 * PUT /api/partners/:id
-  - Update partner details by ID.
-  - Body (JSON): Same structure as POST.
+  - Update partner details.
+* PUT /api/partners/:id/approve
+  - Approve partner. Sets isApproved = 1 and status = 1.
+* PUT /api/partners/:id/disapprove
+  - Disapprove partner. Sets isApproved = 0.
 * DELETE /api/partners/:id
   - Delete partner by ID.
 
------------------------------------------
+----------------------------------------------------------------------
 4. CATEGORIES MANAGEMENT
------------------------------------------
+----------------------------------------------------------------------
 * GET /api/categories
-  - Fetch list of all categories.
+  - Fetch list of all categories. Query params: 'title' (or 'categoryName'), 'parent' (or 'mainCategory'), 'status'.
 * POST /api/categories
-  - Create a new category.
-  - Body (JSON): { "title": "...", "parent": "...", "image": "...", "status": true }
+  - Create a new category. Body: { "title": "...", "parent": "...", "image": "...", "status": true }
 * PUT /api/categories/:id
   - Update category details by ID.
-  - Body (JSON): { "title": "...", "parent": "...", "image": "...", "status": true }
 * DELETE /api/categories/:id
-  - Delete category by ID.
+  - Delete category by ID (cascade-deletes all sub-categories).
 
------------------------------------------
+----------------------------------------------------------------------
 5. SERVICES MANAGEMENT
------------------------------------------
+----------------------------------------------------------------------
 * GET /api/services
   - Fetch list of all services.
 * POST /api/services
-  - Create a new service.
-  - Body (JSON): { "title": "...", "price": 499.0, "image": "...", "description": "...", "status": true }
+  - Create a new service. Body: { "title": "...", "price": 499.0, "image": "...", "description": "...", "status": true, "categoryId": 3 }
 * PUT /api/services/:id
   - Update service details by ID.
-  - Body (JSON): { "title": "...", "price": 499.0, "image": "...", "description": "...", "status": true }
 * DELETE /api/services/:id
   - Delete service by ID.
 
------------------------------------------
+----------------------------------------------------------------------
 6. ORDERS / BOOKINGS MANAGEMENT
------------------------------------------
+----------------------------------------------------------------------
 * GET /api/orders
   - Fetch list of all bookings.
 * POST /api/orders
-  - Create a new booking/order.
-  - Body (JSON): { "serviceRequestNumber": "...", "serviceName": "...", "serviceAmount": 299.0, "slotTime": "...", "serviceDate": "...", "city": "...", "locality": "...", "status": "...", "vendorName": "...", "address": "..." }
+  - Create a new booking/order. Body: { "serviceRequestNumber": "...", "serviceName": "...", "serviceAmount": 299.0, "slotTime": "...", "serviceDate": "...", "city": "...", "locality": "...", "status": "...", "vendorName": "...", "address": "..." }
 * PUT /api/orders/:id
   - Update booking status or vendor details.
-  - Body (JSON): Same structure as POST.
 * DELETE /api/orders/:id
   - Delete booking by ID.
 
------------------------------------------
+----------------------------------------------------------------------
 7. EARNINGS MANAGEMENT
------------------------------------------
-* GET /api/earnings/booking
-  - Fetch history of all booking earnings.
-* POST /api/earnings/booking
-  - Save booking earning transaction.
-  - Body (JSON): { "transactionId": "...", "serviceAmount": 499.0, "paymentMethod": "...", "extraServiceAmount": 0.0, "extraServicePaymentMethod": "...", "totalAmount": 499.0, "orderDate": "..." }
-* GET /api/earnings/subscription
-  - Fetch history of all partner subscriptions.
-* POST /api/earnings/subscription
-  - Save partner subscription transaction.
-  - Body (JSON): { "partnerName": "...", "amount": 999.0, "paymentMethod": "...", "purchaseDate": "...", "status": "Active" }
+----------------------------------------------------------------------
+* GET /api/earnings/bookings
+  - Fetch history of all booking earnings and aggregates. Optional query: 'query', 'transactionId', 'paymentMethod', 'orderDate'.
+* POST /api/earnings/bookings
+  - Save booking earning transaction. Body: { "transactionId": "...", "serviceAmount": 499.0, "paymentMethod": "...", "extraServiceAmount": 0.0, "extraServicePaymentMethod": "...", "totalAmount": 499.0, "orderDate": "..." }
+* GET /api/earnings/subscriptions
+  - Fetch history of all partner subscriptions and aggregates. Optional query: 'query', 'partnerName', 'paymentMethod', 'status', 'purchaseDate'.
+* POST /api/earnings/subscriptions
+  - Save partner subscription transaction. Body: { "partnerName": "...", "amount": 999.0, "paymentMethod": "...", "purchaseDate": "...", "status": "Paid" }
 
------------------------------------------
-8. BANNERS MANAGEMENT
------------------------------------------
-* GET /api/banners
-  - Fetch list of all banners.
-* POST /api/banners
-  - Add new banner.
-  - Body (JSON): { "title": "...", "image": "...", "status": true }
-* PUT /api/banners/:id
-  - Update banner details by ID.
-  - Body (JSON): Same structure as POST.
-* DELETE /api/banners/:id
-  - Delete banner by ID.
+----------------------------------------------------------------------
+8. CONTENT PAGES
+----------------------------------------------------------------------
+* GET /api/pages
+  - Fetch list of all content pages (About, Terms, Privacy, Refund).
+* GET /api/pages/:id
+  - Fetch a single content page by ID.
+* POST /api/pages
+  - Add a new content page. Body: { "title": "...", "description": "..." }
+* PUT /api/pages/:id
+  - Update content page title and/or description.
+* DELETE /api/pages/:id
+  - Delete a content page by ID.
 
------------------------------------------
-9. CITIES & STATES
------------------------------------------
-* GET /api/cities
-  - Fetch list of cities.
-* POST /api/cities
-  - Add a city.
-  - Body (JSON): { "cityName": "...", "stateName": "...", "status": true }
-* PUT /api/cities/:id
-  - Update a city.
-  - Body (JSON): Same structure as POST.
-* DELETE /api/cities/:id
-  - Delete a city.
+----------------------------------------------------------------------
+9. ADMIN DASHBOARD STATISTICS
+----------------------------------------------------------------------
+* GET /api/dashboard
+  - Fetch admin panel summary dashboard statistics (counts and total earnings).
 
-* GET /api/states
-  - Fetch list of states.
-* POST /api/states
-  - Add a state.
-  - Body (JSON): { "name": "...", "status": true }
-* PUT /api/states/:id
-  - Update a state.
-  - Body (JSON): Same structure as POST.
-* DELETE /api/states/:id
-  - Delete a state.
+----------------------------------------------------------------------
+10. REPORTS & EXPORTS
+----------------------------------------------------------------------
+* GET /api/reports/users
+  - Fetch users report dataset. Required query: 'startDate', 'endDate', 'query', 'export'.
+* GET /api/reports/partners
+  - Fetch partners report dataset. Required query: 'startDate', 'endDate', 'query', 'export'.
+* GET /api/reports/earnings
+  - Fetch booking earnings report dataset. Required query: 'startDate', 'endDate', 'query', 'export'.
+* GET /api/reports/subscriptions
+  - Fetch subscriptions report dataset. Required query: 'startDate', 'endDate', 'query', 'export'.
 
------------------------------------------
-10. LOCALITIES
------------------------------------------
-* GET /api/localities
-  - Fetch list of localities.
-* POST /api/localities
-  - Add a locality.
-  - Body (JSON): { "localityName": "...", "cityName": "...", "stateName": "...", "status": true }
-* PUT /api/localities/:id
-  - Update a locality.
-  - Body (JSON): Same structure as POST.
-* DELETE /api/localities/:id
-  - Delete a locality.
+----------------------------------------------------------------------
+11. SUPPORT TICKETS MANAGEMENT
+----------------------------------------------------------------------
+* GET /api/support
+  - Fetch all support tickets. Optional query params: 'query', 'status'.
+* GET /api/support/:id
+  - Fetch details of a single support ticket by ID.
+* POST /api/support
+  - Create a support ticket. Body: { "userName": "...", "email": "...", "mobile": "...", "subject": "...", "message": "..." }
+* PUT /api/support/:id
+  - Update support ticket status. Body: { "status": "Closed" }
+* DELETE /api/support/:id
+  - Delete support ticket by ID.
 
------------------------------------------
-11. NOTIFICATIONS
------------------------------------------
-* GET /api/notifications
-  - Fetch list of all notifications.
-* POST /api/notifications
-  - Add a notification.
-  - Body (JSON): { "title": "...", "message": "...", "audience": "...", "status": true, "isSent": false, "sentAt": "" }
-* PUT /api/notifications/:id
-  - Update a notification.
-  - Body (JSON): Same structure as POST.
-* DELETE /api/notifications/:id
-  - Delete a notification.
+----------------------------------------------------------------------
+12. CONFIGURATION & SETTINGS
+----------------------------------------------------------------------
+- BANNERS:
+  * GET /api/settings/banners - List all banners. Query param 'title' filters.
+  * POST /api/settings/banners - Add banner. Body: { "title": "...", "image": "...", "status": true }
+  * PUT /api/settings/banners/:id - Update banner details.
+  * DELETE /api/settings/banners/:id - Delete banner.
+  * PUT/PATCH /api/settings/banners/:id/status - Toggle banner status. Body: { "status": true }
 
------------------------------------------
-12. REVIEWS
------------------------------------------
-* GET /api/reviews
-  - Fetch list of all reviews.
-* POST /api/reviews
-  - Add a review.
-  - Body (JSON): { "userName": "...", "partnerName": "...", "serviceName": "...", "rating": 5.0, "reviewText": "...", "status": true }
-* PUT /api/reviews/:id
-  - Update a review.
-  - Body (JSON): Same structure as POST.
-* DELETE /api/reviews/:id
-  - Delete a review by ID.
+- STATES:
+  * GET /api/settings/states - List active states. Query param 'name' filters.
+  * POST /api/settings/states - Add state. Body: { "name": "...", "status": true }
+  * PUT /api/settings/states/:id - Update state details.
+  * DELETE /api/settings/states/:id - Delete state and cascade-deletes its cities and localities.
+  * PUT/PATCH /api/settings/states/:id/status - Toggle state status. Body: { "status": true }
+
+- CITIES:
+  * GET /api/settings/cities - List active cities. Query params 'cityName', 'stateName' filter.
+  * POST /api/settings/cities - Add city. Body: { "cityName": "...", "stateName": "...", "status": true }
+  * PUT /api/settings/cities/:id - Update city details.
+  * DELETE /api/settings/cities/:id - Delete city and cascade-deletes its localities.
+  * PUT/PATCH /api/settings/cities/:id/status - Toggle city status. Body: { "status": true }
+
+- LOCALITIES:
+  * GET /api/settings/localities - List active localities. Query params 'localityName', 'cityName', 'stateName' filter.
+  * POST /api/settings/localities - Add locality. Body: { "localityName": "...", "cityName": "...", "stateName": "...", "status": true }
+  * PUT /api/settings/localities/:id - Update locality details.
+  * DELETE /api/settings/localities/:id - Delete locality.
+  * PUT/PATCH /api/settings/localities/:id/status - Toggle locality status. Body: { "status": true }
+
+- COMMISSION SETTING:
+  * GET /api/settings/commission - Retrieve commission rate.
+  * PUT /api/settings/commission - Update commission rate. Body: { "commissionRate": 15.0 }
+
+- REVIEWS & RATINGS:
+  * GET /api/settings/reviews - Retrieve public reviews list.
+  * POST /api/settings/reviews - Add review. Body: { "userName": "...", "partnerName": "...", "serviceName": "...", "rating": 5.0, "reviewText": "..." }
+  * PUT /api/settings/reviews/:id/status - Toggle review status. Body: { "status": true }
+  * DELETE /api/settings/reviews/:id - Delete review.
+
+- NOTIFICATIONS LOGS:
+  * GET /api/settings/notifications - List notification logs.
+  * POST /api/settings/notifications - Add notification. Body: { "title": "...", "message": "...", "audience": "...", "status": true }
+  * PUT /api/settings/notifications/:id - Update notification / Mark as sent. Body: { "isSent": true }
+  * DELETE /api/settings/notifications/:id - Delete notification.
+
+----------------------------------------------------------------------
+13. PARTNER MOBILE APP ENDPOINTS
+----------------------------------------------------------------------
+- AUTHENTICATION:
+  * POST /api/auth/register - Register a partner (multipart/form-data).
+  * POST /api/auth/login - Login partner using phone and password.
+  * POST /api/auth/forgot-password - Reset password for a mobile number.
+  * POST /api/auth/logout - End partner session.
+  * POST /api/auth/send-otp - Request a 4-digit OTP code for a phone number.
+  * POST /api/auth/verify-otp - Verify the requested OTP code for a phone number.
+
+- PROFILE (PROTECTED):
+  * GET /api/partner/profile - Fetch authenticated partner details.
+  * PUT /api/partner/profile - Update partner details and profile image.
+  * POST /api/partner/change-password - Update password.
+
+- REGISTRATION FEE & WALLET (PROTECTED):
+  * POST /api/partner/pay-registration - Pay ₹350 registration fee. Body: { "paymentMethod": "UPI", "transactionId": "..." }
+  * GET /api/earnings - Fetch partner total, daily, monthly, online, and cash earnings.
+
+- BOOKINGS LIFECYCLE (PROTECTED):
+  * GET /api/bookings - Fetch bookings assigned to this partner. Filter: '?status=upcoming/completed/cancel/in_progress'.
+  * GET /api/bookings/:id - Fetch details of a single booking by ID.
+  * GET /api/bookings/stats - Fetch bookings counts (total, upcoming, in-progress, accepted, completed, cancelled).
+  * POST /api/bookings/:id/accept - Accept booking.
+  * POST /api/bookings/:id/reject - Reject booking (unassigns partner).
+  * POST /api/bookings/:id/start - Start order work (sets status to 'In Progress').
+  * POST /api/bookings/:id/complete - Complete order work. Optional body: { "paymentMethod": "Cash" / "UPI" }. UPI updates walletBalance; Cash charges 25% commission to payToCompany.
+  * GET /api/bookings/pending-popup - Fetch next available pending order for popup alerts.
+
+- PARTNER SERVICES & METADATA (PUBLIC):
+  * GET /api/metadata/locations - Fetch nested State -> City -> Locality dropdown hierarchy.
+  * GET /api/metadata/categories - Fetch nested Category -> Subcategory -> Services dropdown hierarchy.
+  * GET /api/locations/states - List active states names array.
+  * GET /api/locations/cities - List active cities names array for a state. Param: '?state=StateName'.
+  * GET /api/locations/localities - List active localities names array for a city. Param: '?city=CityName'.
+  * GET /api/services/categories - List active main categories.
+  * GET /api/services/subcategories - List subcategories under a main category. Param: '?category=CategoryName'.
+  * GET /api/services/list-by-category - List service titles under a category. Param: '?category=CategoryName'.
+
+- SUPPORT & REVIEWS (PROTECTED):
+  * POST /api/partner/support - Register support ticket. Body: { "subject": "...", "message": "..." }
+  * GET /api/partner/support - Fetch own registered support tickets.
+  * GET /api/partner/reviews - Fetch reviews written by customers about this partner.
+  * GET /api/partner/dashboard - Fetch active banners, booking stats, earnings stats, and payment status in one payload.
