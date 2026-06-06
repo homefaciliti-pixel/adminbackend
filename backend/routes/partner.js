@@ -229,12 +229,33 @@ function getMockEarningsStats(partner, mockStore) {
 // -------------------------------------------------------------
 async function authenticatePartner(req, res, next) {
   try {
+    let token = null;
+
+    // 1. Extract from Authorization header
     const authHeader = req.headers['authorization'];
-    if (!authHeader) {
-      return res.status(401).json({ error: 'No authorization header provided' });
+    if (authHeader) {
+      if (authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+      } else {
+        token = authHeader; // fallback if "Bearer " prefix is omitted
+      }
     }
 
-    const token = authHeader.split(' ')[1];
+    // 2. Extract from other common headers
+    if (!token) {
+      token = req.headers['token'] || req.headers['x-token'] || req.headers['x-access-token'];
+    }
+
+    // 3. Extract from query parameters
+    if (!token && req.query) {
+      token = req.query.token || req.query.authorization;
+    }
+
+    // 4. Extract from request body
+    if (!token && req.body) {
+      token = req.body.token || req.body.authorization;
+    }
+
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
