@@ -1532,12 +1532,12 @@ router.get('/metadata/categories', async (req, res) => {
     const [categories] = await db.query('SELECT * FROM categories WHERE status = 1');
     const [services] = await db.query('SELECT * FROM services WHERE status = 1');
 
-    // Filter main categories (parent is 'None', '' or null)
-    const mainCategories = categories.filter(c => !c.parent || c.parent === 'None' || c.parent === '');
+    // Filter main categories (parent is 'None', '', 'Main Category' or null)
+    const mainCategories = categories.filter(c => !c.parent || c.parent === 'None' || c.parent === '' || c.parent === 'Main Category');
     const mainCategoryTitles = mainCategories.map(c => c.title);
 
     // subcategories are categories where parent is a main category title
-    const subCategories = categories.filter(c => c.parent && c.parent !== 'None' && c.parent !== '');
+    const subCategories = categories.filter(c => c.parent && c.parent !== 'None' && c.parent !== '' && c.parent !== 'Main Category');
 
     const categoryData = {};
     mainCategoryTitles.forEach(title => {
@@ -1560,7 +1560,7 @@ router.get('/metadata/categories', async (req, res) => {
       const cat = categories.find(c => c.id === srv.category_id);
       if (!cat) return;
 
-      if (!cat.parent || cat.parent === 'None' || cat.parent === '') {
+      if (!cat.parent || cat.parent === 'None' || cat.parent === '' || cat.parent === 'Main Category') {
         const mainTitle = Object.keys(categoryData).find(p => p.toLowerCase() === cat.title.toLowerCase()) || cat.title;
         if (!categoryData[mainTitle]) {
           categoryData[mainTitle] = {};
