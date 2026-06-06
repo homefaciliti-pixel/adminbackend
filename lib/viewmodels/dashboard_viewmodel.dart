@@ -14,6 +14,7 @@ class DashboardViewModel extends ChangeNotifier {
   int todayOrders = 0;
   int completeOrders = 0;
   int assignedOrders = 0;
+  int inProgressOrders = 0;
   int cancelOrders = 0;
   int totalSupporters = 0;
 
@@ -77,6 +78,9 @@ class DashboardViewModel extends ChangeNotifier {
                 break;
               case 'Assigned Orders':
                 assignedOrders = intAmount;
+                break;
+              case 'In Progress Orders':
+                inProgressOrders = intAmount;
                 break;
               case 'Cancel Orders':
                 cancelOrders = intAmount;

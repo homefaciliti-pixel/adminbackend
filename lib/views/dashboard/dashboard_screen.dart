@@ -62,6 +62,7 @@ class DashboardScreen extends StatelessWidget {
                     StatCard(title: "Order Earning", value: vm.orderEarning, icon: Icons.currency_rupee),
                     StatCard(title: "Complete Orders", value: "${vm.completeOrders}", icon: Icons.check_circle),
                     StatCard(title: "Assigned Orders", value: "${vm.assignedOrders}", icon: Icons.assignment_ind),
+                    StatCard(title: "In Progress Orders", value: "${vm.inProgressOrders}", icon: Icons.pending_actions),
                     StatCard(title: "Cancel Orders", value: "${vm.cancelOrders}", icon: Icons.cancel),
                     StatCard(title: "Total Supporters", value: "${vm.totalSupporters}", icon: Icons.support_agent),
 
