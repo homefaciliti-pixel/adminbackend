@@ -125,13 +125,10 @@ Response Example (Status 200 OK):
 ------------
 Endpoint: POST /api/auth/send-otp
 Request Format: application/json
-Description: Generates a 4-digit OTP for phone verification or booking completion verification.
+Description: Generates a 4-digit OTP for partner phone verification.
 Request Body:
 {
-  "phone": "9911223344",
-  "type": "booking_complete", // Optional (e.g. 'register_account', 'booking_complete')
-  "countryCode": "+91",      // Optional
-  "orderId": "101"           // Optional
+  "phone": "9911223344"
 }
 Response Example (Status 200 OK):
 {
@@ -478,6 +475,24 @@ Response Example (Status 200 OK):
   "success": true,
   "message": "Work started successfully!",
   "status": "in_progress"
+}
+
+7.4b SEND COMPLETION OTP
+------------------------
+Endpoint: POST /api/bookings/send-complete-otp
+Request Format: application/json
+Description: Generates and sends a 4-digit verification OTP to the user/customer phone for booking completion.
+Request Body:
+{
+  "phone": "9876543210",       // Required. Customer phone number.
+  "countryCode": "+91",        // Optional. Defaults to '+91'.
+  "orderId": "1"               // Required. Order/Booking ID.
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "OTP sent successfully to customer",
+  "otp": "8676"
 }
 
 7.5 COMPLETE BOOKING WORK & COMMISSIONS

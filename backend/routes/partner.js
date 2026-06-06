@@ -526,7 +526,7 @@ function sendFast2SMSSMS(phone, otp) {
 
 // POST /api/auth/send-otp - Generate and send OTP (inserts into `otps` table)
 router.post('/auth/send-otp', async (req, res) => {
-  const { phone, type, countryCode, orderId } = req.body;
+  const { phone, type } = req.body;
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required' });
   }
@@ -542,7 +542,7 @@ router.post('/auth/send-otp', async (req, res) => {
       [phone, otp, '0', otpType]
     );
 
-    console.log(`[OTP DB Server] Generated OTP for ${phone} (Country: ${countryCode || '+91'}, Order: ${orderId || 'N/A'}) is ${otp} (Type: ${otpType})`);
+    console.log(`[OTP DB Server] Generated OTP for ${phone} is ${otp} (Type: ${otpType})`);
 
     // Send real SMS dynamically using Fast2SMS if configured
     await sendFast2SMSSMS(phone, otp);
@@ -1653,6 +1653,43 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
   } catch (error) {
     console.error('Error starting order:', error);
     res.status(500).json({ error: 'Database update failed: ' + error.message });
+  }
+});
+
+// POST /api/bookings/send-complete-otp - Generate and send OTP for booking completion (inserts into `otps` table)
+router.post('/bookings/send-complete-otp', async (req, res) => {
+  const { phone, countryCode, orderId } = req.body;
+  if (!phone) {
+    return res.status(400).json({ error: 'User phone number is required' });
+  }
+  if (!orderId) {
+    return res.status(400).json({ error: 'Order ID is required' });
+  }
+
+  try {
+    // Generate a random 4-digit OTP
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otpType = 'booking_complete';
+
+    // Insert OTP record into database table
+    await db.query(
+      'INSERT INTO otps (mobile_number, otp, status, type, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())',
+      [phone, otp, '0', otpType]
+    );
+
+    console.log(`[OTP DB Server] Generated Completion OTP for customer phone ${phone} (Country: ${countryCode || '+91'}, Order ID: ${orderId}) is ${otp}`);
+
+    // Send real SMS dynamically using Fast2SMS if configured
+    await sendFast2SMSSMS(phone, otp);
+
+    res.json({
+      success: true,
+      message: 'OTP sent successfully to customer',
+      otp: otp
+    });
+  } catch (error) {
+    console.error('Error in send-complete-otp:', error);
+    res.status(500).json({ error: 'Failed to generate completion OTP: ' + error.message });
   }
 });
 
