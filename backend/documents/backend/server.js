@@ -9,43 +9,9 @@ const PORT = process.env.PORT || 3000;
 // Enable CORS for all domains so Flutter Web client can access APIs without origin blocks
 server.use(cors());
 
-// Enable Gzip compression to optimize payload size for large lists
-const compression = require('compression');
-server.use(compression());
-
 // Middleware for parsing JSON and urlencoded request bodies
 server.use(express.json());
 server.use(express.urlencoded({ extended: true }));
-
-// Fallback middleware to parse JSON body when Content-Type is missing or not set to application/json
-server.use((req, res, next) => {
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    const contentType = req.headers['content-type'] || '';
-    if (contentType.includes('multipart/form-data')) {
-      return next();
-    }
-    if (req.body === undefined) {
-      let data = '';
-      req.on('data', chunk => {
-        data += chunk;
-      });
-      req.on('end', () => {
-        if (data) {
-          try {
-            req.body = JSON.parse(data);
-          } catch (e) {
-            // Not JSON or failed to parse, leave as is
-          }
-        }
-        next();
-      });
-    } else {
-      next();
-    }
-  } else {
-    next();
-  }
-});
 
 // Serve uploaded images statically
 server.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -73,7 +39,6 @@ const settingsRouter = require('./routes/settings');
 const reportsRouter = require('./routes/reports');
 const supportRouter = require('./routes/support');
 const uploadRouter = require('./routes/upload');
-const partnerRouter = require('./routes/partner');
 
 // Register API Routes
 server.use('/api/dashboard', dashboardRouter);
@@ -88,7 +53,6 @@ server.use('/api/settings', settingsRouter);
 server.use('/api/reports', reportsRouter);
 server.use('/api/support', supportRouter);
 server.use('/api/upload', uploadRouter);
-server.use('/api', partnerRouter);
 
 // Page Not Found (404) Route
 server.use((req, res) => {

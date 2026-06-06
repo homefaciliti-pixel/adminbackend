@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: home-faciliti-admin-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: DB_HOST
+        value: homefaciliti.com
+      - key: DB_USER
+        value: homef4fw_homefaci
+      - key: DB_PASSWORD
+        value: "Xnj3*t%F36RDK+!"
+      - key: DB_NAME
+        value: homef4fw_homefaci
+      - key: DB_PORT
+        value: 3306
