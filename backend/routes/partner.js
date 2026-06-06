@@ -94,7 +94,7 @@ const mockBookingsStore = {
   },
   "102": {
     id: "102",
-    status: "upcoming",
+    status: "accepted",
     service: "Deep Sofa Cleaning",
     date: "06-06-2026",
     time: "01:00 PM - 03:00 PM",
@@ -150,7 +150,7 @@ const mockBookingsStore = {
   },
   "106": {
     id: "106",
-    status: "upcoming",
+    status: "accepted",
     service: "Plumbing Pipe & Tap Fit",
     date: "06-06-2026",
     time: "05:00 PM - 06:00 PM",
@@ -750,8 +750,8 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
   if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
     let list = Object.values(mockBookingsStore);
     if (filterStatus) {
-      if (filterStatus === 'upcoming') {
-        list = list.filter(b => b.status === 'upcoming' || b.status === 'pending');
+      if (filterStatus === 'upcoming' || filterStatus === 'accepted') {
+        list = list.filter(b => b.status === 'accepted' || b.status === 'upcoming' || b.status === 'pending');
       } else {
         list = list.filter(b => b.status === filterStatus);
       }
@@ -797,11 +797,11 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     const [rows] = await db.query(query, params);
 
     const mapped = rows.map(order => {
-      let appStatus = 'upcoming';
+      let appStatus = 'accepted';
       if (order.status === 'Completed') appStatus = 'completed';
       else if (order.status === 'Cancelled' || order.status === 'Rejected') appStatus = 'cancel';
       else if (order.status === 'In Progress') appStatus = 'in_progress';
-      else if (order.status === 'Assigned' || order.status === 'Upcoming') appStatus = 'upcoming';
+      else if (order.status === 'Assigned' || order.status === 'Upcoming') appStatus = 'accepted';
       else if (order.status === 'Pending') appStatus = 'pending';
 
       return {
@@ -855,7 +855,7 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
     let cancel = 0;
 
     list.forEach(o => {
-      if (o.status === 'upcoming' || o.status === 'pending') upcoming++;
+      if (o.status === 'accepted' || o.status === 'upcoming' || o.status === 'pending') upcoming++;
       else if (o.status === 'in_progress') inProgress++;
       else if (o.status === 'completed') completed++;
       else if (o.status === 'cancel') cancel++;
@@ -925,7 +925,7 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
   // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
   if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
     if (mockBookingsStore[id]) {
-      mockBookingsStore[id].status = 'upcoming';
+      mockBookingsStore[id].status = 'accepted';
       return res.json({ success: true, message: 'Order accepted successfully!' });
     }
     return res.status(404).json({ error: 'Order not found' });
@@ -1106,11 +1106,11 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
     }
 
     // Map database status to mobile app status
-    let appStatus = 'upcoming';
+    let appStatus = 'accepted';
     if (order.status === 'Completed') appStatus = 'completed';
     else if (order.status === 'Cancelled' || order.status === 'Rejected') appStatus = 'cancel';
     else if (order.status === 'In Progress') appStatus = 'in_progress';
-    else if (order.status === 'Assigned' || order.status === 'Upcoming') appStatus = 'upcoming';
+    else if (order.status === 'Assigned' || order.status === 'Upcoming') appStatus = 'accepted';
 
     const mapped = {
       id: order.id.toString(),
@@ -1165,13 +1165,13 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
 
   // Map lowercase app status to database status
   let dbStatus = '';
-  if (status === 'upcoming') dbStatus = 'Assigned';
+  if (status === 'accepted' || status === 'upcoming') dbStatus = 'Assigned';
   else if (status === 'in_progress') dbStatus = 'In Progress';
   else if (status === 'completed') dbStatus = 'Completed';
   else if (status === 'cancel') dbStatus = 'Cancelled';
 
   if (!dbStatus) {
-    return res.status(400).json({ error: 'Invalid status. Allowed values: upcoming, in_progress, completed, cancel' });
+    return res.status(400).json({ error: 'Invalid status. Allowed values: accepted, upcoming, in_progress, completed, cancel' });
   }
 
   try {
@@ -1895,7 +1895,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     let cancelBooking = 0;
 
     list.forEach(o => {
-      if (o.status === 'upcoming' || o.status === 'pending') upcomingBooking++;
+      if (o.status === 'accepted' || o.status === 'upcoming' || o.status === 'pending') upcomingBooking++;
       else if (o.status === 'in_progress') inProgressBooking++;
       else if (o.status === 'completed') completedBooking++;
       else if (o.status === 'cancel') cancelBooking++;
