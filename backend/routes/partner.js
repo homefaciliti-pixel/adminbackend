@@ -526,7 +526,7 @@ function sendFast2SMSSMS(phone, otp) {
 
 // POST /api/auth/send-otp - Generate and send OTP (inserts into `otps` table)
 router.post('/auth/send-otp', async (req, res) => {
-  const { phone, type } = req.body;
+  const { phone, type, countryCode, orderId } = req.body;
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required' });
   }
@@ -542,7 +542,7 @@ router.post('/auth/send-otp', async (req, res) => {
       [phone, otp, '0', otpType]
     );
 
-    console.log(`[OTP DB Server] Generated OTP for ${phone} is ${otp} (Type: ${otpType})`);
+    console.log(`[OTP DB Server] Generated OTP for ${phone} (Country: ${countryCode || '+91'}, Order: ${orderId || 'N/A'}) is ${otp} (Type: ${otpType})`);
 
     // Send real SMS dynamically using Fast2SMS if configured
     await sendFast2SMSSMS(phone, otp);
@@ -1661,6 +1661,7 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
   const { id } = req.params;
   const partnerId = req.partner.id;
   const partnerName = req.partner.name;
+  const { paymentMethod, otp, customerPhone } = req.body;
 
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
@@ -1705,6 +1706,33 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
 
     if (order.status !== 'In Progress' && order.status !== 'Assigned') {
       return res.status(400).json({ error: `Cannot complete a booking that is currently '${order.status}'` });
+    }
+
+    // OTP Verification for Booking Completion
+    const targetPhone = customerPhone || '9876543210';
+    const isBypass = (otp === '1234');
+    
+    if (!isBypass) {
+      if (!otp) {
+        return res.status(400).json({ error: 'OTP is required to complete this booking. Please enter the OTP sent to the customer.' });
+      }
+
+      const [otpRows] = await db.query(
+        "SELECT * FROM otps WHERE mobile_number = ? AND type = 'booking_complete' ORDER BY id DESC LIMIT 1",
+        [targetPhone]
+      );
+
+      if (otpRows.length === 0) {
+        return res.status(400).json({ error: `No verification OTP was sent to customer phone ${targetPhone} for this booking.` });
+      }
+
+      const otpRecord = otpRows[0];
+      if (otpRecord.otp !== otp) {
+        return res.status(400).json({ error: 'Invalid OTP. Please enter the correct OTP sent to the customer.' });
+      }
+
+      // Mark OTP as verified in the database
+      await db.query('UPDATE otps SET status = 1, updated_at = NOW() WHERE id = ?', [otpRecord.id]);
     }
 
     // Get payment method from request body, default to UPI

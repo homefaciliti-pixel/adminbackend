@@ -191,7 +191,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/auth/login - Login partner using phone and password.
   * POST /api/auth/forgot-password - Reset password for a mobile number.
   * POST /api/auth/logout - End partner session.
-  * POST /api/auth/send-otp - Request a 4-digit OTP code for a phone number.
+  * POST /api/auth/send-otp - Request a 4-digit OTP code. Body: { phone, type, countryCode, orderId }.
   * POST /api/auth/verify-otp - Verify the requested OTP code for a phone number.
 
 - PROFILE (PROTECTED):
@@ -210,7 +210,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/bookings/:id/accept - Accept booking.
   * POST /api/bookings/:id/reject - Reject booking (unassigns partner).
   * POST /api/bookings/:id/start - Start order work (sets status to 'In Progress').
-  * POST /api/bookings/:id/complete - Complete order work. Optional body: { "paymentMethod": "Cash" / "UPI" }. UPI updates walletBalance; Cash charges 25% commission to payToCompany.
+  * POST /api/bookings/:id/complete - Complete order work. Requires OTP verification. Body: { paymentMethod, otp, customerPhone }.
   * GET /api/bookings/pending-popup - Fetch next available pending order for popup alerts.
 
 - PARTNER SERVICES & METADATA (PUBLIC):

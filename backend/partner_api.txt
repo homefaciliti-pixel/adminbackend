@@ -125,10 +125,13 @@ Response Example (Status 200 OK):
 ------------
 Endpoint: POST /api/auth/send-otp
 Request Format: application/json
-Description: Generates a 4-digit OTP for phone verification.
+Description: Generates a 4-digit OTP for phone verification or booking completion verification.
 Request Body:
 {
-  "phone": "9911223344"
+  "phone": "9911223344",
+  "type": "booking_complete", // Optional (e.g. 'register_account', 'booking_complete')
+  "countryCode": "+91",      // Optional
+  "orderId": "101"           // Optional
 }
 Response Example (Status 200 OK):
 {
@@ -480,10 +483,12 @@ Response Example (Status 200 OK):
 7.5 COMPLETE BOOKING WORK & COMMISSIONS
 ---------------------------------------
 Endpoint: POST /api/bookings/:id/complete (PROTECTED)
-Description: Completes booking, processes commission, updates wallet/earnings, and logs transaction details inside database tables.
-Request Body (JSON - Optional):
+Description: Completes booking, processes commission, updates wallet/earnings, and logs transaction details inside database tables. Requires OTP verification.
+Request Body (JSON):
 {
-  "paymentMethod": "Cash" // Can be "Cash" or "UPI". Defaults to "UPI".
+  "paymentMethod": "Cash",   // Can be "Cash" or "UPI". Defaults to "UPI"
+  "otp": "8676",             // Required. Verification OTP sent to customer phone. (Bypass: '1234')
+  "customerPhone": "9876543210" // Optional. Defaults to '9876543210'.
 }
 Note on Commissions and Balances:
 - If paymentMethod is "Cash", the commission rate is 25%. Since the partner collects the cash directly, no walletBalance is added. Instead, the 25% commission is added to "payToCompany" (which the partner owes to the company).
