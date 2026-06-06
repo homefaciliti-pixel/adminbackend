@@ -457,61 +457,94 @@ router.post('/auth/logout', (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
-// Helper function to send SMS via Fast2SMS DLT Manual route
-function sendFast2SMSSMS(phone, otp) {
+// Helper to format phone number to include 91 prefix (required by SMS Gateway Hub)
+function formatPhoneForSMS(phone) {
+  let clean = phone.replace(/\D/g, '');
+  if (clean.length === 12 && clean.startsWith('91')) {
+    return clean;
+  }
+  if (clean.length === 10) {
+    return '91' + clean;
+  }
+  return clean;
+}
+
+// Helper function to send SMS via SMS Gateway Hub
+function sendSMS(phone, otp) {
   return new Promise((resolve, reject) => {
-    const apiKey = process.env.FAST2SMS_API_KEY || process.env.SMS_API_KEY;
+    const apiKey = process.env.SMS_API_KEY || process.env.FAST2SMS_API_KEY;
     if (!apiKey) {
-      console.warn('[OTP Server] FAST2SMS_API_KEY or SMS_API_KEY is not configured. Skipping real SMS.');
+      console.warn('[OTP Server] SMS_API_KEY or FAST2SMS_API_KEY is not configured. Skipping real SMS.');
       return resolve(false);
     }
 
     const dltTemplateId = process.env.SMS_DLT_TEMPLATE_ID;
     const entityId = process.env.SMS_ENTITY_ID;
     const senderId = process.env.SMS_SENDER_ID;
-    const templateText = process.env.SMS_TEMPLATE_TEXT;
+    let templateText = process.env.SMS_TEMPLATE_TEXT;
 
     if (!dltTemplateId || !entityId || !senderId || !templateText) {
       console.warn('[OTP Server] SMS DLT parameters are not fully configured in environment. Skipping real SMS.');
       return resolve(false);
     }
 
-    // Replace {#var#} with the generated OTP
-    const messageText = templateText.replace('{#var#}', otp);
+    // Strip double quotes if present in environment variable
+    if (templateText.startsWith('"') && templateText.endsWith('"')) {
+      templateText = templateText.substring(1, templateText.length - 1);
+    }
+    // Replace \n strings with actual newlines
+    templateText = templateText.replace(/\\n/g, '\n');
+
+    // Replace both {otp} and {#var#} with the generated OTP code
+    const messageText = templateText.replace(/{otp}/g, otp).replace(/{#var#}/g, otp);
+
+    const formattedPhone = formatPhoneForSMS(phone);
+
+    console.log(`[OTP Server] Prepared SMS for ${formattedPhone}:`);
+    console.log(messageText);
 
     const queryParams = new URLSearchParams({
-      authorization: apiKey,
-      route: 'dlt_manual',
-      sender_id: senderId,
-      message: templateText,
-      variables_values: otp,
-      numbers: phone,
-      template_id: dltTemplateId,
-      entity_id: entityId
+      APIKey: apiKey,
+      senderid: senderId,
+      channel: '2',
+      DCS: '0',
+      flashsms: '0',
+      number: formattedPhone,
+      text: messageText,
+      route: 'clickhere',
+      EntityId: entityId,
+      dlttemplateid: dltTemplateId
     }).toString();
 
-    const url = `https://www.fast2sms.com/dev/bulkV2?${queryParams}`;
+    const url = `https://www.smsgatewayhub.com/api/mt/SendSMS?${queryParams}`;
 
     https.get(url, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          const parsed = JSON.parse(data);
-          if (parsed.return) {
-            console.log(`[OTP Server] Real SMS successfully sent to ${phone} via Fast2SMS.`);
+          console.log(`[OTP Server] SMS Gateway Hub response:`, data);
+          let parsed;
+          try {
+            parsed = JSON.parse(data);
+          } catch (e) {
+            parsed = { raw: data };
+          }
+          
+          if (parsed.ErrorCode === '000' || parsed.ErrorMessage === 'Success' || parsed.status === 'Success' || parsed.JobId) {
+            console.log(`[OTP Server] Real SMS successfully sent to ${formattedPhone} via SMS Gateway Hub.`);
             resolve(true);
           } else {
-            console.error('[OTP Server] Fast2SMS returned error:', parsed);
+            console.error('[OTP Server] SMS Gateway Hub returned error status:', parsed);
             resolve(false);
           }
         } catch (e) {
-          console.error('[OTP Server] Failed to parse Fast2SMS response:', data);
+          console.error('[OTP Server] Error processing SMS Gateway Hub response:', e.message);
           resolve(false);
         }
       });
     }).on('error', (err) => {
-      console.error('[OTP Server] HTTP request to Fast2SMS failed:', err.message);
+      console.error('[OTP Server] HTTP request to SMS Gateway Hub failed:', err.message);
       resolve(false);
     });
   });
@@ -537,8 +570,8 @@ router.post('/auth/send-otp', async (req, res) => {
 
     console.log(`[OTP DB Server] Generated OTP for ${phone} is ${otp} (Type: ${otpType})`);
 
-    // Send real SMS dynamically using Fast2SMS if configured
-    await sendFast2SMSSMS(phone, otp);
+    // Send real SMS dynamically using SMS Gateway Hub if configured
+    await sendSMS(phone, otp);
 
     res.json({
       success: true,
@@ -1672,8 +1705,8 @@ router.post('/bookings/send-complete-otp', async (req, res) => {
 
     console.log(`[OTP DB Server] Generated Completion OTP for customer phone ${phone} (Country: ${countryCode || '+91'}, Order ID: ${orderId}) is ${otp}`);
 
-    // Send real SMS dynamically using Fast2SMS if configured
-    await sendFast2SMSSMS(phone, otp);
+    // Send real SMS dynamically using SMS Gateway Hub if configured
+    await sendSMS(phone, otp);
 
     res.json({
       success: true,
