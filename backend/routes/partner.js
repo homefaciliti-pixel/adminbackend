@@ -315,6 +315,29 @@ router.post('/auth/register', (req, res) => {
       return res.status(400).json({ error: 'All primary fields (name, phone, email, password, location) are required' });
     }
 
+    // Handle file locations and enforce mandatory requirements
+    const profileImageName = req.files && req.files['profileImage'] ? req.files['profileImage'][0].filename : '';
+    const aadharFrontName = req.files && req.files['aadharFront'] ? req.files['aadharFront'][0].filename : '';
+    const aadharBackName = req.files && req.files['aadharBack'] ? req.files['aadharBack'][0].filename : '';
+    const panImageName = req.files && req.files['panImage'] ? req.files['panImage'][0].filename : '';
+    const policeVerificationName = req.files && req.files['policeVerification'] ? req.files['policeVerification'][0].filename : '';
+
+    if (!profileImageName) {
+      return res.status(400).json({ error: 'Profile image is required' });
+    }
+    if (!aadharFrontName) {
+      return res.status(400).json({ error: 'Aadhaar Card Front image is required' });
+    }
+    if (!aadharBackName) {
+      return res.status(400).json({ error: 'Aadhaar Card Back image is required' });
+    }
+    if (!panImageName) {
+      return res.status(400).json({ error: 'PAN Card image is required' });
+    }
+    if (!policeVerificationName) {
+      return res.status(400).json({ error: 'Police Verification image is required' });
+    }
+
     try {
       // Check if mobile/phone already exists
       const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', [phone]);
@@ -324,13 +347,6 @@ router.post('/auth/register', (req, res) => {
 
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
-
-      // Handle file locations
-      const profileImageName = req.files && req.files['profileImage'] ? req.files['profileImage'][0].filename : '';
-      const aadharFrontName = req.files && req.files['aadharFront'] ? req.files['aadharFront'][0].filename : '';
-      const aadharBackName = req.files && req.files['aadharBack'] ? req.files['aadharBack'][0].filename : '';
-      const panImageName = req.files && req.files['panImage'] ? req.files['panImage'][0].filename : '';
-      const policeVerificationName = req.files && req.files['policeVerification'] ? req.files['policeVerification'][0].filename : '';
 
       const profileImageUrl = getFileUrl(req, profileImageName);
       const aadharFrontUrl = getFileUrl(req, aadharFrontName);
