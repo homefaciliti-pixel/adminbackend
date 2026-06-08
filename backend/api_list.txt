@@ -187,8 +187,8 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 13. PARTNER MOBILE APP ENDPOINTS
 ----------------------------------------------------------------------
 - AUTHENTICATION:
-  * POST /api/auth/register - Register a partner (multipart/form-data). Mandatory files: profileImage, aadharFront, aadharBack, panImage, policeVerification. Returns: { token, amount: 350, partnerId, razorpayKeyId, partner }
-  * POST /api/auth/login - Login partner using phone and password. Returns: { token, amount: 350, partnerId, razorpayKeyId, partner }
+  * POST /api/auth/register - Register a partner (multipart/form-data). Mandatory files: profileImage, aadharFront, aadharBack, panImage, policeVerification. Returns: { token, amount: 350, partnerId, razorpayKeyId, razorpayOrderId, partner }
+  * POST /api/auth/login - Login partner using phone and password. Returns: { token, amount: 350, partnerId, razorpayKeyId, razorpayOrderId, partner }
   * POST /api/auth/forgot-password - Reset password for a mobile number.
   * POST /api/auth/logout - End partner session.
   * POST /api/auth/send-otp - Request a 4-digit OTP code for a phone number.
@@ -200,7 +200,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/partner/change-password - Update password.
 
 - REGISTRATION FEE & WALLET (PROTECTED):
-  * POST /api/partner/pay-registration - Pay ₹350 registration fee. Body: { "partnerId": 10 }. Returns: { success: true, message: "...", amount: 350, razorpayKeyId: "...", partner: { ... } }
+  * POST /api/partner/pay-registration - Pay ₹350 registration fee. Body: { "partnerId": 10 }. Returns: { success: true, message: "...", amount: 350, razorpayKeyId: "...", razorpayOrderId: "...", partner: { ... } }
   * GET/POST /api/payments/verify - Verify Razorpay signature & activate partner. GET (redirect) returns premium HTML page; POST returns JSON. Body/Query: { razorpay_payment_id, razorpay_signature, partnerId (optional), ... }
   * GET /api/partner/pay-redirect - Redirect to Razorpay hosted payment page pre-filled with partner details. Query params: ?partnerId=<id>
   * GET /api/earnings - Fetch partner total, daily, monthly, online, and cash earnings.
@@ -230,4 +230,4 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/partner/support - Register support ticket. Body: { "subject": "...", "message": "..." }
   * GET /api/partner/support - Fetch own registered support tickets.
   * GET /api/partner/reviews - Fetch reviews written by customers about this partner.
-  * GET /api/partner/dashboard - Fetch active banners, booking stats, earnings stats, and status in one payload. Returns: { id, isPaid, isApproved, razorpayKeyId, bookingsStats, earningsStats, banners } (returns 0 stats if not paid or not approved).
+  * GET /api/partner/dashboard - Fetch active banners, booking stats, earnings stats, and status in one payload. Returns: { id, isPaid, isApproved, razorpayKeyId, razorpayOrderId, bookingsStats, earningsStats, banners } (returns 0 stats if not paid or not approved).

@@ -9,6 +9,48 @@ const https = require('https');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'home_faciliti_partner_secret_key_2026';
 
+// Helper to dynamically create a Razorpay Order ID for ₹350
+const createRazorpayOrder = async (partnerId) => {
+  const keyId = process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH';
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!keySecret || keySecret === 'your_razorpay_secret_key') {
+    // Generate a mock order ID starting with 'order_' for local testing/development
+    const rand = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    return `order_${rand.substring(0, 14)}`;
+  }
+
+  try {
+    const authBase64 = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+    const response = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${authBase64}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        amount: 35000, // ₹350 in paise
+        currency: 'INR',
+        receipt: `receipt_partner_${partnerId}_${Date.now()}`
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.id; // returns order_XXXXXXXXXXXX
+    } else {
+      const errorText = await response.text();
+      console.error('Razorpay Create Order API failed:', errorText);
+      const rand = Math.random().toString(36).substring(2, 10);
+      return `order_failed_${rand}`;
+    }
+  } catch (err) {
+    console.error('Error creating Razorpay order:', err);
+    const rand = Math.random().toString(36).substring(2, 10);
+    return `order_error_${rand}`;
+  }
+};
+
 // -------------------------------------------------------------
 // MULTER MULTI-FILE UPLOAD CONFIGURATION
 // -------------------------------------------------------------
@@ -378,11 +420,19 @@ router.post('/auth/register', (req, res) => {
       // Generate token
       const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET, { expiresIn: '30d' });
 
+      // Generate dynamic Razorpay Order ID for unpaid partners
+      let razorpayOrderId = null;
+      if (mappedPartner.isPaid !== 1) {
+        razorpayOrderId = await createRazorpayOrder(mappedPartner.id);
+      }
+
       res.status(201).json({
         token,
         amount: 350,
         partnerId: mappedPartner.id,
         razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+        razorpayOrderId: razorpayOrderId,
+        razorpay_order_id: razorpayOrderId,
         partner: mappedPartner
       });
     } catch (dbErr) {
@@ -422,11 +472,19 @@ router.post('/auth/login', async (req, res) => {
     const mappedPartner = mapPartnerForApp(partner);
     const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET, { expiresIn: '30d' });
 
+    // Generate dynamic Razorpay Order ID for unpaid partners
+    let razorpayOrderId = null;
+    if (mappedPartner.isPaid !== 1) {
+      razorpayOrderId = await createRazorpayOrder(mappedPartner.id);
+    }
+
     res.json({
       token,
       amount: 350,
       partnerId: mappedPartner.id,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayOrderId: razorpayOrderId,
+      razorpay_order_id: razorpayOrderId,
       partner: mappedPartner
     });
   } catch (error) {
@@ -737,11 +795,16 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
     // 3. Fetch updated partner information
     const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [partnerId]);
 
+    // Generate dynamic Razorpay Order ID for response consistency
+    const razorpayOrderId = await createRazorpayOrder(partnerId);
+
     res.json({
       success: true,
       message: '₹350 registration payment received successfully! You can access the dashboard once approved by the admin.',
       amount: 350,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayOrderId: razorpayOrderId,
+      razorpay_order_id: razorpayOrderId,
       partner: mapPartnerForApp(rows[0])
     });
   } catch (error) {
@@ -995,11 +1058,16 @@ const handleVerify = async (req, res) => {
       return renderHtmlResponse(true, 'Payment Successful!', 'Your registration fee of ₹350 has been successfully received. You can now close this browser and return to the Superhome Partner app.');
     }
 
+    // Generate dynamic Razorpay Order ID for response consistency
+    const razorpayOrderId = await createRazorpayOrder(resolvedPartnerId);
+
     res.json({
       success: true,
       message: 'Razorpay payment verified and partner account activated successfully!',
       amount: 350,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayOrderId: razorpayOrderId,
+      razorpay_order_id: razorpayOrderId,
       partner: mapPartnerForApp(rows[0])
     });
   } catch (error) {
@@ -2241,11 +2309,19 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
 
   // If partner is not paid or not approved, return default blank counts
   if (!isPaid || !isApproved) {
+    // Generate dynamic Razorpay Order ID for unpaid partners
+    let razorpayOrderId = null;
+    if (!isPaid) {
+      razorpayOrderId = await createRazorpayOrder(partnerId);
+    }
+
     return res.json({
       id: partnerId,
       isPaid,
       isApproved,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayOrderId: razorpayOrderId,
+      razorpay_order_id: razorpayOrderId,
       bookingsStats: {
         totalBooking: 0,
         upcomingBooking: 0,
