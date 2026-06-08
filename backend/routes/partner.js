@@ -704,16 +704,23 @@ router.put('/partner/profile', authenticatePartner, (req, res) => {
 // -------------------------------------------------------------
 // POST /api/partner/pay-registration - Process registration payment
 router.post('/partner/pay-registration', authenticatePartner, async (req, res) => {
-  const { paymentMethod, transactionId } = req.body;
+  const { paymentMethod, transactionId, partnerId: bodyPartnerId } = req.body;
   if (!paymentMethod || !transactionId) {
     return res.status(400).json({ error: 'paymentMethod and transactionId are required to process the ₹350 registration fee' });
   }
 
-  const partnerId = req.partner.id;
-  const partnerName = req.partner.name;
-  const todayStr = new Date().toLocaleDateString('en-IN');
+  const partnerId = bodyPartnerId || req.partner.id;
 
   try {
+    // Fetch partner details first to get name and verify existence
+    const [partnerRows] = await db.query('SELECT * FROM partners WHERE id = ?', [partnerId]);
+    if (partnerRows.length === 0) {
+      return res.status(404).json({ error: 'Partner not found' });
+    }
+    const partner = partnerRows[0];
+    const partnerName = partner.name;
+    const todayStr = new Date().toLocaleDateString('en-IN');
+
     // 1. Update isPaid status in partners table
     await db.query('UPDATE partners SET isPaid = 1 WHERE id = ?', [partnerId]);
 
@@ -731,6 +738,8 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
       success: true,
       message: '₹350 registration payment received successfully! You can access the dashboard once approved by the admin.',
       id: partnerId,
+      amount: 350,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
       partner: mapPartnerForApp(rows[0])
     });
   } catch (error) {

@@ -326,6 +326,7 @@ Endpoint: POST /api/partner/pay-registration
 Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning.
 Request Body (JSON):
 {
+  "partnerId": 10,
   "paymentMethod": "UPI",
   "transactionId": "TXN_REG_1098234"
 }
@@ -334,6 +335,8 @@ Response Example (Status 200 OK):
   "success": true,
   "message": "₹350 registration payment received successfully! You can access the dashboard once approved by the admin.",
   "id": 10,
+  "amount": 350,
+  "razorpayKeyId": "rzp_live_SwFaJKQjU5ZOsH",
   "partner": { ...updatedPartnerDetailsWithIsPaidTrue... }
 }
 
