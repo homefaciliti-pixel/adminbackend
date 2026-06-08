@@ -9,9 +9,18 @@ const https = require('https');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'home_faciliti_partner_secret_key_2026';
 
+// Helper to get the correct Razorpay Key ID, overriding default placeholders
+const getRazorpayKeyId = () => {
+  const key = process.env.RAZORPAY_KEY_ID;
+  if (!key || key === 'rzp_live_default_key' || key === 'your_razorpay_key_id') {
+    return 'rzp_live_SwFaJKQjU5ZOsH';
+  }
+  return key;
+};
+
 // Helper to dynamically create a Razorpay Order ID for ₹350
 const createRazorpayOrder = async (partnerId) => {
-  const keyId = process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH';
+  const keyId = getRazorpayKeyId();
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!keySecret || keySecret === 'your_razorpay_secret_key') {
@@ -422,7 +431,7 @@ router.post('/auth/register', (req, res) => {
 
       // Generate dynamic Razorpay Order ID for unpaid partners
       let razorpayOrderId = null;
-      if (mappedPartner.isPaid !== 1) {
+      if (!mappedPartner.isPaid) {
         razorpayOrderId = await createRazorpayOrder(mappedPartner.id);
       }
 
@@ -430,7 +439,7 @@ router.post('/auth/register', (req, res) => {
         token,
         amount: 350,
         partnerId: mappedPartner.id,
-        razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+        razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
         razorpay_order_id: razorpayOrderId,
         partner: mappedPartner
@@ -474,7 +483,7 @@ router.post('/auth/login', async (req, res) => {
 
     // Generate dynamic Razorpay Order ID for unpaid partners
     let razorpayOrderId = null;
-    if (mappedPartner.isPaid !== 1) {
+    if (!mappedPartner.isPaid) {
       razorpayOrderId = await createRazorpayOrder(mappedPartner.id);
     }
 
@@ -482,7 +491,7 @@ router.post('/auth/login', async (req, res) => {
       token,
       amount: 350,
       partnerId: mappedPartner.id,
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
       razorpay_order_id: razorpayOrderId,
       partner: mappedPartner
@@ -802,7 +811,7 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
       success: true,
       message: '₹350 registration payment received successfully! You can access the dashboard once approved by the admin.',
       amount: 350,
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
       razorpay_order_id: razorpayOrderId,
       partner: mapPartnerForApp(rows[0])
@@ -978,7 +987,7 @@ const handleVerify = async (req, res) => {
   let resolvedPartnerId = partnerId;
   if (!resolvedPartnerId && razorpay_payment_id) {
     try {
-      const keyId = process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH';
+      const keyId = getRazorpayKeyId();
       if (secret) {
         const authBase64 = Buffer.from(`${keyId}:${secret}`).toString('base64');
         const fetchResponse = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
@@ -1065,7 +1074,7 @@ const handleVerify = async (req, res) => {
       success: true,
       message: 'Razorpay payment verified and partner account activated successfully!',
       amount: 350,
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
       razorpay_order_id: razorpayOrderId,
       partner: mapPartnerForApp(rows[0])
@@ -2293,7 +2302,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       id: 10,
       isPaid: true,
       isApproved: true,
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayKeyId: getRazorpayKeyId(),
       bookingsStats: {
         totalBooking,
         upcomingBooking,
@@ -2319,7 +2328,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       id: partnerId,
       isPaid,
       isApproved,
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
       razorpay_order_id: razorpayOrderId,
       bookingsStats: {
@@ -2414,7 +2423,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       id: partnerId,
       isPaid,
       isApproved,
-      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      razorpayKeyId: getRazorpayKeyId(),
       bookingsStats: {
         totalBooking,
         upcomingBooking,
