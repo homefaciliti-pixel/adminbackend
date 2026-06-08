@@ -200,7 +200,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/partner/change-password - Update password.
 
 - REGISTRATION FEE & WALLET (PROTECTED):
-  * POST /api/partner/pay-registration - Pay ₹350 registration fee. Body: { "partnerId": 10, "paymentMethod": "UPI", "transactionId": "..." }. Returns: { success: true, message: "...", amount: 350, razorpayKeyId: "...", partner: { ... } }
+  * POST /api/partner/pay-registration - Pay ₹350 registration fee. Body: { "partnerId": 10 }. Returns: { success: true, message: "...", amount: 350, razorpayKeyId: "...", partner: { ... } }
   * GET /api/partner/pay-redirect - Redirect to Razorpay hosted payment page pre-filled with partner details. Query params: ?partnerId=<id>
   * GET /api/earnings - Fetch partner total, daily, monthly, online, and cash earnings.
 

@@ -704,12 +704,15 @@ router.put('/partner/profile', authenticatePartner, (req, res) => {
 // -------------------------------------------------------------
 // POST /api/partner/pay-registration - Process registration payment
 router.post('/partner/pay-registration', authenticatePartner, async (req, res) => {
-  const { paymentMethod, transactionId, partnerId: bodyPartnerId } = req.body;
-  if (!paymentMethod || !transactionId) {
-    return res.status(400).json({ error: 'paymentMethod and transactionId are required to process the ₹350 registration fee' });
+  const { partnerId: bodyPartnerId, paymentMethod: bodyPaymentMethod, transactionId: bodyTransactionId } = req.body;
+  const partnerId = bodyPartnerId || req.partner.id;
+
+  if (!partnerId) {
+    return res.status(400).json({ error: 'partnerId is required to process the ₹350 registration fee' });
   }
 
-  const partnerId = bodyPartnerId || req.partner.id;
+  const paymentMethod = bodyPaymentMethod || 'Razorpay';
+  const transactionId = bodyTransactionId || 'REG_PAY_' + Date.now();
 
   try {
     // Fetch partner details first to get name and verify existence

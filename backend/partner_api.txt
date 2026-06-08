@@ -326,9 +326,7 @@ Endpoint: POST /api/partner/pay-registration
 Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning.
 Request Body (JSON):
 {
-  "partnerId": 10,
-  "paymentMethod": "UPI",
-  "transactionId": "TXN_REG_1098234"
+  "partnerId": 10
 }
 Response Example (Status 200 OK):
 {
