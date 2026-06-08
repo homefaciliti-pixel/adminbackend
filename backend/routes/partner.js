@@ -380,6 +380,8 @@ router.post('/auth/register', (req, res) => {
 
       res.status(201).json({
         token,
+        amount: 350,
+        partnerId: mappedPartner.id,
         partner: mappedPartner
       });
     } catch (dbErr) {
@@ -421,6 +423,8 @@ router.post('/auth/login', async (req, res) => {
 
     res.json({
       token,
+      amount: 350,
+      partnerId: mappedPartner.id,
       partner: mappedPartner
     });
   } catch (error) {

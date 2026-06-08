@@ -46,6 +46,8 @@ Request Fields:
 Response Example (Status 201 Created):
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "amount": 350,
+  "partnerId": 3,
   "partner": {
     "id": 3,
     "name": "Amit Kumar",
@@ -90,6 +92,8 @@ Request Body:
 Response Example (Status 200 OK):
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "amount": 350,
+  "partnerId": 10,
   "partner": { ...partnerDetails... }
 }
 
