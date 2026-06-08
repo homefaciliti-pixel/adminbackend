@@ -382,6 +382,7 @@ router.post('/auth/register', (req, res) => {
         token,
         amount: 350,
         partnerId: mappedPartner.id,
+        razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_default_key',
         partner: mappedPartner
       });
     } catch (dbErr) {
@@ -425,6 +426,7 @@ router.post('/auth/login', async (req, res) => {
       token,
       amount: 350,
       partnerId: mappedPartner.id,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_default_key',
       partner: mappedPartner
     });
   } catch (error) {
@@ -1948,6 +1950,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       id: 10,
       isPaid: true,
       isApproved: true,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_default_key',
       bookingsStats: {
         totalBooking,
         upcomingBooking,
@@ -1967,6 +1970,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       id: partnerId,
       isPaid,
       isApproved,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_default_key',
       bookingsStats: {
         totalBooking: 0,
         upcomingBooking: 0,
@@ -2059,6 +2063,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       id: partnerId,
       isPaid,
       isApproved,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_default_key',
       bookingsStats: {
         totalBooking,
         upcomingBooking,

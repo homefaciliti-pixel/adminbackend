@@ -48,6 +48,7 @@ Response Example (Status 201 Created):
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "amount": 350,
   "partnerId": 3,
+  "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
   "partner": {
     "id": 3,
     "name": "Amit Kumar",
@@ -94,6 +95,7 @@ Response Example (Status 200 OK):
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "amount": 350,
   "partnerId": 10,
+  "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
   "partner": { ...partnerDetails... }
 }
 
@@ -452,11 +454,12 @@ Response Example (Status 200 OK):
 ---------------------------------
 Endpoint: GET /api/partner/dashboard (PROTECTED)
 Description: Retrieves active banners, booking status stats, monthly and daily earnings, and partner KYC payment/approval status in a single aggregated payload.
-Response Example (Status 200 OK):
+Response Example (Approved & Active):
 {
   "id": 10,
   "isPaid": true,
   "isApproved": true,
+  "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
   "bookingsStats": {
     "totalBooking": 5,
     "upcomingBooking": 2,
