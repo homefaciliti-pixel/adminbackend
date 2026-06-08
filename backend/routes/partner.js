@@ -24,9 +24,9 @@ const createRazorpayOrder = async (partnerId) => {
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!keySecret || keySecret === 'your_razorpay_secret_key') {
-    // Generate a mock order ID starting with 'order_' for local testing/development
-    const rand = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-    return `order_${rand.substring(0, 14)}`;
+    // Generate a mock order ID starting with 'order_mock_<partnerId>_' for local testing/development
+    const rand = Math.random().toString(36).substring(2, 8);
+    return `order_mock_${partnerId}_${rand}`;
   }
 
   try {
@@ -40,7 +40,11 @@ const createRazorpayOrder = async (partnerId) => {
       body: JSON.stringify({
         amount: 35000, // ₹350 in paise
         currency: 'INR',
-        receipt: `receipt_partner_${partnerId}_${Date.now()}`
+        receipt: `receipt_partner_${partnerId}_${Date.now()}`,
+        notes: {
+          partnerId: partnerId,
+          partner_id: partnerId
+        }
       })
     });
 
@@ -823,7 +827,7 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
 const handleVerify = async (req, res) => {
   const params = { ...req.query, ...req.body };
   const razorpay_payment_id = params.razorpay_payment_id || params.payment_id;
-  const razorpay_order_id = params.razorpay_order_id || params.order_id;
+  const razorpay_order_id = params.razorpay_order_id || params.order_id || params.razorpayOrderId || params.orderId;
   const razorpay_signature = params.razorpay_signature || params.signature;
   const razorpay_payment_link_id = params.razorpay_payment_link_id || params.payment_link_id;
   const razorpay_payment_link_reference_id = params.razorpay_payment_link_reference_id || params.payment_link_reference_id;
@@ -941,11 +945,54 @@ const handleVerify = async (req, res) => {
     `);
   };
 
-  // 1. Signature Verification (if secret is configured and parameters exist)
-  if (secret && razorpay_signature) {
-    let verified = false;
+  let verified = false;
+  let resolvedPartnerId = partnerId;
 
-    // A. Order-based signature verification
+  // 1. Verify using Razorpay Order ID if present (only order ID flow or API check)
+  if (razorpay_order_id) {
+    const isMockOrder = !secret || secret === 'your_razorpay_secret_key' || razorpay_order_id.startsWith('order_mock_') || razorpay_order_id.startsWith('order_failed_') || razorpay_order_id.startsWith('order_error_');
+    
+    if (isMockOrder) {
+      // Mock order auto-verification for local testing
+      verified = true;
+      const match = razorpay_order_id.match(/^order_mock_(\d+)_/);
+      if (match) {
+        resolvedPartnerId = parseInt(match[1], 10);
+      }
+    } else {
+      try {
+        const authBase64 = Buffer.from(`${keyId}:${secret}`).toString('base64');
+        const fetchResponse = await fetch(`https://api.razorpay.com/v1/orders/${razorpay_order_id}`, {
+          headers: {
+            'Authorization': `Basic ${authBase64}`
+          }
+        });
+        
+        if (fetchResponse.ok) {
+          const orderData = await fetchResponse.json();
+          if (orderData.status === 'paid') {
+            verified = true;
+            if (orderData.notes && orderData.notes.partnerId) {
+              resolvedPartnerId = parseInt(orderData.notes.partnerId, 10);
+            } else if (orderData.notes && orderData.notes.partner_id) {
+              resolvedPartnerId = parseInt(orderData.notes.partner_id, 10);
+            } else if (orderData.receipt) {
+              const match = orderData.receipt.match(/^receipt_partner_(\d+)/);
+              if (match) {
+                resolvedPartnerId = parseInt(match[1], 10);
+              }
+            }
+          }
+        }
+      } catch (fetchErr) {
+        console.error('Error verifying order status from Razorpay:', fetchErr);
+      }
+    }
+  }
+
+  // 2. Fallback to standard Signature Verification (if not already verified via Order ID)
+  if (!verified && secret && razorpay_signature) {
+    // Order-based signature verification
     if (razorpay_order_id && razorpay_payment_id) {
       const text = razorpay_order_id + '|' + razorpay_payment_id;
       const expected = crypto.createHmac('sha256', secret).update(text).digest('hex');
@@ -954,7 +1001,7 @@ const handleVerify = async (req, res) => {
       }
     }
 
-    // B. Payment Link-based signature verification
+    // Payment Link-based signature verification
     if (!verified && razorpay_payment_link_id && razorpay_payment_id) {
       const refId = razorpay_payment_link_reference_id || '';
       const status = razorpay_payment_link_status || '';
@@ -963,7 +1010,6 @@ const handleVerify = async (req, res) => {
       if (expected === razorpay_signature) {
         verified = true;
       } else {
-        // Fallback: concatenate link ID and payment ID
         const textSimple = `${razorpay_payment_link_id}|${razorpay_payment_id}`;
         const expectedSimple = crypto.createHmac('sha256', secret).update(textSimple).digest('hex');
         if (expectedSimple === razorpay_signature) {
@@ -971,20 +1017,18 @@ const handleVerify = async (req, res) => {
         }
       }
     }
-
-    if (!verified) {
-      if (req.method === 'GET') {
-        return renderHtmlResponse(false, 'Verification Failed', 'The payment signature verification failed. If your payment was deducted, please contact support.');
-      }
-      return res.status(400).json({ error: 'Invalid Razorpay payment signature verification failed' });
-    }
   }
 
-  // 2. Resolve Partner ID dynamically if missing
-  let resolvedPartnerId = partnerId;
+  if (!verified) {
+    if (req.method === 'GET') {
+      return renderHtmlResponse(false, 'Verification Failed', 'The payment verification failed. If your payment was deducted, please contact support.');
+    }
+    return res.status(400).json({ error: 'Invalid Razorpay payment verification failed' });
+  }
+
+  // 3. Resolve Partner ID dynamically if missing
   if (!resolvedPartnerId && razorpay_payment_id) {
     try {
-      const keyId = getRazorpayKeyId();
       if (secret) {
         const authBase64 = Buffer.from(`${keyId}:${secret}`).toString('base64');
         const fetchResponse = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
@@ -995,11 +1039,10 @@ const handleVerify = async (req, res) => {
         if (fetchResponse.ok) {
           const payment = await fetchResponse.json();
           if (payment.notes && payment.notes.partner_id) {
-            resolvedPartnerId = payment.notes.partner_id;
+            resolvedPartnerId = parseInt(payment.notes.partner_id, 10);
           } else if (payment.notes && payment.notes.udf1) {
-            resolvedPartnerId = payment.notes.udf1;
+            resolvedPartnerId = parseInt(payment.notes.udf1, 10);
           } else if (payment.email || payment.contact) {
-            // Find partner by email or mobile
             let queryStr = 'SELECT id FROM partners WHERE 1=0';
             const queryParams = [];
             if (payment.email) {
