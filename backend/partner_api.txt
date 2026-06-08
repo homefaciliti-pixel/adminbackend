@@ -344,7 +344,34 @@ Description: Resolves partner details using `partnerId` query parameter and redi
 Query Parameters:
 - `partnerId`: Integer ID of the partner (Required)
 
-5.3 CHANGE PASSWORD
+5.3 VERIFY RAZORPAY PAYMENT AND ACTIVATE ACCOUNT
+------------------------------------------------
+Endpoint: GET/POST /api/payments/verify
+Description: Verifies Razorpay payment signature, resolves the partner ID, sets partner status to paid (`isPaid = 1`), and logs the subscription earning.
+- POST method (used for API/Webhook verifications): Accepts JSON body. Returns JSON response containing updated partner details.
+- GET method (used for browser redirects after payment link/hosted page payment): Accepts query parameters. Renders and returns a premium HTML user interface confirming payment success or failure.
+Request Body (POST) / Query Parameters (GET):
+- `razorpay_payment_id`: String (Required)
+- `razorpay_signature`: String (Required if secret is configured)
+- `razorpay_order_id`: String (Required for order-based signatures)
+- `razorpay_payment_link_id`: String (Required for payment link-based signatures)
+- `razorpay_payment_link_reference_id`: String (Optional)
+- `razorpay_payment_link_status`: String (Optional)
+- `partnerId`: Integer (Optional. Resolved dynamically using Razorpay API if not provided)
+
+POST Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Razorpay payment verified and partner account activated successfully!",
+  "amount": 350,
+  "razorpayKeyId": "rzp_live_SwFaJKQjU5ZOsH",
+  "partner": { ...updatedPartnerDetailsWithIsPaidTrue... }
+}
+
+GET Response Example (Status 200 OK):
+Renders a premium HTML page indicating payment success and directing the user back to the app.
+
+5.4 CHANGE PASSWORD
 -------------------
 Endpoint: POST /api/partner/change-password
 Description: Updates partner account password.

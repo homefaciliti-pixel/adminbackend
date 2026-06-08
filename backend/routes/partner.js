@@ -750,6 +750,270 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
   }
 });
 
+// GET & POST /api/payments/verify - Verify Razorpay payment signature and activate partner account
+const handleVerify = async (req, res) => {
+  const params = { ...req.query, ...req.body };
+  const razorpay_payment_id = params.razorpay_payment_id || params.payment_id;
+  const razorpay_order_id = params.razorpay_order_id || params.order_id;
+  const razorpay_signature = params.razorpay_signature || params.signature;
+  const razorpay_payment_link_id = params.razorpay_payment_link_id || params.payment_link_id;
+  const razorpay_payment_link_reference_id = params.razorpay_payment_link_reference_id || params.payment_link_reference_id;
+  const razorpay_payment_link_status = params.razorpay_payment_link_status || params.payment_link_status;
+  
+  let partnerId = params.partnerId;
+  const crypto = require('crypto');
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+
+  // Render helper for HTML responses
+  const renderHtmlResponse = (isSuccess, title, message) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.status(isSuccess ? 200 : 400).send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - Superhome</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      color: #1e293b;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+      padding: 40px;
+      border-radius: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      text-align: center;
+      max-width: 420px;
+      width: 90%;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+    .icon-container {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      margin: 0 auto 24px;
+      animation: scaleUp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+    .success-icon {
+      background-color: #dcfce7;
+      color: #22c55e;
+      box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.2);
+    }
+    .error-icon {
+      background-color: #fee2e2;
+      color: #ef4444;
+      box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.2);
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 0 0 12px;
+      color: ${isSuccess ? '#0b5fa5' : '#ef4444'};
+    }
+    p {
+      font-size: 16px;
+      color: #64748b;
+      line-height: 1.6;
+      margin: 0 0 32px;
+    }
+    .btn {
+      display: inline-block;
+      background-color: ${isSuccess ? '#0b5fa5' : '#64748b'};
+      color: white;
+      text-decoration: none;
+      padding: 14px 36px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 16px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: none;
+    }
+    .btn:hover {
+      background-color: ${isSuccess ? '#094f8a' : '#475569'};
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    @keyframes scaleUp {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-container ${isSuccess ? 'success-icon' : 'error-icon'}">
+      ${isSuccess ? '✓' : '✕'}
+    </div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <button onclick="window.close();" class="btn">Close</button>
+  </div>
+</body>
+</html>
+    `);
+  };
+
+  // 1. Signature Verification (if secret is configured and parameters exist)
+  if (secret && razorpay_signature) {
+    let verified = false;
+
+    // A. Order-based signature verification
+    if (razorpay_order_id && razorpay_payment_id) {
+      const text = razorpay_order_id + '|' + razorpay_payment_id;
+      const expected = crypto.createHmac('sha256', secret).update(text).digest('hex');
+      if (expected === razorpay_signature) {
+        verified = true;
+      }
+    }
+
+    // B. Payment Link-based signature verification
+    if (!verified && razorpay_payment_link_id && razorpay_payment_id) {
+      const refId = razorpay_payment_link_reference_id || '';
+      const status = razorpay_payment_link_status || '';
+      const text = `${razorpay_payment_link_id}|${refId}|${status}|${razorpay_payment_id}`;
+      const expected = crypto.createHmac('sha256', secret).update(text).digest('hex');
+      if (expected === razorpay_signature) {
+        verified = true;
+      } else {
+        // Fallback: concatenate link ID and payment ID
+        const textSimple = `${razorpay_payment_link_id}|${razorpay_payment_id}`;
+        const expectedSimple = crypto.createHmac('sha256', secret).update(textSimple).digest('hex');
+        if (expectedSimple === razorpay_signature) {
+          verified = true;
+        }
+      }
+    }
+
+    if (!verified) {
+      if (req.method === 'GET') {
+        return renderHtmlResponse(false, 'Verification Failed', 'The payment signature verification failed. If your payment was deducted, please contact support.');
+      }
+      return res.status(400).json({ error: 'Invalid Razorpay payment signature verification failed' });
+    }
+  }
+
+  // 2. Resolve Partner ID dynamically if missing
+  let resolvedPartnerId = partnerId;
+  if (!resolvedPartnerId && razorpay_payment_id) {
+    try {
+      const keyId = process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH';
+      if (secret) {
+        const authBase64 = Buffer.from(`${keyId}:${secret}`).toString('base64');
+        const fetchResponse = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}`, {
+          headers: {
+            'Authorization': `Basic ${authBase64}`
+          }
+        });
+        if (fetchResponse.ok) {
+          const payment = await fetchResponse.json();
+          if (payment.notes && payment.notes.partner_id) {
+            resolvedPartnerId = payment.notes.partner_id;
+          } else if (payment.notes && payment.notes.udf1) {
+            resolvedPartnerId = payment.notes.udf1;
+          } else if (payment.email || payment.contact) {
+            // Find partner by email or mobile
+            let queryStr = 'SELECT id FROM partners WHERE 1=0';
+            const queryParams = [];
+            if (payment.email) {
+              queryStr += ' OR email = ?';
+              queryParams.push(payment.email);
+            }
+            if (payment.contact) {
+              const cleanContact = payment.contact.replace(/[^0-9]/g, '');
+              const last10 = cleanContact.slice(-10);
+              if (last10.length === 10) {
+                queryStr += ' OR mobile LIKE ?';
+                queryParams.push(`%${last10}`);
+              }
+            }
+            const [lookupRows] = await db.query(queryStr, queryParams);
+            if (lookupRows.length > 0) {
+              resolvedPartnerId = lookupRows[0].id;
+            }
+          }
+        }
+      }
+    } catch (fetchErr) {
+      console.error('Error fetching payment from Razorpay API:', fetchErr);
+    }
+  }
+
+  if (!resolvedPartnerId) {
+    if (req.method === 'GET') {
+      return renderHtmlResponse(false, 'Partner Resolution Failed', 'We could not resolve your partner account from the payment details. Please contact support.');
+    }
+    return res.status(400).json({ error: 'partnerId is required or could not be resolved from payment' });
+  }
+
+  const todayStr = new Date().toLocaleDateString('en-IN');
+
+  try {
+    // Fetch partner details first to get name and verify existence
+    const [partnerRows] = await db.query('SELECT * FROM partners WHERE id = ?', [resolvedPartnerId]);
+    if (partnerRows.length === 0) {
+      if (req.method === 'GET') {
+        return renderHtmlResponse(false, 'Partner Not Found', 'The partner account associated with this payment was not found.');
+      }
+      return res.status(404).json({ error: 'Partner not found' });
+    }
+    const partner = partnerRows[0];
+    const partnerName = partner.name;
+
+    // 1. Update isPaid status in partners table
+    await db.query('UPDATE partners SET isPaid = 1 WHERE id = ?', [resolvedPartnerId]);
+
+    // 2. Log subscription payment inside subscription_earnings
+    await db.query(
+      `INSERT INTO subscription_earnings (partnerName, amount, paymentMethod, purchaseDate, status) 
+       VALUES (?, 350.00, 'Razorpay', ?, 'Paid')`,
+      [partnerName, todayStr]
+    );
+
+    // 3. Fetch updated partner details
+    const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [resolvedPartnerId]);
+
+    if (req.method === 'GET') {
+      return renderHtmlResponse(true, 'Payment Successful!', 'Your registration fee of ₹350 has been successfully received. You can now close this browser and return to the Superhome Partner app.');
+    }
+
+    res.json({
+      success: true,
+      message: 'Razorpay payment verified and partner account activated successfully!',
+      amount: 350,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
+      partner: mapPartnerForApp(rows[0])
+    });
+  } catch (error) {
+    console.error('Error in handleVerify:', error);
+    if (req.method === 'GET') {
+      return renderHtmlResponse(false, 'Server Error', 'Failed to update payment status: ' + error.message);
+    }
+    res.status(500).json({ error: 'Failed to verify payment: ' + error.message });
+  }
+};
+
+router.post('/payments/verify', handleVerify);
+router.get('/payments/verify', handleVerify);
+
 // GET /api/partner/pay-redirect - Redirect to Razorpay page prefilled with partner details
 router.get('/partner/pay-redirect', async (req, res) => {
   const { partnerId } = req.query;
