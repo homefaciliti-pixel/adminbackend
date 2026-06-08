@@ -334,7 +334,6 @@ Response Example (Status 200 OK):
 {
   "success": true,
   "message": "₹350 registration payment received successfully! You can access the dashboard once approved by the admin.",
-  "id": 10,
   "amount": 350,
   "razorpayKeyId": "rzp_live_SwFaJKQjU5ZOsH",
   "partner": { ...updatedPartnerDetailsWithIsPaidTrue... }

@@ -737,7 +737,6 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
     res.json({
       success: true,
       message: '₹350 registration payment received successfully! You can access the dashboard once approved by the admin.',
-      id: partnerId,
       amount: 350,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_SwFaJKQjU5ZOsH',
       partner: mapPartnerForApp(rows[0])
