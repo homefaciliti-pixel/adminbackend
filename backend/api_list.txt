@@ -200,7 +200,8 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/partner/change-password - Update password.
 
 - REGISTRATION FEE & WALLET (PROTECTED):
-  * POST /api/partner/pay-registration - Pay ₹350 registration fee. Body: { "paymentMethod": "UPI", "transactionId": "..." }
+  * POST /api/partner/pay-registration - Pay ₹350 registration fee. Body: { "paymentMethod": "UPI", "transactionId": "..." }. Returns: { success: true, message: "...", id: <partnerId>, partner: { ... } }
+  * GET /api/partner/pay-redirect - Redirect to Razorpay hosted payment page pre-filled with partner details. Query params: ?partnerId=<id>
   * GET /api/earnings - Fetch partner total, daily, monthly, online, and cash earnings.
 
 - BOOKINGS LIFECYCLE (PROTECTED):
@@ -228,4 +229,4 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/partner/support - Register support ticket. Body: { "subject": "...", "message": "..." }
   * GET /api/partner/support - Fetch own registered support tickets.
   * GET /api/partner/reviews - Fetch reviews written by customers about this partner.
-  * GET /api/partner/dashboard - Fetch active banners, booking stats, earnings stats, and payment status in one payload.
+  * GET /api/partner/dashboard - Fetch active banners, booking stats, earnings stats, and status in one payload. Returns: { id, isPaid, isApproved, bookingsStats, earningsStats, banners } (returns 0 stats if not paid or not approved).

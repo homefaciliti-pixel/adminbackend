@@ -724,11 +724,48 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
     res.json({
       success: true,
       message: '₹350 registration payment received successfully! You can access the dashboard once approved by the admin.',
+      id: partnerId,
       partner: mapPartnerForApp(rows[0])
     });
   } catch (error) {
     console.error('Error processing registration payment:', error);
     res.status(500).json({ error: 'Failed to process payment: ' + error.message });
+  }
+});
+
+// GET /api/partner/pay-redirect - Redirect to Razorpay page prefilled with partner details
+router.get('/partner/pay-redirect', async (req, res) => {
+  const { partnerId } = req.query;
+  if (!partnerId) {
+    return res.status(400).send('partnerId query parameter is required');
+  }
+
+  try {
+    const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [partnerId]);
+    if (rows.length === 0) {
+      return res.status(404).send('Partner not found');
+    }
+
+    const partner = rows[0];
+    const basePaymentLink = process.env.RAZORPAY_PAYMENT_LINK || 'https://rzp.io/l/superhome-partner';
+    
+    let targetUrl;
+    try {
+      targetUrl = new URL(basePaymentLink);
+    } catch (e) {
+      targetUrl = new URL('https://rzp.io/l/superhome-partner');
+    }
+    
+    targetUrl.searchParams.append('name', partner.name || '');
+    targetUrl.searchParams.append('email', partner.email || '');
+    targetUrl.searchParams.append('phone', partner.mobile || '');
+    targetUrl.searchParams.append('udf1', partner.id.toString());
+    targetUrl.searchParams.append('notes[partner_id]', partner.id.toString());
+
+    res.redirect(targetUrl.toString());
+  } catch (error) {
+    console.error('Error redirecting to Razorpay:', error);
+    res.status(500).send('Failed to redirect to payment: ' + error.message);
   }
 });
 
@@ -1904,6 +1941,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     const mockEarnings = getMockEarningsStats(req.partner, mockBookingsStore);
 
     return res.json({
+      id: 10,
       isPaid: true,
       isApproved: true,
       bookingsStats: {
@@ -1922,6 +1960,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
   // If partner is not paid or not approved, return default blank counts
   if (!isPaid || !isApproved) {
     return res.json({
+      id: partnerId,
       isPaid,
       isApproved,
       bookingsStats: {
@@ -2013,6 +2052,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     const onlineEarning = Math.round(onlineTotal * 0.75);
 
     res.json({
+      id: partnerId,
       isPaid,
       isApproved,
       bookingsStats: {

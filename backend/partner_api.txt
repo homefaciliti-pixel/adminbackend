@@ -327,10 +327,18 @@ Response Example (Status 200 OK):
 {
   "success": true,
   "message": "₹350 registration payment received successfully! You can access the dashboard once approved by the admin.",
+  "id": 10,
   "partner": { ...updatedPartnerDetailsWithIsPaidTrue... }
 }
 
-5.2 CHANGE PASSWORD
+5.2 REDIRECT TO RAZORPAY PAYMENT PAGE
+------------------------------------
+Endpoint: GET /api/partner/pay-redirect
+Description: Resolves partner details using `partnerId` query parameter and redirects user to Razorpay hosted payment page pre-filled with Name, Email, Phone number, and passes `partnerId` inside `udf1` and `notes[partner_id]`.
+Query Parameters:
+- `partnerId`: Integer ID of the partner (Required)
+
+5.3 CHANGE PASSWORD
 -------------------
 Endpoint: POST /api/partner/change-password
 Description: Updates partner account password.
@@ -442,6 +450,7 @@ Endpoint: GET /api/partner/dashboard (PROTECTED)
 Description: Retrieves active banners, booking status stats, monthly and daily earnings, and partner KYC payment/approval status in a single aggregated payload.
 Response Example (Status 200 OK):
 {
+  "id": 10,
   "isPaid": true,
   "isApproved": true,
   "bookingsStats": {
