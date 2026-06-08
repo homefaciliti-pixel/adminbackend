@@ -1130,7 +1130,7 @@ const handleVerify = async (req, res) => {
 router.post('/payments/verify', handleVerify);
 router.get('/payments/verify', handleVerify);
 
-// GET /api/partner/pay-redirect - Redirect to Razorpay page prefilled with partner details
+// GET /api/partner/pay-redirect - Serve standard HTML payment checkout page prefilled with partner details
 router.get('/partner/pay-redirect', async (req, res) => {
   const { partnerId } = req.query;
   if (!partnerId) {
@@ -1144,22 +1144,199 @@ router.get('/partner/pay-redirect', async (req, res) => {
     }
 
     const partner = rows[0];
-    const basePaymentLink = process.env.RAZORPAY_PAYMENT_LINK || 'https://rzp.io/l/superhome-partner';
-    
-    let targetUrl;
-    try {
-      targetUrl = new URL(basePaymentLink);
-    } catch (e) {
-      targetUrl = new URL('https://rzp.io/l/superhome-partner');
-    }
-    
-    targetUrl.searchParams.append('name', partner.name || '');
-    targetUrl.searchParams.append('email', partner.email || '');
-    targetUrl.searchParams.append('phone', partner.mobile || '');
-    targetUrl.searchParams.append('udf1', partner.id.toString());
-    targetUrl.searchParams.append('notes[partner_id]', partner.id.toString());
+    const keyId = getRazorpayKeyId();
+    const secret = process.env.RAZORPAY_KEY_SECRET;
 
-    res.redirect(targetUrl.toString());
+    // Generate dynamic Razorpay Order ID
+    const razorpayOrderId = await createRazorpayOrder(partner.id);
+    const isMockOrder = !secret || secret === 'your_razorpay_secret_key' || razorpayOrderId.startsWith('order_mock_') || razorpayOrderId.startsWith('order_failed_') || razorpayOrderId.startsWith('order_error_');
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment - Superhome Partner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      color: #1e293b;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 24px;
+      padding: 40px 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+      border: 1px solid rgba(255,255,255,0.8);
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.05);
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border-left-color: #0b5fa5;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 24px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 12px;
+    }
+    p {
+      font-size: 15px;
+      color: #64748b;
+      line-height: 1.6;
+      margin: 0 0 24px;
+    }
+    .btn {
+      background: linear-gradient(135deg, #0b5fa5 0%, #1e40af 100%);
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 14px;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(11, 95, 165, 0.2);
+      transition: all 0.3s ease;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 25px rgba(11, 95, 165, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner" id="spinner"></div>
+    <h1 id="status-title">Preparing Checkout</h1>
+    <p id="status-desc">Please wait while we connect to the secure payment gateway...</p>
+    <button id="pay-btn" class="btn" style="display: none;">Pay ₹350 Now</button>
+  </div>
+
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    const isMock = ${isMockOrder};
+    if (isMock) {
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('status-title').innerText = 'Payment Simulator';
+      document.getElementById('status-desc').innerText = 'You are in development mode. Click below to simulate the transaction.';
+      document.getElementById('pay-btn').style.display = 'none';
+      
+      const card = document.querySelector('.card');
+      
+      const successBtn = document.createElement('button');
+      successBtn.className = 'btn';
+      successBtn.style.marginBottom = '12px';
+      successBtn.innerText = 'Simulate Success';
+      successBtn.onclick = function() {
+        const verifyUrl = '/api/payments/verify?' + 
+          'razorpay_payment_id=pay_mock_' + Math.random().toString(36).substring(2, 10) +
+          '&razorpay_order_id=${razorpayOrderId}' +
+          '&partnerId=${partner.id}';
+        window.location.href = verifyUrl;
+      };
+      card.appendChild(successBtn);
+
+      const failBtn = document.createElement('button');
+      failBtn.className = 'btn';
+      failBtn.style.background = '#ef4444';
+      failBtn.style.boxShadow = '0 10px 20px rgba(239, 68, 68, 0.2)';
+      failBtn.innerText = 'Simulate Failure';
+      failBtn.onclick = function() {
+        const verifyUrl = '/api/payments/verify?' + 
+          'partnerId=${partner.id}';
+        window.location.href = verifyUrl;
+      };
+      card.appendChild(failBtn);
+    } else {
+      const options = {
+        key: "${keyId}",
+        amount: 35000,
+        currency: "INR",
+        name: "Superhome",
+        description: "Partner Registration Fee",
+        order_id: "${razorpayOrderId}",
+        prefill: {
+          name: "${partner.name || ''}",
+          email: "${partner.email || ''}",
+          contact: "${partner.mobile || ''}"
+        },
+        handler: function (response) {
+          document.getElementById('spinner').style.display = 'block';
+          document.getElementById('status-title').innerText = 'Verifying Payment';
+          document.getElementById('status-desc').innerText = 'Please wait while we verify your transaction...';
+          document.getElementById('pay-btn').style.display = 'none';
+
+          const verifyUrl = '/api/payments/verify?' + 
+            'razorpay_payment_id=' + encodeURIComponent(response.razorpay_payment_id) +
+            '&razorpay_order_id=' + encodeURIComponent(response.razorpay_order_id) +
+            '&razorpay_signature=' + encodeURIComponent(response.razorpay_signature) +
+            '&partnerId=${partner.id}';
+          
+          window.location.href = verifyUrl;
+        },
+        modal: {
+          ondismiss: function() {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('status-title').innerText = 'Payment Cancelled';
+            document.getElementById('status-desc').innerText = 'You closed the payment screen. Click the button below if you want to try again.';
+            document.getElementById('pay-btn').style.display = 'block';
+          }
+        }
+      };
+
+      const rzp = new Razorpay(options);
+
+      window.onload = function() {
+        try {
+          rzp.open();
+          document.getElementById('spinner').style.display = 'none';
+          document.getElementById('status-title').innerText = 'Payment In Progress';
+          document.getElementById('status-desc').innerText = 'Please complete the payment inside the secure checkout window.';
+          document.getElementById('pay-btn').style.display = 'block';
+        } catch (err) {
+          console.error(err);
+          document.getElementById('spinner').style.display = 'none';
+          document.getElementById('status-title').innerText = 'Checkout Ready';
+          document.getElementById('status-desc').innerText = 'Click the button below to open the payment screen.';
+          document.getElementById('pay-btn').style.display = 'block';
+        }
+      };
+
+      document.getElementById('pay-btn').onclick = function() {
+        rzp.open();
+      };
+    }
+  </script>
+</body>
+</html>
+    `);
   } catch (error) {
     console.error('Error redirecting to Razorpay:', error);
     res.status(500).send('Failed to redirect to payment: ' + error.message);
