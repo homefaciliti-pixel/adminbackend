@@ -441,7 +441,6 @@ router.post('/auth/register', (req, res) => {
         partnerId: mappedPartner.id,
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
-        razorpay_order_id: razorpayOrderId,
         partner: mappedPartner
       });
     } catch (dbErr) {
@@ -493,7 +492,6 @@ router.post('/auth/login', async (req, res) => {
       partnerId: mappedPartner.id,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
-      razorpay_order_id: razorpayOrderId,
       partner: mappedPartner
     });
   } catch (error) {
@@ -813,7 +811,6 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
       amount: 350,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
-      razorpay_order_id: razorpayOrderId,
       partner: mapPartnerForApp(rows[0])
     });
   } catch (error) {
@@ -1076,7 +1073,6 @@ const handleVerify = async (req, res) => {
       amount: 350,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
-      razorpay_order_id: razorpayOrderId,
       partner: mapPartnerForApp(rows[0])
     });
   } catch (error) {
@@ -2330,7 +2326,6 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       isApproved,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
-      razorpay_order_id: razorpayOrderId,
       bookingsStats: {
         totalBooking: 0,
         upcomingBooking: 0,
