@@ -93,7 +93,6 @@ Request Body:
 Response Example (Status 200 OK):
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "amount": 350,
   "partnerId": 10,
   "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
   "partner": { ...partnerDetails... }

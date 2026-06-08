@@ -188,7 +188,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 ----------------------------------------------------------------------
 - AUTHENTICATION:
   * POST /api/auth/register - Register a partner (multipart/form-data). Mandatory files: profileImage, aadharFront, aadharBack, panImage, policeVerification. Returns: { token, amount: 350, partnerId, razorpayKeyId, razorpayOrderId, partner }
-  * POST /api/auth/login - Login partner using phone and password. Returns: { token, amount: 350, partnerId, razorpayKeyId, razorpayOrderId, partner }
+  * POST /api/auth/login - Login partner using phone and password. Returns: { token, partnerId, razorpayKeyId, razorpayOrderId, partner }
   * POST /api/auth/forgot-password - Reset password for a mobile number.
   * POST /api/auth/logout - End partner session.
   * POST /api/auth/send-otp - Request a 4-digit OTP code for a phone number.

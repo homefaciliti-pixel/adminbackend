@@ -517,7 +517,6 @@ router.post('/auth/login', async (req, res) => {
 
     res.json({
       token,
-      amount: 350,
       partnerId: mappedPartner.id,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
