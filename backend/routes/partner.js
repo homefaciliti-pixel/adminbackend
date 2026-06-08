@@ -1130,6 +1130,40 @@ const handleVerify = async (req, res) => {
 router.post('/payments/verify', handleVerify);
 router.get('/payments/verify', handleVerify);
 
+// GET /api/partner/create-test-user - Temporary endpoint to register/reset test user credentials
+router.get('/partner/create-test-user', async (req, res) => {
+  try {
+    const phone = '9999999999';
+    const password = 'password123';
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Check if exists
+    const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', [phone]);
+    if (existing.length > 0) {
+      // Update password and reset states
+      await db.query(
+        'UPDATE partners SET password = ?, isPaid = 0, isApproved = 0 WHERE mobile = ?',
+        [hashedPassword, phone]
+      );
+      return res.send('Test user already exists! Password reset to password123, isPaid set to 0, and isApproved set to 0. You can now use it in the app for testing.');
+    }
+    
+    // Insert new test partner
+    await db.query(
+      `INSERT INTO partners (
+        name, email, mobile, password, city, state, locality, address, status, isApproved, isPaid, image
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0, '')`,
+      [
+        'Test Partner', 'testpartner@gmail.com', phone, hashedPassword,
+        'Narnaul', 'Haryana', 'Nnl', 'Koriawas'
+      ]
+    );
+    res.send('Test user created successfully! Phone: 9999999999, Password: password123. Use these credentials to test in the app.');
+  } catch (err) {
+    res.status(500).send('Error creating test user: ' + err.message);
+  }
+});
+
 // GET /api/partner/pay-redirect - Serve standard HTML payment checkout page prefilled with partner details
 router.get('/partner/pay-redirect', async (req, res) => {
   const { partnerId } = req.query;
