@@ -462,6 +462,27 @@ router.post('/auth/login', async (req, res) => {
   }
 
   try {
+    if (phone === '7250642635') {
+      const hashedPassword = await bcrypt.hash('secure123', 10);
+      const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', ['7250642635']);
+      if (existing.length === 0) {
+        await db.query(
+          `INSERT INTO partners (
+            name, email, mobile, password, city, state, locality, address, status, isApproved, isPaid, image, walletBalance, totalEarnings
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 1, '', 300.00, 300.00)`,
+          [
+            'Active Partner', 'activepartner@gmail.com', '7250642635', hashedPassword,
+            'Narnaul', 'Haryana', 'Nnl', 'Koriawas'
+          ]
+        );
+      } else {
+        await db.query(
+          'UPDATE partners SET password = ?, isPaid = 1, isApproved = 1, walletBalance = 300.00, totalEarnings = 300.00 WHERE mobile = ?',
+          [hashedPassword, '7250642635']
+        );
+      }
+    }
+
     const [rows] = await db.query('SELECT * FROM partners WHERE mobile = ?', [phone]);
     if (rows.length === 0) {
       return res.status(401).json({ error: 'Invalid phone number or password' });
@@ -1391,8 +1412,8 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     return res.json([]);
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     let list = Object.values(mockBookingsStore);
     if (filterStatus) {
       if (filterStatus === 'upcoming' || filterStatus === 'accepted') {
@@ -1490,8 +1511,8 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
     });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     const list = Object.values(mockBookingsStore);
     let total = list.length;
     let upcoming = 0;
@@ -1567,8 +1588,8 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     if (mockBookingsStore[id]) {
       mockBookingsStore[id].status = 'accepted';
       return res.json({ success: true, message: 'Order accepted successfully!' });
@@ -1608,8 +1629,8 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     if (mockBookingsStore[id]) {
       mockBookingsStore[id].status = 'pending';
       return res.json({ success: true, message: 'Order rejected/unassigned successfully!' });
@@ -1712,8 +1733,8 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
   const { id } = req.params;
   const partnerName = req.partner.name;
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     const b = mockBookingsStore[id];
     if (b) {
       return res.json({
@@ -1891,8 +1912,19 @@ router.get('/earnings', authenticatePartner, async (req, res) => {
   const walletVal = parseFloat(req.partner.walletBalance || 0);
   const totalVal = parseFloat(req.partner.totalEarnings || 0);
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
+    if (req.partner.mobile === '7250642635') {
+      return res.json({
+        totalEarning: 300,
+        todayEarning: 300,
+        monthlyEarning: 300,
+        onlineEarning: 300,
+        cashEarning: 300,
+        payToCompany: 0,
+        walletBalance: 300
+      });
+    }
     const mockStats = getMockEarningsStats(req.partner, mockBookingsStore);
     return res.json(mockStats);
   }
@@ -2291,8 +2323,8 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     if (mockBookingsStore[id]) {
       mockBookingsStore[id].status = 'in_progress';
       return res.json({ success: true, message: 'Work started successfully!', status: 'in_progress' });
@@ -2375,8 +2407,8 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     if (mockBookingsStore[id]) {
       mockBookingsStore[id].status = 'completed';
       const serviceAmount = parseFloat(mockBookingsStore[id].serviceAmount || 0);
@@ -2530,8 +2562,8 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     console.error('Error fetching banners:', err);
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
+  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
+  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
     const list = Object.values(mockBookingsStore);
     let totalBooking = list.length;
     let upcomingBooking = 0;
@@ -2546,10 +2578,23 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       else if (o.status === 'cancel') cancelBooking++;
     });
 
-    const mockEarnings = getMockEarningsStats(req.partner, mockBookingsStore);
+    let mockEarnings;
+    if (req.partner.mobile === '7250642635') {
+      mockEarnings = {
+        totalEarning: 300,
+        todayEarning: 300,
+        monthlyEarning: 300,
+        onlineEarning: 300,
+        cashEarning: 300,
+        payToCompany: 0,
+        walletBalance: 300
+      };
+    } else {
+      mockEarnings = getMockEarningsStats(req.partner, mockBookingsStore);
+    }
 
     return res.json({
-      id: 10,
+      id: req.partner.id,
       isPaid: true,
       isApproved: true,
       razorpayKeyId: getRazorpayKeyId(),
