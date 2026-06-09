@@ -5,6 +5,7 @@ require('dotenv').config();
 
 // Force redeploy 1
 const server = express();
+server.set('trust proxy', true);
 const PORT = process.env.PORT || 3000;
 
 // Enable CORS for all domains so Flutter Web client can access APIs without origin blocks
