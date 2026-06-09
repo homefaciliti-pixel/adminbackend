@@ -805,9 +805,6 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
   const paymentMethod = bodyPaymentMethod || 'Razorpay';
   const transactionId = bodyTransactionId;
 
-  if (!transactionId) {
-    return res.status(400).json({ error: 'transactionId is required to process the ₹350 registration fee and activate account' });
-  }
 
   try {
     // Fetch partner details first to get name and verify existence
@@ -819,30 +816,45 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
     const partnerName = partner.name;
     const todayStr = new Date().toLocaleDateString('en-IN');
 
-    // 1. Update isPaid status in partners table
-    await db.query('UPDATE partners SET isPaid = 1 WHERE id = ?', [partnerId]);
-
-    // 2. Log subscription payment inside subscription_earnings
-    await db.query(
-      `INSERT INTO subscription_earnings (partnerName, amount, paymentMethod, purchaseDate, status) 
-       VALUES (?, 350.00, ?, ?, 'Paid')`,
-      [partnerName, paymentMethod, todayStr]
-    );
-
-    // 3. Fetch updated partner information
-    const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [partnerId]);
-
-    // Generate dynamic Razorpay Order ID for response consistency
+    // Generate dynamic Razorpay Order ID
     const razorpayOrderId = await createRazorpayOrder(partnerId);
+    const paymentUrl = `${req.protocol}://${req.get('host')}/api/partner/pay-redirect?partnerId=${partnerId}`;
 
-    res.json({
-      success: true,
-      message: '₹350 registration payment received successfully! You can access the dashboard once approved by the admin.',
-      amount: 350,
-      razorpayKeyId: getRazorpayKeyId(),
-      razorpayOrderId: razorpayOrderId,
-      partner: mapPartnerForApp(rows[0])
-    });
+    if (transactionId) {
+      // 1. Update isPaid status in partners table
+      await db.query('UPDATE partners SET isPaid = 1 WHERE id = ?', [partnerId]);
+
+      // 2. Log subscription payment inside subscription_earnings
+      await db.query(
+        `INSERT INTO subscription_earnings (partnerName, amount, paymentMethod, purchaseDate, status) 
+         VALUES (?, 350.00, ?, ?, 'Paid')`,
+        [partnerName, paymentMethod, todayStr]
+      );
+
+      // 3. Fetch updated partner information
+      const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [partnerId]);
+
+      res.json({
+        success: true,
+        message: '₹350 registration payment received successfully! You can access the dashboard once approved by the admin.',
+        amount: 350,
+        razorpayKeyId: getRazorpayKeyId(),
+        razorpayOrderId: razorpayOrderId,
+        paymentUrl: null,
+        partner: mapPartnerForApp(rows[0])
+      });
+    } else {
+      // Just initiating checkout, do NOT update DB
+      res.json({
+        success: true,
+        message: 'Registration fee checkout initiated successfully.',
+        amount: 350,
+        razorpayKeyId: getRazorpayKeyId(),
+        razorpayOrderId: razorpayOrderId,
+        paymentUrl: paymentUrl,
+        partner: mapPartnerForApp(partner)
+      });
+    }
   } catch (error) {
     console.error('Error processing registration payment:', error);
     res.status(500).json({ error: 'Failed to process payment: ' + error.message });
