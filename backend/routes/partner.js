@@ -436,8 +436,10 @@ router.post('/auth/register', (req, res) => {
 
       // Generate dynamic Razorpay Order ID for unpaid partners
       let razorpayOrderId = null;
+      let paymentUrl = null;
       if (!mappedPartner.isPaid) {
         razorpayOrderId = await createRazorpayOrder(mappedPartner.id);
+        paymentUrl = `${req.protocol}://${req.get('host')}/api/partner/pay-redirect?partnerId=${mappedPartner.id}`;
       }
 
       res.status(201).json({
@@ -446,6 +448,7 @@ router.post('/auth/register', (req, res) => {
         partnerId: mappedPartner.id,
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
+        paymentUrl: paymentUrl,
         partner: mappedPartner
       });
     } catch (dbErr) {
@@ -503,8 +506,10 @@ router.post('/auth/login', async (req, res) => {
 
     // Generate dynamic Razorpay Order ID for unpaid partners
     let razorpayOrderId = null;
+    let paymentUrl = null;
     if (!mappedPartner.isPaid) {
       razorpayOrderId = await createRazorpayOrder(mappedPartner.id);
+      paymentUrl = `${req.protocol}://${req.get('host')}/api/partner/pay-redirect?partnerId=${mappedPartner.id}`;
     }
 
     res.json({
@@ -512,6 +517,7 @@ router.post('/auth/login', async (req, res) => {
       partnerId: mappedPartner.id,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
+      paymentUrl: paymentUrl,
       partner: mappedPartner
     });
   } catch (error) {
@@ -2446,8 +2452,10 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
   if (!isPaid || !isApproved) {
     // Generate dynamic Razorpay Order ID for unpaid partners
     let razorpayOrderId = null;
+    let paymentUrl = null;
     if (!isPaid) {
       razorpayOrderId = await createRazorpayOrder(partnerId);
+      paymentUrl = `${req.protocol}://${req.get('host')}/api/partner/pay-redirect?partnerId=${partnerId}`;
     }
 
     return res.json({
@@ -2456,6 +2464,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       isApproved,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
+      paymentUrl: paymentUrl,
       bookingsStats: {
         totalBooking: 0,
         upcomingBooking: 0,
