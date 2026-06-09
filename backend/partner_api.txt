@@ -682,5 +682,40 @@ Response Example (Status 200 OK):
   }
 }
 
+8.3 CHECK PARTNER APPROVAL STATUS
+---------------------------------
+Endpoint: GET /api/partner/approval-status or POST /api/partner/approval-status
+Alias: GET /api/partner/dashboard-status or POST /api/partner/dashboard-status
+Description: Queries the approval and payment status of a partner. Highly compatible, accepts input parameters via:
+1. Headers: Authorization Bearer token & partner-id
+2. Query Parameters: ?token=<token>&id=<partnerId>
+3. JSON Request Body: { "token": "<token>", "partnerId": <partnerId> }
+
+Response Example (Status 200 OK - Pending Approval):
+{
+  "success": true,
+  "id": 56,
+  "name": "Test Live Partner",
+  "mobile": "9999988888",
+  "email": "testlive@gmail.com",
+  "isApproved": false,
+  "isPaid": false,
+  "status": "Pending Approval",
+  "message": "Your documents are currently under review by the admin team. Please check back later."
+}
+
+Response Example (Status 200 OK - Approved):
+{
+  "success": true,
+  "id": 56,
+  "name": "Test Live Partner",
+  "mobile": "9999988888",
+  "email": "testlive@gmail.com",
+  "isApproved": true,
+  "isPaid": true,
+  "status": "Approved",
+  "message": "Your account has been approved. You can now access the full dashboard."
+}
+
 
 
