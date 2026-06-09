@@ -126,8 +126,8 @@ function mapPartnerForApp(r) {
     ifscCode: r.ifscCode || '',
     profileImage: r.image || '',
     status: r.status === 1,
-    isApproved: r.mobile === '7250642635' ? true : r.isApproved === 1,
-    isPaid: r.mobile === '7250642635' ? true : r.isPaid === 1
+    isApproved: r.isApproved === 1,
+    isPaid: r.isPaid === 1
   };
 }
 
@@ -336,10 +336,7 @@ async function authenticatePartner(req, res, next) {
     }
     
     req.partner = rows[0];
-    if (req.partner.mobile === '7250642635') {
-      req.partner.isPaid = 1;
-      req.partner.isApproved = 1;
-    }
+
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
@@ -1415,18 +1412,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     return res.json([]);
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    let list = Object.values(mockBookingsStore);
-    if (filterStatus) {
-      if (filterStatus === 'upcoming' || filterStatus === 'accepted') {
-        list = list.filter(b => b.status === 'accepted' || b.status === 'upcoming' || b.status === 'pending');
-      } else {
-        list = list.filter(b => b.status === filterStatus);
-      }
-    }
-    return res.json(list);
-  }
+
 
   const partnerCity = req.partner.city;
   const partnerLocality = req.partner.locality;
@@ -1514,31 +1500,7 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
     });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    const list = Object.values(mockBookingsStore);
-    let total = list.length;
-    let upcoming = 0;
-    let inProgress = 0;
-    let completed = 0;
-    let cancel = 0;
 
-    list.forEach(o => {
-      if (o.status === 'accepted' || o.status === 'upcoming' || o.status === 'pending') upcoming++;
-      else if (o.status === 'in_progress') inProgress++;
-      else if (o.status === 'completed') completed++;
-      else if (o.status === 'cancel') cancel++;
-    });
-
-    return res.json({
-      totalBooking: total,
-      upcomingBooking: upcoming,
-      inProgressBooking: inProgress,
-      acceptedBooking: upcoming + inProgress,
-      completedBooking: completed,
-      cancelBooking: cancel
-    });
-  }
 
   const partnerCity = req.partner.city;
   const partnerLocality = req.partner.locality;
@@ -1591,14 +1553,7 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    if (mockBookingsStore[id]) {
-      mockBookingsStore[id].status = 'accepted';
-      return res.json({ success: true, message: 'Order accepted successfully!' });
-    }
-    return res.status(404).json({ error: 'Order not found' });
-  }
+
 
   try {
     const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
@@ -1736,29 +1691,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
   const { id } = req.params;
   const partnerName = req.partner.name;
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    const b = mockBookingsStore[id];
-    if (b) {
-      return res.json({
-        id: b.id,
-        status: b.status,
-        service: b.service,
-        date: b.date,
-        time: b.time,
-        serviceAmount: b.serviceAmount,
-        serviceRequestNumber: b.serviceRequestNumber,
-        address: b.address,
-        city: b.city,
-        locality: b.locality,
-        paymentMethod: 'UPI',
-        customerName: b.customerName,
-        customerPhone: b.customerPhone,
-        createdAt: b.date
-      });
-    }
-    return res.status(404).json({ error: 'Booking not found' });
-  }
+
 
   try {
     const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
@@ -1819,18 +1752,7 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
     return res.status(400).json({ error: 'status is required' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386') {
-    if (mockBookingsStore[id]) {
-      mockBookingsStore[id].status = status;
-      return res.json({
-        success: true,
-        message: `Booking status successfully transitioned to ${status}!`,
-        status: status
-      });
-    }
-    return res.status(404).json({ error: 'Booking not found' });
-  }
+
 
   // Map lowercase app status to database status
   let dbStatus = '';
@@ -1915,22 +1837,7 @@ router.get('/earnings', authenticatePartner, async (req, res) => {
   const walletVal = parseFloat(req.partner.walletBalance || 0);
   const totalVal = parseFloat(req.partner.totalEarnings || 0);
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    if (req.partner.mobile === '7250642635') {
-      return res.json({
-        totalEarning: 300,
-        todayEarning: 300,
-        monthlyEarning: 300,
-        onlineEarning: 300,
-        cashEarning: 300,
-        payToCompany: 0,
-        walletBalance: 300
-      });
-    }
-    const mockStats = getMockEarningsStats(req.partner, mockBookingsStore);
-    return res.json(mockStats);
-  }
+
 
   // RULE: Earnings show ZERO until partner has paid AND is approved by the admin
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
@@ -2326,14 +2233,7 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    if (mockBookingsStore[id]) {
-      mockBookingsStore[id].status = 'in_progress';
-      return res.json({ success: true, message: 'Work started successfully!', status: 'in_progress' });
-    }
-    return res.status(404).json({ error: 'Order not found' });
-  }
+
 
   try {
     const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
@@ -2410,31 +2310,7 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    if (mockBookingsStore[id]) {
-      mockBookingsStore[id].status = 'completed';
-      const serviceAmount = parseFloat(mockBookingsStore[id].serviceAmount || 0);
-      const commissionAmount = (serviceAmount * 25) / 100;
-      const partnerShare = serviceAmount - commissionAmount;
 
-      return res.json({
-        success: true,
-        message: 'Work completed successfully and earnings updated!',
-        status: 'completed',
-        earnings: {
-          serviceAmount: serviceAmount,
-          paymentMethod: 'UPI',
-          commissionRate: 25,
-          commissionAmount: commissionAmount,
-          partnerShare: partnerShare,
-          walletBalanceAdded: partnerShare,
-          payToCompanyAdded: 0.00
-        }
-      });
-    }
-    return res.status(404).json({ error: 'Order not found' });
-  }
 
   try {
     const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
@@ -2565,54 +2441,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     console.error('Error fetching banners:', err);
   }
 
-  // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
-  if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
-    const list = Object.values(mockBookingsStore);
-    let totalBooking = list.length;
-    let upcomingBooking = 0;
-    let inProgressBooking = 0;
-    let completedBooking = 0;
-    let cancelBooking = 0;
 
-    list.forEach(o => {
-      if (o.status === 'accepted' || o.status === 'upcoming' || o.status === 'pending') upcomingBooking++;
-      else if (o.status === 'in_progress') inProgressBooking++;
-      else if (o.status === 'completed') completedBooking++;
-      else if (o.status === 'cancel') cancelBooking++;
-    });
-
-    let mockEarnings;
-    if (req.partner.mobile === '7250642635') {
-      mockEarnings = {
-        totalEarning: 300,
-        todayEarning: 300,
-        monthlyEarning: 300,
-        onlineEarning: 300,
-        cashEarning: 300,
-        payToCompany: 0,
-        walletBalance: 300
-      };
-    } else {
-      mockEarnings = getMockEarningsStats(req.partner, mockBookingsStore);
-    }
-
-    return res.json({
-      id: req.partner.id,
-      isPaid: true,
-      isApproved: true,
-      razorpayKeyId: getRazorpayKeyId(),
-      bookingsStats: {
-        totalBooking,
-        upcomingBooking,
-        inProgressBooking,
-        acceptedBooking: upcomingBooking + inProgressBooking,
-        completedBooking,
-        cancelBooking
-      },
-      earningsStats: mockEarnings,
-      banners
-    });
-  }
 
   // If partner is not paid or not approved, return default blank counts
   if (!isPaid || !isApproved) {
