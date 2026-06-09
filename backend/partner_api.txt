@@ -322,10 +322,12 @@ Response Example:
 5.1 PROCESS ₹350 REGISTRATION FEE PAYMENT
 -----------------------------------------
 Endpoint: POST /api/partner/pay-registration
-Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning.
+Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning. Enforces validation that a transactionId must be provided in the body.
 Request Body (JSON):
 {
-  "partnerId": 10
+  "partnerId": 10,
+  "transactionId": "TXN_123456789",
+  "paymentMethod": "Razorpay" (optional, default: Razorpay)
 }
 Response Example (Status 200 OK):
 {

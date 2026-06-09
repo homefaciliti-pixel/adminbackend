@@ -470,16 +470,11 @@ router.post('/auth/login', async (req, res) => {
         await db.query(
           `INSERT INTO partners (
             name, email, mobile, password, city, state, locality, address, status, isApproved, isPaid, image, walletBalance, totalEarnings
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 1, '', 300.00, 300.00)`,
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0, '', 0.00, 0.00)`,
           [
             'Active Partner', 'activepartner@gmail.com', '7250642635', hashedPassword,
             'Narnaul', 'Haryana', 'Nnl', 'Koriawas'
           ]
-        );
-      } else {
-        await db.query(
-          'UPDATE partners SET password = ?, isPaid = 1, isApproved = 1, walletBalance = 300.00, totalEarnings = 300.00 WHERE mobile = ?',
-          [hashedPassword, '7250642635']
         );
       }
     }
@@ -802,7 +797,11 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
   }
 
   const paymentMethod = bodyPaymentMethod || 'Razorpay';
-  const transactionId = bodyTransactionId || 'REG_PAY_' + Date.now();
+  const transactionId = bodyTransactionId;
+
+  if (!transactionId) {
+    return res.status(400).json({ error: 'transactionId is required to process the ₹350 registration fee and activate account' });
+  }
 
   try {
     // Fetch partner details first to get name and verify existence
