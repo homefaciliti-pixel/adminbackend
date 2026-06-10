@@ -499,4 +499,9 @@ Response Example:
   - Request a 4-digit OTP code for a phone number. Body: { "phone": "..." }. Returns: { "success": true, "message": "...", "otp": "..." } (returned for debugging/testing).
 * POST /api/auth/verify-otp (PUBLIC)
   - Verify the requested OTP code for a phone number. Body: { "phone": "...", "otp": "..." }. Returns: { "success": true, "message": "..." }.
+* POST /api/partner/location (and alias POST /api/partner/update-location) (PROTECTED)
+  - Update partner coordinates and time. Body: { partnerId, token, lat, lon, time }.
+* GET /api/partner/location (and aliases GET /api/partner/location/:id & GET /api/partner/:id/location) (PUBLIC / PROTECTED)
+  - Retrieve partner coordinates and time.
+
 

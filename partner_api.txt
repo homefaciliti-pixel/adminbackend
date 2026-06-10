@@ -322,10 +322,12 @@ Response Example:
 5.1 PROCESS ₹350 REGISTRATION FEE PAYMENT
 -----------------------------------------
 Endpoint: POST /api/partner/pay-registration
-Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning.
+Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning. Enforces validation that a transactionId must be provided in the body.
 Request Body (JSON):
 {
-  "partnerId": 10
+  "partnerId": 10,
+  "transactionId": "TXN_123456789",
+  "paymentMethod": "Razorpay" (optional, default: Razorpay)
 }
 Response Example (Status 200 OK):
 {
@@ -678,6 +680,95 @@ Response Example (Status 200 OK):
     "title": "Privacy Policy",
     "description": "We value your privacy..."
   }
+}
+
+8.3 CHECK PARTNER APPROVAL STATUS
+---------------------------------
+Endpoint: GET /api/partner/approval-status or POST /api/partner/approval-status
+Alias: GET /api/partner/dashboard-status or POST /api/partner/dashboard-status
+Description: Queries the approval and payment status of a partner. Highly compatible, accepts input parameters via:
+1. Headers: Authorization Bearer token & partner-id
+2. Query Parameters: ?token=<token>&id=<partnerId>
+3. JSON Request Body: { "token": "<token>", "partnerId": <partnerId> }
+
+Response Example (Status 200 OK - Pending Approval):
+{
+  "success": true,
+  "id": 56,
+  "name": "Test Live Partner",
+  "mobile": "9999988888",
+  "email": "testlive@gmail.com",
+  "isApproved": false,
+  "isPaid": false,
+  "status": "Pending Approval",
+  "message": "Your documents are currently under review by the admin team. Please check back later."
+}
+
+Response Example (Status 200 OK - Approved):
+{
+  "success": true,
+  "id": 56,
+  "name": "Test Live Partner",
+  "mobile": "9999988888",
+  "email": "testlive@gmail.com",
+  "isApproved": true,
+  "isPaid": true,
+  "status": "Approved",
+  "message": "Your account has been approved. You can now access the full dashboard."
+}
+
+
+----------------------------------------------------------------------
+9. LOCATION TRACKING & MONITORING APIs (PROTECTED / PUBLIC)
+----------------------------------------------------------------------
+
+9.1 UPDATE PARTNER LOCATION
+---------------------------
+Endpoint: POST /api/partner/location
+Alias: POST /api/partner/update-location
+Description: Updates the partner's location coordinates and timestamp.
+Request Body (JSON):
+{
+  "partnerId": 10,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "lat": "26.892045",
+  "lon": "75.748312",
+  "time": "2026-06-10T09:00:00.000Z" (optional, default: current time)
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Location updated successfully",
+  "data": {
+    "id": 10,
+    "name": "Amit Kumar",
+    "mobile": "9911223344",
+    "email": "amit@gmail.com",
+    "latitude": "26.892045",
+    "longitude": "75.748312",
+    "locationTime": "2026-06-10T09:00:00.000Z"
+  }
+}
+
+9.2 GET PARTNER LOCATION
+-----------------------
+Endpoint: GET /api/partner/location
+Aliases: 
+- GET /api/partner/location/:id
+- GET /api/partner/:id/location
+Description: Retrieves coordinates and update time for a partner.
+- Admin Panel: Pass ID in path or query parameters (no token needed).
+- Partner App: Pass Authorization token header.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "id": 10,
+  "name": "Amit Kumar",
+  "mobile": "9911223344",
+  "email": "amit@gmail.com",
+  "latitude": "26.892045",
+  "longitude": "75.748312",
+  "locationTime": "2026-06-10T09:00:00.000Z"
 }
 
 

@@ -233,3 +233,6 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * GET /api/partner/dashboard - Fetch active banners, booking stats, earnings stats, and status in one payload. Returns: { id, isPaid, isApproved, razorpayKeyId, razorpayOrderId, bookingsStats, earningsStats, banners } (returns 0 stats if not paid or not approved).
   * GET /api/partner/approval-status & POST /api/partner/approval-status - Check partner approval and payment status. Accepts JWT token and optional partnerId in headers, query, or body.
   * GET /api/partner/dashboard-status & POST /api/partner/dashboard-status - Check partner approval and payment status (alias endpoint).
+  * POST /api/partner/location & POST /api/partner/update-location - Update partner coordinates and time. Body: { partnerId, token, lat, lon, time }.
+  * GET /api/partner/location (and aliases GET /api/partner/location/:id & GET /api/partner/:id/location) - Retrieve partner coordinates and time.
+
