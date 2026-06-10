@@ -2,6 +2,28 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// Helper to resolve partner name by phone number
+async function resolveVendorName(vendorName, vendorPhone, phone, mobile) {
+  let targetPhone = vendorPhone || phone || mobile;
+  let lookupName = vendorName || '';
+
+  // Check if lookupName itself is a phone number (e.g. 10 to 15 digits)
+  if (!targetPhone && lookupName && /^\+?\d{10,15}$/.test(String(lookupName).trim())) {
+    targetPhone = String(lookupName).trim();
+  }
+
+  if (targetPhone) {
+    const [partners] = await db.query('SELECT name FROM partners WHERE mobile = ?', [targetPhone]);
+    if (partners.length === 0) {
+      throw new Error(`No partner found with phone number: ${targetPhone}`);
+    }
+    return partners[0].name;
+  }
+
+  return (lookupName === '' || lookupName === '-') ? null : lookupName;
+}
+
+
 // GET all orders
 router.get('/', async (req, res) => {
   try {
@@ -114,9 +136,17 @@ router.put('/:id', async (req, res) => {
       fields.push('`status` = ?');
       values.push(status);
     }
-    if (vendorName !== undefined) {
+    
+    const hasVendorUpdate = (vendorName !== undefined || req.body.vendorPhone !== undefined || req.body.phone !== undefined || req.body.mobile !== undefined);
+    if (hasVendorUpdate) {
+      let resolvedName;
+      try {
+        resolvedName = await resolveVendorName(vendorName, req.body.vendorPhone, req.body.phone, req.body.mobile);
+      } catch (err) {
+        return res.status(404).json({ success: false, message: err.message });
+      }
       fields.push('`vendorName` = ?');
-      values.push(vendorName === '-' || !vendorName ? null : vendorName);
+      values.push(resolvedName);
     }
     if (slotTime !== undefined) {
       fields.push('`slotTime` = ?');
@@ -189,10 +219,15 @@ router.delete('/:id', async (req, res) => {
 // PUT assign order to vendor
 router.put('/:id/assign', async (req, res) => {
   const { id } = req.params;
-  const { vendorName } = req.body;
+  const { vendorName, vendorPhone, phone, mobile } = req.body;
   
-  const rawVendorName = vendorName || '';
-  const dbVendorName = (rawVendorName === '' || rawVendorName === '-') ? null : rawVendorName;
+  let dbVendorName;
+  try {
+    dbVendorName = await resolveVendorName(vendorName, vendorPhone, phone, mobile);
+  } catch (err) {
+    return res.status(404).json({ success: false, message: err.message });
+  }
+
   const status = dbVendorName === null ? 'Pending' : 'Assigned';
 
   try {
