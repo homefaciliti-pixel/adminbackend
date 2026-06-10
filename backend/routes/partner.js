@@ -1876,20 +1876,20 @@ router.get('/earnings', authenticatePartner, async (req, res) => {
     );
 
     const calculatedTotal = parseFloat(ordersRes[0].totalAmount || 0);
-    const totalEarnings = calculatedTotal > 0 ? calculatedTotal : totalVal;
+    const totalEarnings = calculatedTotal;
     
     const todayStr = new Date().toLocaleDateString('en-IN');
     const [todayRes] = await db.query(
       "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed' AND serviceDate = ?",
       [partnerName, todayStr]
     );
-    const todayEarning = Math.round(parseFloat(todayRes[0].amount || 0) || (totalEarnings * 0.4));
+    const todayEarning = Math.round(parseFloat(todayRes[0].amount || 0));
 
     const [monthRes] = await db.query(
       "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed'",
       [partnerName]
     );
-    const monthlyEarning = Math.round(parseFloat(monthRes[0].amount || 0) || (totalEarnings * 0.6));
+    const monthlyEarning = Math.round(parseFloat(monthRes[0].amount || 0));
 
     // Calculate cash earnings (partner's share, i.e., 75% of cash bookings total)
     const [cashRes] = await db.query(
@@ -2534,20 +2534,20 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     );
 
     const calculatedTotal = parseFloat(ordersRes[0].totalAmount || 0);
-    const totalEarning = calculatedTotal > 0 ? calculatedTotal : totalVal;
+    const totalEarning = calculatedTotal;
     
     const todayStr = new Date().toLocaleDateString('en-IN');
     const [todayRes] = await db.query(
       "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed' AND serviceDate = ?",
       [partnerName, todayStr]
     );
-    const todayEarning = Math.round(parseFloat(todayRes[0].amount || 0) || (totalEarning * 0.4));
+    const todayEarning = Math.round(parseFloat(todayRes[0].amount || 0));
 
     const [monthRes] = await db.query(
       "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed'",
       [partnerName]
     );
-    const monthlyEarning = Math.round(parseFloat(monthRes[0].amount || 0) || (totalEarning * 0.6));
+    const monthlyEarning = Math.round(parseFloat(monthRes[0].amount || 0));
 
     // Calculate cash earnings (partner's share, i.e., 75% of cash bookings total)
     const [cashRes] = await db.query(

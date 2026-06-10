@@ -61,12 +61,8 @@ router.get('/', async (req, res) => {
       const todayStr = getTodayDateString();
       const [todayRes] = await db.query("SELECT COUNT(*) as total FROM orders WHERE serviceDate = ?", [todayStr]);
       todayOrders = todayRes[0].total;
-      if (todayOrders === 0 && totalOrders > 0) {
-        todayOrders = 2; // Default mock fallback for demonstration if actual count is 0
-      }
     } catch (e) {
-      // serviceDate column may not exist in current DB schema — fallback gracefully
-      todayOrders = totalOrders > 0 ? 2 : 0;
+      todayOrders = 0;
     }
 
     // 10. Subscription Earnings
@@ -77,8 +73,14 @@ router.get('/', async (req, res) => {
     const [orderEarningsRes] = await db.query("SELECT SUM(totalAmount) as total FROM booking_earnings");
     const orderEarningsVal = parseFloat(orderEarningsRes[0].total || 0);
 
-    // 12. Supporters (Fixed count as there is no support table, but we can query it)
-    const totalSupporters = 14;
+    // 12. Supporters (Count support tickets dynamically)
+    let totalSupporters = 0;
+    try {
+      const [[{ total: supportersCount }]] = await db.query('SELECT COUNT(*) as total FROM support_tickets');
+      totalSupporters = supportersCount;
+    } catch (err) {
+      console.error('Error fetching supporters count:', err);
+    }
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
