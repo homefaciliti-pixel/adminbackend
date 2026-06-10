@@ -771,5 +771,42 @@ Response Example (Status 200 OK):
   "locationTime": "2026-06-10T09:00:00.000Z"
 }
 
+----------------------------------------------------------------------
+10. ADMIN VENDOR ASSIGNMENT & LOOKUP
+----------------------------------------------------------------------
+
+10.1 ASSIGN/UPDATE ORDER VENDOR
+------------------------------
+Endpoints:
+- PUT /api/orders/:id/assign
+- PUT /api/orders/:id
+Description: Updates or assigns a partner to an order/booking by ID. Supports resolving the partner's name from their phone number.
+Request Body (JSON):
+{
+  "vendorName": "Amit Kumar",  // Optional. Partner name directly.
+  "vendorPhone": "9911223344", // Optional. Resolves to partner name.
+  "phone": "9911223344",       // Optional. Alias for vendorPhone.
+  "mobile": "9911223344"       // Optional. Alias for vendorPhone.
+}
+Note: If vendorPhone, phone, or mobile is provided, the API looks up the partner in the database.
+- If the partner is found, their name resolves and is assigned to the booking.
+- If no partner is found with that phone, the API returns a 404 error: "No partner found with phone number: <number>".
+- If no phone is provided, but a name like "None", "-" or an empty string is provided, the booking is unassigned (status moves to 'Pending').
+
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Order assigned successfully",
+  "data": {
+    "id": 1,
+    "serviceRequestNumber": "REQ1001",
+    "serviceName": "AC Repair",
+    "serviceAmount": 499,
+    "status": "Assigned",
+    "vendorName": "Amit Kumar"
+  }
+}
+
+
 
 

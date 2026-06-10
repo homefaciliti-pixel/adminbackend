@@ -152,9 +152,14 @@ Request Body (JSON):
 Response Data: Created Order object.
 
 Endpoint: PUT /api/orders/:id
-Description: Update order details (e.g. assign vendor, update status, change slots).
-Request Body (JSON): Supports status, vendorName, slotTime, serviceDate, city, locality, address.
+Description: Update order details (e.g. assign vendor, update status, change slots). Resolves vendorName by phone number using 'vendorPhone', 'phone', or 'mobile' in request body if provided. Returns 404 if phone number does not map to any partner.
+Request Body (JSON): Supports status, vendorName, vendorPhone, phone, mobile, slotTime, serviceDate, city, locality, address.
 Response Data: Updated Order object.
+
+Endpoint: PUT /api/orders/:id/assign
+Description: Assign or unassign order to/from partner. Resolves vendor name using phone number lookup (via 'vendorPhone', 'phone', or 'mobile' parameters) in the database. Updates status to 'Assigned' if resolved, or 'Pending' if unassigned.
+Request Body (JSON): Supports vendorName, vendorPhone, phone, mobile.
+Response Data: { "success": true, "message": "Order assigned successfully", "data": Order }
 
 Endpoint: DELETE /api/orders/:id
 Description: Delete an order by ID.
