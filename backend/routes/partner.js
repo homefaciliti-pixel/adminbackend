@@ -6,8 +6,6 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const https = require('https');
-const cloudinary = require('cloudinary').v2;
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'home_faciliti_partner_secret_key_2026';
 
@@ -69,42 +67,15 @@ const createRazorpayOrder = async (partnerId) => {
 // -------------------------------------------------------------
 // MULTER MULTI-FILE UPLOAD CONFIGURATION
 // -------------------------------------------------------------
-let storage;
-const isCloudinaryConfigured = process.env.CLOUDINARY_CLOUD_NAME && 
-                               process.env.CLOUDINARY_API_KEY && 
-                               process.env.CLOUDINARY_API_SECRET;
-
-if (isCloudinaryConfigured) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-  });
-
-  storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-      folder: 'home_faciliti_uploads',
-      allowed_formats: ['jpg', 'png', 'jpeg'],
-      public_id: (req, file) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const nameWithoutExt = path.parse(file.originalname).name;
-        const cleanName = nameWithoutExt.replace(/[^a-zA-Z0-9]/g, '_');
-        return `${cleanName}-${uniqueSuffix}`;
-      }
-    }
-  });
-} else {
-  storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-      cb(null, path.join(__dirname, '../uploads'));
-    },
-    filename: function (req, file, cb) {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-  });
-}
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../uploads'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
@@ -143,16 +114,10 @@ function resolveDocUrl(url, req, type = 'document') {
   if (!url || url.trim() === '') {
     return `${currentBase}/uploads/default-${type}.svg`;
   }
-  if (url.includes('cloudinary.com')) {
-    return url;
-  }
   try {
     if (url.startsWith('http')) {
       const parsed = new URL(url);
-      if (parsed.pathname.startsWith('/uploads/')) {
-        return `${currentBase}${parsed.pathname}`;
-      }
-      return url;
+      return `${currentBase}${parsed.pathname}`;
     }
   } catch (e) {
     // Fallback if URL parsing fails
@@ -284,14 +249,6 @@ const mockBookingsStore = {
 function getFileUrl(req, fileName) {
   if (!fileName) return '';
   return `${req.protocol}://${req.get('host')}/uploads/${fileName}`;
-}
-
-function getUploadedFileUrl(req, file) {
-  if (!file) return '';
-  if (file.path && file.path.startsWith('http')) {
-    return file.path;
-  }
-  return `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
 }
 
 // Helper function to calculate mock earnings stats dynamically
@@ -434,25 +391,25 @@ router.post('/auth/register', (req, res) => {
     }
 
     // Handle file locations and enforce mandatory requirements
-    const hasProfileImage = req.files && req.files['profileImage'] && req.files['profileImage'][0];
-    const hasAadharFront = req.files && req.files['aadharFront'] && req.files['aadharFront'][0];
-    const hasAadharBack = req.files && req.files['aadharBack'] && req.files['aadharBack'][0];
-    const hasPanImage = req.files && req.files['panImage'] && req.files['panImage'][0];
-    const hasPoliceVerification = req.files && req.files['policeVerification'] && req.files['policeVerification'][0];
+    const profileImageName = req.files && req.files['profileImage'] ? req.files['profileImage'][0].filename : '';
+    const aadharFrontName = req.files && req.files['aadharFront'] ? req.files['aadharFront'][0].filename : '';
+    const aadharBackName = req.files && req.files['aadharBack'] ? req.files['aadharBack'][0].filename : '';
+    const panImageName = req.files && req.files['panImage'] ? req.files['panImage'][0].filename : '';
+    const policeVerificationName = req.files && req.files['policeVerification'] ? req.files['policeVerification'][0].filename : '';
 
-    if (!hasProfileImage) {
+    if (!profileImageName) {
       return res.status(400).json({ error: 'Profile image is required' });
     }
-    if (!hasAadharFront) {
+    if (!aadharFrontName) {
       return res.status(400).json({ error: 'Aadhaar Card Front image is required' });
     }
-    if (!hasAadharBack) {
+    if (!aadharBackName) {
       return res.status(400).json({ error: 'Aadhaar Card Back image is required' });
     }
-    if (!hasPanImage) {
+    if (!panImageName) {
       return res.status(400).json({ error: 'PAN Card image is required' });
     }
-    if (!hasPoliceVerification) {
+    if (!policeVerificationName) {
       return res.status(400).json({ error: 'Police Verification image is required' });
     }
 
@@ -466,11 +423,11 @@ router.post('/auth/register', (req, res) => {
       // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      const profileImageUrl = getUploadedFileUrl(req, req.files['profileImage'][0]);
-      const aadharFrontUrl = getUploadedFileUrl(req, req.files['aadharFront'][0]);
-      const aadharBackUrl = getUploadedFileUrl(req, req.files['aadharBack'][0]);
-      const panImageUrl = getUploadedFileUrl(req, req.files['panImage'][0]);
-      const policeVerificationUrl = getUploadedFileUrl(req, req.files['policeVerification'][0]);
+      const profileImageUrl = getFileUrl(req, profileImageName);
+      const aadharFrontUrl = getFileUrl(req, aadharFrontName);
+      const aadharBackUrl = getFileUrl(req, aadharBackName);
+      const panImageUrl = getFileUrl(req, panImageName);
+      const policeVerificationUrl = getFileUrl(req, policeVerificationName);
 
       // Comma separated list of document files for backward compatibility
       const docUrls = [aadharFrontUrl, aadharBackUrl, panImageUrl, policeVerificationUrl].filter(Boolean).join(',');
@@ -834,7 +791,7 @@ router.put('/partner/profile', authenticatePartner, (req, res) => {
 
       // Handle profile image upload
       if (req.file) {
-        const imageUrl = getUploadedFileUrl(req, req.file);
+        const imageUrl = getFileUrl(req, req.file.filename);
         fields.push('`image` = ?');
         values.push(imageUrl);
       }

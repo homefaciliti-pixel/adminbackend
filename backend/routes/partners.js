@@ -116,16 +116,10 @@ function resolveDocUrl(url, req, type = 'document') {
   if (!url || url.trim() === '') {
     return `${currentBase}/uploads/default-${type}.svg`;
   }
-  if (url.includes('cloudinary.com')) {
-    return url;
-  }
   try {
     if (url.startsWith('http')) {
       const parsed = new URL(url);
-      if (parsed.pathname.startsWith('/uploads/')) {
-        return `${currentBase}${parsed.pathname}`;
-      }
-      return url;
+      return `${currentBase}${parsed.pathname}`;
     }
   } catch (e) {
     // Fallback if URL parsing fails
