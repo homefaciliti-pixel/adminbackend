@@ -1485,12 +1485,13 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     const [rows] = await db.query(query, params);
 
     const mapped = rows.map(order => {
+      const statusLower = (order.status || '').toLowerCase();
       let appStatus = 'accepted';
-      if (order.status === 'Completed') appStatus = 'completed';
-      else if (order.status === 'Cancelled' || order.status === 'Rejected') appStatus = 'cancel';
-      else if (order.status === 'In Progress') appStatus = 'in_progress';
-      else if (order.status === 'Assigned' || order.status === 'Upcoming') appStatus = 'accepted';
-      else if (order.status === 'Pending') appStatus = 'pending';
+      if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
+      else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
+      else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
+      else if (statusLower === 'assigned' || statusLower === 'upcoming') appStatus = 'accepted';
+      else if (statusLower === 'pending') appStatus = 'pending';
 
       return {
         id: order.id.toString(),
@@ -1551,10 +1552,26 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
 
     const total = assignedRows.length + pendingRows.length;
     const upcoming = pendingRows.length;
-    const accepted = assignedRows.filter(o => o.status === 'Assigned' || o.status === 'Upcoming').length;
-    const inProgress = assignedRows.filter(o => o.status === 'In Progress').length;
-    const completed = assignedRows.filter(o => o.status === 'Completed').length;
-    const cancel = assignedRows.filter(o => o.status === 'Cancelled' || o.status === 'Rejected').length;
+    
+    const accepted = assignedRows.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'assigned' || statusLower === 'upcoming' || statusLower === 'in progress' || statusLower === 'in_progress';
+    }).length;
+
+    const inProgress = assignedRows.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'in progress' || statusLower === 'in_progress';
+    }).length;
+
+    const completed = assignedRows.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'completed' || statusLower === 'complete';
+    }).length;
+
+    const cancel = assignedRows.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'cancelled' || statusLower === 'rejected';
+    }).length;
 
     res.json({
       totalBooking: total,
@@ -1733,11 +1750,12 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
     }
 
     // Map database status to mobile app status
+    const statusLower = (order.status || '').toLowerCase();
     let appStatus = 'accepted';
-    if (order.status === 'Completed') appStatus = 'completed';
-    else if (order.status === 'Cancelled' || order.status === 'Rejected') appStatus = 'cancel';
-    else if (order.status === 'In Progress') appStatus = 'in_progress';
-    else if (order.status === 'Assigned' || order.status === 'Upcoming') appStatus = 'accepted';
+    if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
+    else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
+    else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
+    else if (statusLower === 'assigned' || statusLower === 'upcoming') appStatus = 'accepted';
 
     const mapped = {
       id: order.id.toString(),
@@ -2543,10 +2561,26 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
 
     const totalBooking = assignedRes.length + pendingRes.length;
     const upcomingBooking = pendingRes.length;
-    const acceptedBooking = assignedRes.filter(o => o.status === 'Assigned' || o.status === 'Upcoming').length;
-    const inProgressBooking = assignedRes.filter(o => o.status === 'In Progress').length;
-    const completedBooking = assignedRes.filter(o => o.status === 'Completed').length;
-    const cancelBooking = assignedRes.filter(o => o.status === 'Cancelled' || o.status === 'Rejected').length;
+
+    const acceptedBooking = assignedRes.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'assigned' || statusLower === 'upcoming' || statusLower === 'in progress' || statusLower === 'in_progress';
+    }).length;
+
+    const inProgressBooking = assignedRes.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'in progress' || statusLower === 'in_progress';
+    }).length;
+
+    const completedBooking = assignedRes.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'completed' || statusLower === 'complete';
+    }).length;
+
+    const cancelBooking = assignedRes.filter(o => {
+      const statusLower = (o.status || '').toLowerCase();
+      return statusLower === 'cancelled' || statusLower === 'rejected';
+    }).length;
 
     // 3. Fetch earnings stats
     const walletVal = parseFloat(req.partner.walletBalance || 0);
