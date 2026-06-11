@@ -99,7 +99,23 @@ const partnerUpload = upload.fields([
 // -------------------------------------------------------------
 // HELPER FUNCTIONS
 // -------------------------------------------------------------
-function mapPartnerForApp(r) {
+function resolveDocUrl(url, req, type = 'document') {
+  const currentBase = `${req.protocol}://${req.get('host')}`;
+  if (!url || url.trim() === '') {
+    return `${currentBase}/uploads/default-${type}.svg`;
+  }
+  try {
+    if (url.startsWith('http')) {
+      const parsed = new URL(url);
+      return `${currentBase}${parsed.pathname}`;
+    }
+  } catch (e) {
+    // Fallback if URL parsing fails
+  }
+  return url;
+}
+
+function mapPartnerForApp(r, req) {
   if (!r) return null;
   return {
     id: r.id,
@@ -116,15 +132,15 @@ function mapPartnerForApp(r) {
     hasVehicle: r.hasVehicle || 'No',
     services: r.services || '',
     aadharNumber: r.aadhaarNumber || '',
-    aadharFront: r.aadharFront || '',
-    aadharBack: r.aadharBack || '',
+    aadharFront: resolveDocUrl(r.aadharFront, req, 'document'),
+    aadharBack: resolveDocUrl(r.aadharBack, req, 'document'),
     panNumber: r.panNumber || '',
-    panImage: r.panImage || '',
+    panImage: resolveDocUrl(r.panImage, req, 'document'),
     bankName: r.bankName || '',
     accountHolder: r.accountHolder || '',
     accountNumber: r.accountNumber || '',
     ifscCode: r.ifscCode || '',
-    profileImage: r.image || '',
+    profileImage: resolveDocUrl(r.image, req, 'profile'),
     status: r.status === 1,
     isApproved: r.isApproved === 1,
     isPaid: r.isPaid === 1
@@ -429,7 +445,7 @@ router.post('/auth/register', (req, res) => {
 
       // Fetch the created partner
       const [newPartnerRows] = await db.query('SELECT * FROM partners WHERE id = ?', [result.insertId]);
-      const mappedPartner = mapPartnerForApp(newPartnerRows[0]);
+      const mappedPartner = mapPartnerForApp(newPartnerRows[0], req);
 
       // Generate token
       const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET, { expiresIn: '30d' });
@@ -501,7 +517,7 @@ router.post('/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid phone number or password' });
     }
 
-    const mappedPartner = mapPartnerForApp(partner);
+    const mappedPartner = mapPartnerForApp(partner, req);
     const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET, { expiresIn: '30d' });
 
     // Generate dynamic Razorpay Order ID for unpaid partners
@@ -735,7 +751,7 @@ router.post('/auth/verify-otp', async (req, res) => {
 // GET /api/partner/profile - Get partner profile details
 router.get('/partner/profile', authenticatePartner, (req, res) => {
   res.json({
-    partner: mapPartnerForApp(req.partner)
+    partner: mapPartnerForApp(req.partner, req)
   });
 });
 
@@ -781,7 +797,7 @@ router.put('/partner/profile', authenticatePartner, (req, res) => {
       // Fetch and return updated profile
       const [updatedRows] = await db.query('SELECT * FROM partners WHERE id = ?', [partnerId]);
       res.json({
-        partner: mapPartnerForApp(updatedRows[0])
+        partner: mapPartnerForApp(updatedRows[0], req)
       });
     } catch (dbErr) {
       console.error('Error updating partner profile:', dbErr);
@@ -841,7 +857,7 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
         paymentUrl: null,
-        partner: mapPartnerForApp(rows[0])
+        partner: mapPartnerForApp(rows[0], req)
       });
     } else {
       // Just initiating checkout, do NOT update DB
@@ -852,7 +868,7 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
         paymentUrl: paymentUrl,
-        partner: mapPartnerForApp(partner)
+        partner: mapPartnerForApp(partner, req)
       });
     }
   } catch (error) {
@@ -1154,7 +1170,7 @@ const handleVerify = async (req, res) => {
       amount: 350,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
-      partner: mapPartnerForApp(rows[0])
+      partner: mapPartnerForApp(rows[0], req)
     });
   } catch (error) {
     console.error('Error in handleVerify:', error);

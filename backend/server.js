@@ -49,8 +49,21 @@ server.use((req, res, next) => {
   }
 });
 
-// Serve uploaded images statically
-server.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded images statically, falling back to default SVGs if files are deleted/missing from disk
+const fs = require('fs');
+server.use('/uploads', (req, res, next) => {
+  const filePath = path.join(__dirname, 'uploads', req.path);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    return express.static(path.join(__dirname, 'uploads'))(req, res, next);
+  } else {
+    const lowerPath = req.path.toLowerCase();
+    if (lowerPath.includes('profile') || lowerPath.includes('avatar') || lowerPath.includes('user') || lowerPath.includes('image')) {
+      return res.sendFile(path.join(__dirname, 'uploads', 'default-profile.svg'));
+    } else {
+      return res.sendFile(path.join(__dirname, 'uploads', 'default-document.svg'));
+    }
+  }
+});
 
 // Root Route / Health Check
 server.get('/', (req, res) => {

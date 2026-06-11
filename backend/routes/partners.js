@@ -111,14 +111,39 @@ async function getAllPartners() {
 }
 
 // Helper to map DB partner object to API partner object (lists, doubles, booleans)
-function mapPartner(r) {
+function resolveDocUrl(url, req, type = 'document') {
+  const currentBase = `${req.protocol}://${req.get('host')}`;
+  if (!url || url.trim() === '') {
+    return `${currentBase}/uploads/default-${type}.svg`;
+  }
+  try {
+    if (url.startsWith('http')) {
+      const parsed = new URL(url);
+      return `${currentBase}${parsed.pathname}`;
+    }
+  } catch (e) {
+    // Fallback if URL parsing fails
+  }
+  return url;
+}
+
+function mapPartner(r, req) {
   if (!r) return null;
+
+  const resolvedAadharFront = resolveDocUrl(r.aadharFront || r.aadhaarImage, req, 'document');
+  const resolvedAadharBack = resolveDocUrl(r.aadharBack, req, 'document');
+  const resolvedPanImage = resolveDocUrl(r.panImage, req, 'document');
+  const resolvedPoliceImage = resolveDocUrl(r.policeVerificationImage, req, 'document');
+  const resolvedImage = resolveDocUrl(r.image, req, 'profile');
+  
+  const documentsArray = [resolvedAadharFront, resolvedAadharBack, resolvedPanImage, resolvedPoliceImage].filter(Boolean);
+
   return {
     ...r,
     status: r.status === 1 || r.status === '1' || r.status === true,
     isApproved: r.isApproved === 1 || r.isApproved === '1' || r.isApproved === true,
     services: r.services ? (Array.isArray(r.services) ? r.services : r.services.split(',').map(s => s.trim()).filter(Boolean)) : [],
-    documents: r.documents ? (Array.isArray(r.documents) ? r.documents : r.documents.split(',').map(d => d.trim()).filter(Boolean)) : [],
+    documents: documentsArray,
     walletBalance: parseFloat(r.walletBalance || 0),
     totalEarnings: parseFloat(r.totalEarnings || 0),
     withdrawnAmount: parseFloat(r.withdrawnAmount || 0),
@@ -128,9 +153,12 @@ function mapPartner(r) {
     pendingBookings: parseInt(r.pendingBookings || 0),
     rating: parseFloat(r.rating || 0),
     totalReviews: parseInt(r.totalReviews || 0),
-    policeVerificationImage: r.policeVerificationImage || '',
-    aadhaarImage: r.aadhaarImage || '',
-    panImage: r.panImage || ''
+    policeVerificationImage: resolvedPoliceImage,
+    aadhaarImage: resolvedAadharFront,
+    aadharFront: resolvedAadharFront,
+    aadharBack: resolvedAadharBack,
+    panImage: resolvedPanImage,
+    image: resolvedImage
   };
 }
 
@@ -174,7 +202,7 @@ router.get('/', async (req, res) => {
 
     res.json({
       success: true,
-      data: list.map(mapPartner)
+      data: list.map(p => mapPartner(p, req))
     });
   } catch (error) {
     console.error('Error fetching partners:', error);
@@ -226,7 +254,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Partner registered successfully',
-      data: mapPartner(rows[0])
+      data: mapPartner(rows[0], req)
     });
   } catch (error) {
     console.error('Error registering partner:', error);
@@ -249,7 +277,7 @@ router.get('/search', async (req, res) => {
       );
     }
     list.sort((a, b) => b.id - a.id);
-    res.json({ success: true, data: list.map(mapPartner) });
+    res.json({ success: true, data: list.map(p => mapPartner(p, req)) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Search failed', error: error.message });
   }
@@ -291,7 +319,7 @@ router.get('/pending', async (req, res) => {
     list.sort((a, b) => b.id - a.id);
     res.json({
       success: true,
-      data: list.map(mapPartner)
+      data: list.map(p => mapPartner(p, req))
     });
   } catch (error) {
     console.error('Error fetching pending partners:', error);
@@ -418,7 +446,7 @@ router.put('/:id/approve', async (req, res) => {
     res.json({
       success: true,
       message: 'Partner approved successfully',
-      data: mapPartner(partner)
+      data: mapPartner(partner, req)
     });
   } catch (error) {
     console.error('Error approving partner:', error);
@@ -536,7 +564,7 @@ router.put('/:id/disapprove', async (req, res) => {
     res.json({
       success: true,
       message: 'Partner disapproved successfully',
-      data: mapPartner(partner)
+      data: mapPartner(partner, req)
     });
   } catch (error) {
     console.error('Error disapproving partner:', error);
@@ -641,7 +669,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      data: mapPartner(rows[0])
+      data: mapPartner(rows[0], req)
     });
   } catch (error) {
     console.error('Error fetching partner details:', error);
@@ -879,7 +907,7 @@ router.put('/:id', async (req, res) => {
     res.json({
       success: true,
       message: 'Partner updated successfully',
-      data: mapPartner(rows[0])
+      data: mapPartner(rows[0], req)
     });
   } catch (error) {
     console.error('Error updating partner:', error);
@@ -1032,7 +1060,7 @@ async function toggleStatus(req, res) {
     res.json({
       success: true,
       message: `Partner status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
-      data: mapPartner(partner)
+      data: mapPartner(partner, req)
     });
   } catch (error) {
     console.error('Error toggling partner status:', error);
