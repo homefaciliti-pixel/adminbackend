@@ -8,10 +8,16 @@ function resolveDocUrl(url, req, type = 'document') {
   if (!url || url.trim() === '') {
     return `${currentBase}/uploads/default-${type}.svg`;
   }
+  if (url.includes('cloudinary.com')) {
+    return url;
+  }
   try {
     if (url.startsWith('http')) {
       const parsed = new URL(url);
-      return `${currentBase}${parsed.pathname}`;
+      if (parsed.pathname.startsWith('/uploads/')) {
+        return `${currentBase}${parsed.pathname}`;
+      }
+      return url;
     }
   } catch (e) {
     // Fallback if URL parsing fails
