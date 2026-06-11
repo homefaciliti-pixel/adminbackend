@@ -78,8 +78,18 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Allow all image and document formats/extensions
-  cb(null, true);
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedExtensions = ['.png', '.jpg', '.jpeg'];
+  
+  if (ext === '.svg' || (file.mimetype && file.mimetype.toLowerCase().includes('svg'))) {
+    return cb(new Error('SVG files are not allowed! Only PNG, JPG, and JPEG images are allowed.'), false);
+  }
+
+  if (allowedExtensions.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only PNG, JPG, and JPEG images are allowed!'), false);
+  }
 };
 
 const upload = multer({
