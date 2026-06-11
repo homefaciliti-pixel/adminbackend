@@ -2698,6 +2698,65 @@ router.get('/partner/dashboard-status', checkApprovalStatus);
 router.post('/partner/dashboard-status', checkApprovalStatus);
 
 // -------------------------------------------------------------
+// PARTNER STATUS & LOCATION TOGGLE ENDPOINT
+// -------------------------------------------------------------
+const updatePartnerStatus = async (req, res) => {
+  try {
+    const partnerId = req.partner.id;
+    const { status, lat, lon, latitude, longitude, lng, time, locationTime, timestamp } = req.body;
+
+    if (status === undefined) {
+      return res.status(400).json({ error: 'Status field is required' });
+    }
+
+    const statusVal = (status === true || status === 'true' || status === 1 || status === '1' || status === 'active') ? 1 : 0;
+    
+    // Parse coordinates if provided
+    const latitudeVal = lat !== undefined ? lat : (latitude !== undefined ? latitude : req.query.lat);
+    const longitudeVal = lon !== undefined ? lon : (longitude !== undefined ? longitude : (lng !== undefined ? lng : req.query.lon));
+    const timeVal = time || locationTime || timestamp || req.query.time || new Date().toISOString();
+
+    if (latitudeVal !== undefined && longitudeVal !== undefined) {
+      await db.query(
+        'UPDATE partners SET status = ?, latitude = ?, longitude = ?, locationTime = ? WHERE id = ?',
+        [statusVal, String(latitudeVal), String(longitudeVal), String(timeVal), partnerId]
+      );
+    } else {
+      await db.query(
+        'UPDATE partners SET status = ? WHERE id = ?',
+        [statusVal, partnerId]
+      );
+    }
+
+    // Fetch updated partner details
+    const [rows] = await db.query(
+      'SELECT id, name, mobile, email, status, latitude, longitude, locationTime FROM partners WHERE id = ?',
+      [partnerId]
+    );
+
+    const updatedPartner = rows[0];
+    return res.json({
+      success: true,
+      message: `Status updated to ${statusVal === 1 ? 'Online' : 'Offline'} successfully`,
+      data: {
+        id: updatedPartner.id,
+        name: updatedPartner.name,
+        mobile: updatedPartner.mobile,
+        email: updatedPartner.email,
+        status: updatedPartner.status === 1,
+        latitude: updatedPartner.latitude,
+        longitude: updatedPartner.longitude,
+        locationTime: updatedPartner.locationTime
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating partner status & location:', error);
+    res.status(500).json({ error: 'Failed to update status: ' + error.message });
+  }
+};
+
+// -------------------------------------------------------------
 // LOCATION TRACKING ENDPOINTS
 // -------------------------------------------------------------
 
@@ -2885,6 +2944,9 @@ const getPartnerLocation = async (req, res) => {
     res.status(500).json({ error: 'Failed to retrieve location: ' + error.message });
   }
 };
+
+router.post('/partner/status', authenticatePartner, updatePartnerStatus);
+router.put('/partner/status', authenticatePartner, updatePartnerStatus);
 
 router.post('/partner/location', updatePartnerLocation);
 router.post('/partner/update-location', updatePartnerLocation);

@@ -771,6 +771,36 @@ Response Example (Status 200 OK):
   "locationTime": "2026-06-10T09:00:00.000Z"
 }
 
+9.3 UPDATE PARTNER STATUS & LOCATION
+------------------------------------
+Endpoints:
+- POST /api/partner/status
+- PUT /api/partner/status
+Auth Requirement: Authorization token header (Bearer <token>).
+Description: Sets partner online/offline status (1 or 0 in DB) and optionally updates their location coordinates (latitude, longitude, update time) in the partners database table.
+Request Body (JSON):
+{
+  "status": true,              // Required. true/false or 1/0 or 'active'/'inactive'
+  "lat": "28.123456",          // Optional. Latitude coordinate
+  "lon": "76.654321",          // Optional. Longitude coordinate
+  "time": "2026-06-11T04:50:00.000Z" // Optional. Update timestamp (defaults to current time)
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Status updated to Online successfully",
+  "data": {
+    "id": 10,
+    "name": "Amit Kumar",
+    "mobile": "9911223344",
+    "email": "amit@gmail.com",
+    "status": true,
+    "latitude": "28.123456",
+    "longitude": "76.654321",
+    "locationTime": "2026-06-11T04:50:00.000Z"
+  }
+}
+
 ----------------------------------------------------------------------
 10. ADMIN VENDOR ASSIGNMENT & LOOKUP
 ----------------------------------------------------------------------

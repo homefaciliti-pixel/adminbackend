@@ -508,5 +508,8 @@ Response Example:
   - Update partner coordinates and time. Body: { partnerId, token, lat, lon, time }.
 * GET /api/partner/location (and aliases GET /api/partner/location/:id & GET /api/partner/:id/location) (PUBLIC / PROTECTED)
   - Retrieve partner coordinates and time.
+* POST /api/partner/status (and alias PUT /api/partner/status) (PROTECTED)
+  - Update partner status (online/offline) and coordinates. Body: { "status": true/false/1/0, "lat": "...", "lon": "...", "time": "..." }.
+
 
 
