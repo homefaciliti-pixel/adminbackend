@@ -2083,7 +2083,30 @@ router.get('/partner/support', authenticatePartner, async (req, res) => {
       "SELECT * FROM support_tickets WHERE mobile = ? ORDER BY id DESC",
       [mobile]
     );
-    res.json(rows);
+
+    // Resolve partner details for the response
+    const resolvedImage = resolveDocUrl(req.partner.image, req, 'profile');
+    const resolvedAadharFront = resolveDocUrl(req.partner.aadharFront || req.partner.aadhaarImage, req, 'document');
+    const resolvedAadharBack = resolveDocUrl(req.partner.aadharBack, req, 'document');
+    const resolvedPanImage = resolveDocUrl(req.partner.panImage, req, 'document');
+    const resolvedPoliceImage = resolveDocUrl(req.partner.policeVerificationImage, req, 'document');
+    const documentsArray = [resolvedAadharFront, resolvedAadharBack, resolvedPanImage, resolvedPoliceImage].filter(Boolean);
+
+    const mappedTickets = rows.map(ticket => ({
+      ...ticket,
+      partnerImage: resolvedImage,
+      partnerDocuments: documentsArray,
+      partner: {
+        id: req.partner.id,
+        name: req.partner.name,
+        email: req.partner.email,
+        mobile: req.partner.mobile,
+        image: resolvedImage,
+        documents: documentsArray
+      }
+    }));
+
+    res.json(mappedTickets);
   } catch (error) {
     console.error('Error fetching support tickets:', error);
     res.status(500).json([]);

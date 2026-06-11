@@ -128,13 +128,13 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 11. SUPPORT TICKETS MANAGEMENT
 ----------------------------------------------------------------------
 * GET /api/support
-  - Fetch all support tickets. Optional query params: 'query', 'status'.
+  - Fetch all support tickets. Optional query params: 'query', 'status'. Automatically resolves and maps sender's partner details (partnerImage, partnerDocuments, partner object) using mobile number, falling back to default SVGs if empty/missing on disk.
 * GET /api/support/:id
-  - Fetch details of a single support ticket by ID.
+  - Fetch details of a single support ticket by ID. Enriched with resolved partner profile image, documents, and fallback placeholders.
 * POST /api/support
-  - Create a support ticket. Body: { "userName": "...", "email": "...", "mobile": "...", "subject": "...", "message": "..." }
+  - Create a support ticket. Body: { "userName": "...", "email": "...", "mobile": "...", "subject": "...", "message": "..." }. Enriches response data with resolved partner details.
 * PUT /api/support/:id
-  - Update support ticket status. Body: { "status": "Closed" }
+  - Update support ticket status. Body: { "status": "Closed" }. Returns updated ticket with resolved partner details.
 * DELETE /api/support/:id
   - Delete support ticket by ID.
 
@@ -230,7 +230,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 
 - SUPPORT & REVIEWS (PROTECTED):
   * POST /api/partner/support - Register support ticket. Body: { "subject": "...", "message": "..." }
-  * GET /api/partner/support - Fetch own registered support tickets.
+  * GET /api/partner/support - Fetch own registered support tickets. Returned tickets are enriched with partner profile image, documents, and nested partner object with fallback placeholder SVGs.
   * GET /api/partner/reviews - Fetch reviews written by customers about this partner.
   * GET /api/partner/dashboard - Fetch active banners, booking stats, earnings stats, and status in one payload. Returns: { id, isPaid, isApproved, razorpayKeyId, razorpayOrderId, bookingsStats, earningsStats, banners } (returns 0 stats if not paid or not approved).
   * GET /api/partner/approval-status & POST /api/partner/approval-status - Check partner approval and payment status. Accepts JWT token and optional partnerId in headers, query, or body.
