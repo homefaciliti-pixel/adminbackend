@@ -1549,26 +1549,18 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
       [partnerCity, partnerLocality]
     );
 
-    const rows = [...assignedRows, ...pendingRows];
-    
-    let total = rows.length;
-    let upcoming = 0;
-    let inProgress = 0;
-    let completed = 0;
-    let cancel = 0;
-
-    rows.forEach(o => {
-      if (o.status === 'Assigned' || o.status === 'Upcoming' || o.status === 'Pending') upcoming++;
-      else if (o.status === 'In Progress') inProgress++;
-      else if (o.status === 'Completed') completed++;
-      else if (o.status === 'Cancelled' || o.status === 'Rejected') cancel++;
-    });
+    const total = assignedRows.length + pendingRows.length;
+    const upcoming = pendingRows.length;
+    const accepted = assignedRows.filter(o => o.status === 'Assigned' || o.status === 'Upcoming').length;
+    const inProgress = assignedRows.filter(o => o.status === 'In Progress').length;
+    const completed = assignedRows.filter(o => o.status === 'Completed').length;
+    const cancel = assignedRows.filter(o => o.status === 'Cancelled' || o.status === 'Rejected').length;
 
     res.json({
       totalBooking: total,
       upcomingBooking: upcoming,
       inProgressBooking: inProgress,
-      acceptedBooking: upcoming + inProgress,
+      acceptedBooking: accepted,
       completedBooking: completed,
       cancelBooking: cancel
     });
@@ -2549,19 +2541,12 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       [req.partner.city, req.partner.locality]
     );
 
-    const bookingsRes = [...assignedRes, ...pendingRes];
-    let totalBooking = bookingsRes.length;
-    let upcomingBooking = 0;
-    let inProgressBooking = 0;
-    let completedBooking = 0;
-    let cancelBooking = 0;
-
-    bookingsRes.forEach(o => {
-      if (o.status === 'Assigned' || o.status === 'Upcoming' || o.status === 'Pending') upcomingBooking++;
-      else if (o.status === 'In Progress') inProgressBooking++;
-      else if (o.status === 'Completed') completedBooking++;
-      else if (o.status === 'Cancelled' || o.status === 'Rejected') cancelBooking++;
-    });
+    const totalBooking = assignedRes.length + pendingRes.length;
+    const upcomingBooking = pendingRes.length;
+    const acceptedBooking = assignedRes.filter(o => o.status === 'Assigned' || o.status === 'Upcoming').length;
+    const inProgressBooking = assignedRes.filter(o => o.status === 'In Progress').length;
+    const completedBooking = assignedRes.filter(o => o.status === 'Completed').length;
+    const cancelBooking = assignedRes.filter(o => o.status === 'Cancelled' || o.status === 'Rejected').length;
 
     // 3. Fetch earnings stats
     const walletVal = parseFloat(req.partner.walletBalance || 0);
@@ -2613,7 +2598,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
         totalBooking,
         upcomingBooking,
         inProgressBooking,
-        acceptedBooking: upcomingBooking + inProgressBooking,
+        acceptedBooking,
         completedBooking,
         cancelBooking
       },
