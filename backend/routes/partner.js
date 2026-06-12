@@ -1620,7 +1620,7 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
     }
 
     const order = rows[0];
-    if (order.vendorName && order.vendorName !== '-' && order.vendorName !== partnerName) {
+    if (order.vendorName && order.vendorName !== '-' && order.vendorName.toLowerCase() !== partnerName.toLowerCase()) {
       return res.status(400).json({ error: 'Order already accepted by another partner' });
     }
 
@@ -1661,7 +1661,7 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
     }
 
     const order = rows[0];
-    if (order.vendorName !== partnerName) {
+    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(400).json({ error: 'You are not assigned to this booking' });
     }
 
@@ -1761,7 +1761,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
 
     // Check authorization: it must be assigned to this partner, or be pending/unassigned
     const isUnassigned = !order.vendorName || order.vendorName === '-' || order.vendorName === 'None';
-    if (order.vendorName !== partnerName && !isUnassigned) {
+    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
       return res.status(403).json({ error: 'You do not have access to view this booking' });
     }
 
@@ -1832,7 +1832,7 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
     }
 
     const order = orders[0];
-    if (order.vendorName !== partnerName) {
+    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(403).json({ error: 'You are not authorized to update this booking' });
     }
 
@@ -2326,7 +2326,7 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
     }
 
     const order = rows[0];
-    if (order.vendorName !== partnerName) {
+    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
@@ -2403,7 +2403,7 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
     }
 
     const order = rows[0];
-    if (order.vendorName !== partnerName) {
+    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
