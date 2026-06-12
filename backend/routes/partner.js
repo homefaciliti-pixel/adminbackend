@@ -112,7 +112,7 @@ const partnerUpload = upload.fields([
 function resolveDocUrl(url, req, type = 'document') {
   const currentBase = `${req.protocol}://${req.get('host')}`;
   if (!url || url.trim() === '') {
-    return `${currentBase}/uploads/default-${type}.svg`;
+    return `${currentBase}/uploads/default-${type}.png`;
   }
   if (url.includes('cloudinary.com')) {
     return url;

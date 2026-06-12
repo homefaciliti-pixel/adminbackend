@@ -2,11 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// Helper to resolve document URLs with fallback defaults
 function resolveDocUrl(url, req, type = 'document') {
   const currentBase = `${req.protocol}://${req.get('host')}`;
   if (!url || url.trim() === '') {
-    return `${currentBase}/uploads/default-${type}.svg`;
+    return `${currentBase}/uploads/default-${type}.png`;
   }
   if (url.includes('cloudinary.com')) {
     return url;

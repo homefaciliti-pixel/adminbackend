@@ -49,19 +49,34 @@ server.use((req, res, next) => {
   }
 });
 
-// Serve uploaded images statically, falling back to default SVGs if files are deleted/missing from disk
+// Serve uploaded images statically, falling back to default PNGs if files are deleted/missing from disk
 const fs = require('fs');
-server.use('/uploads', (req, res, next) => {
+const db = require('./db');
+server.use('/uploads', async (req, res, next) => {
   const filePath = path.join(__dirname, 'uploads', req.path);
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     return express.static(path.join(__dirname, 'uploads'))(req, res, next);
   } else {
-    const lowerPath = req.path.toLowerCase();
-    if (lowerPath.includes('profile') || lowerPath.includes('avatar') || lowerPath.includes('user') || lowerPath.includes('image')) {
-      return res.sendFile(path.join(__dirname, 'defaults', 'default-profile.svg'));
-    } else {
-      return res.sendFile(path.join(__dirname, 'defaults', 'default-document.svg'));
+    const filename = req.path.replace(/^\//, ''); // Remove leading slash
+    if (!filename) {
+      return res.status(404).send('Not Found');
     }
+
+    try {
+      // Check if this filename is stored as the partner's profile image
+      const [rows] = await db.query(
+        'SELECT id FROM partners WHERE image LIKE ?',
+        [`%${filename}`]
+      );
+      if (rows.length > 0) {
+        return res.sendFile(path.join(__dirname, 'defaults', 'default-profile.png'));
+      }
+    } catch (err) {
+      console.error('Error in uploads fallback database check:', err.message);
+    }
+
+    // Default fallback to document placeholder
+    return res.sendFile(path.join(__dirname, 'defaults', 'default-document.png'));
   }
 });
 
