@@ -58,9 +58,9 @@ server.use('/uploads', (req, res, next) => {
   } else {
     const lowerPath = req.path.toLowerCase();
     if (lowerPath.includes('profile') || lowerPath.includes('avatar') || lowerPath.includes('user') || lowerPath.includes('image')) {
-      return res.sendFile(path.join(__dirname, 'uploads', 'default-profile.svg'));
+      return res.sendFile(path.join(__dirname, 'defaults', 'default-profile.svg'));
     } else {
-      return res.sendFile(path.join(__dirname, 'uploads', 'default-document.svg'));
+      return res.sendFile(path.join(__dirname, 'defaults', 'default-document.svg'));
     }
   }
 });
