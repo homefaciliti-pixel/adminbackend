@@ -120,7 +120,7 @@ server.get('/', (req, res) => {
   res.json({
     status: 'Healthy',
     name: 'Home Faciliti Admin Panel Backend API Server',
-    version: '1.0.0',
+    version: '1.0.1-verify',
     timestamp: new Date().toISOString()
   });
 });
