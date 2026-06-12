@@ -1507,7 +1507,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
       else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
       else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
       else if (statusLower === 'assigned' || statusLower === 'upcoming') appStatus = 'accepted';
-      else if (statusLower === 'pending') appStatus = 'upcoming';
+      else if (statusLower === 'pending') appStatus = 'pending';
 
       return {
         id: order.id.toString(),
@@ -1772,7 +1772,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
     else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
     else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
     else if (statusLower === 'assigned' || statusLower === 'upcoming') appStatus = 'accepted';
-    else if (statusLower === 'pending') appStatus = 'upcoming';
+    else if (statusLower === 'pending') appStatus = 'pending';
 
     const mapped = {
       id: order.id.toString(),
