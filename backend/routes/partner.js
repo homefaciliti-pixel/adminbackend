@@ -2317,7 +2317,9 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-
+  if (req.partner.status !== 1) {
+    return res.status(400).json({ error: 'Please go online to start this service' });
+  }
 
   try {
     const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
