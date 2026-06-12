@@ -2085,9 +2085,9 @@ router.post('/partner/support', authenticatePartner, async (req, res) => {
 
   try {
     const [result] = await db.query(
-      `INSERT INTO support_tickets (userName, email, mobile, subject, message, status, createdAt) 
-       VALUES (?, ?, ?, ?, ?, 'Open', ?)`,
-      [name, email, mobile, subject, message, createdDate]
+      `INSERT INTO support_tickets (userName, email, mobile, subject, message, status, createdAt, partnerId) 
+       VALUES (?, ?, ?, ?, ?, 'Open', ?, ?)`,
+      [name, email, mobile, subject, message, createdDate, req.partner.id]
     );
 
     res.status(201).json({
@@ -2120,6 +2120,7 @@ router.get('/partner/support', authenticatePartner, async (req, res) => {
 
     const mappedTickets = rows.map(ticket => ({
       ...ticket,
+      partnerId: ticket.partnerId || req.partner.id,
       partnerImage: resolvedImage,
       partnerDocuments: documentsArray,
       partner: {

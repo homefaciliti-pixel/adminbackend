@@ -412,7 +412,7 @@ Response Example (Status 201 Created):
 6.2 VIEW OWN SUPPORT TICKETS
 ----------------------------
 Endpoint: GET /api/partner/support
-Description: Retrieves all support tickets filed by this partner. Enriched with partner profile image, documents, and nested partner details with fallback SVG URLs.
+Description: Retrieves all support tickets filed by this partner. Enriched with partnerId, partner profile image, documents, and nested partner details with fallback SVG URLs.
 Response Example:
 [
   {
@@ -424,6 +424,7 @@ Response Example:
     "message": "The bookings list does not load when I click it. Please fix.",
     "status": "Open",
     "createdAt": "02-06-2026",
+    "partnerId": 10,
     "partnerImage": "http://localhost:5000/uploads/default-profile.svg",
     "partnerDocuments": [
       "http://localhost:5000/uploads/default-document.svg"
