@@ -3034,14 +3034,22 @@ router.get('/partner/:id/location', getPartnerLocation);
 router.get('/partner/debug-uploads', async (req, res) => {
   const fs = require('fs');
   const path = require('path');
+  const { execSync } = require('child_process');
   try {
     const uploadsPath = path.join(__dirname, '../uploads');
     const files = fs.existsSync(uploadsPath) ? fs.readdirSync(uploadsPath) : [];
+    let dfOutput = '';
+    try {
+      dfOutput = execSync('df -h').toString();
+    } catch (e) {
+      dfOutput = 'Error running df: ' + e.message;
+    }
     res.json({
       exists: fs.existsSync(uploadsPath),
       files: files,
       cwd: process.cwd(),
-      dirname: __dirname
+      dirname: __dirname,
+      df: dfOutput
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
