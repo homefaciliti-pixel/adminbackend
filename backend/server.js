@@ -52,6 +52,30 @@ server.use((req, res, next) => {
 // Serve uploaded images statically, falling back to default PNGs if files are deleted/missing from disk
 const fs = require('fs');
 const db = require('./db');
+const https = require('https');
+
+const avatarColors = [
+  '0B5FA5', // Primary Blue
+  'E11D48', // Rose
+  'DB2777', // Pink
+  '7C3AED', // Violet
+  '2563EB', // Blue
+  '0D9488', // Teal
+  '059669', // Green
+  'D97706', // Amber
+  'EA580C', // Orange
+  '4B5563'  // Gray
+];
+
+function getColorForName(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % avatarColors.length;
+  return avatarColors[index];
+}
+
 server.use('/uploads', async (req, res, next) => {
   const filePath = path.join(__dirname, 'uploads', req.path);
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
@@ -65,11 +89,22 @@ server.use('/uploads', async (req, res, next) => {
     try {
       // Check if this filename is stored as the partner's profile image
       const [rows] = await db.query(
-        'SELECT id FROM partners WHERE image LIKE ?',
+        'SELECT name FROM partners WHERE image LIKE ?',
         [`%${filename}`]
       );
       if (rows.length > 0) {
-        return res.sendFile(path.join(__dirname, 'defaults', 'default-profile.png'));
+        const partnerName = rows[0].name || 'Partner';
+        const nameEncoded = encodeURIComponent(partnerName);
+        const color = getColorForName(partnerName);
+        const avatarUrl = `https://ui-avatars.com/api/?name=${nameEncoded}&background=${color}&color=fff&size=250&bold=true`;
+        
+        return https.get(avatarUrl, (apiRes) => {
+          res.setHeader('Content-Type', 'image/png');
+          apiRes.pipe(res);
+        }).on('error', (err) => {
+          console.error('Error fetching dynamic avatar:', err.message);
+          res.sendFile(path.join(__dirname, 'defaults', 'default-profile.png'));
+        });
       }
     } catch (err) {
       console.error('Error in uploads fallback database check:', err.message);
