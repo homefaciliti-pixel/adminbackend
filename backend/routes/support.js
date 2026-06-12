@@ -139,13 +139,14 @@ router.get('/', async (req, res) => {
     }
 
     sqlStr += ' ORDER BY id DESC';
-    const [rows] = await db.query(sqlStr, params);
+        const [rows] = await db.query(sqlStr, params);
 
     const mappedTickets = await Promise.all(rows.map(async (ticket) => {
       const partner = await findPartnerByMobile(ticket.mobile);
       const mappedPartner = mapPartnerDetails(partner, req);
       return {
         ...ticket,
+        partnerId: ticket.partnerId || (mappedPartner ? mappedPartner.id : null),
         partnerImage: mappedPartner ? mappedPartner.image : resolveDocUrl('', req, 'profile'),
         partnerDocuments: mappedPartner ? mappedPartner.documents : [],
         partner: mappedPartner
@@ -169,13 +170,14 @@ router.get('/:id', async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Ticket not found' });
     }
-    const ticket = rows[0];
+        const ticket = rows[0];
     const partner = await findPartnerByMobile(ticket.mobile);
     const mappedPartner = mapPartnerDetails(partner, req);
     res.json({
       success: true,
       data: {
         ...ticket,
+        partnerId: ticket.partnerId || (mappedPartner ? mappedPartner.id : null),
         partnerImage: mappedPartner ? mappedPartner.image : resolveDocUrl('', req, 'profile'),
         partnerDocuments: mappedPartner ? mappedPartner.documents : [],
         partner: mappedPartner
@@ -188,20 +190,21 @@ router.get('/:id', async (req, res) => {
 
 // POST add support ticket
 router.post('/', async (req, res) => {
-  const { userName, email, mobile, subject, message } = req.body;
+  const { userName, email, mobile, subject, message, partnerId } = req.body;
   if (!userName || !email || !mobile || !subject || !message) {
     return res.status(400).json({ success: false, message: 'Please provide all required fields' });
   }
 
+  const partner = await findPartnerByMobile(mobile);
+  const mappedPartner = mapPartnerDetails(partner, req);
+  const resolvedPartnerId = partnerId || (mappedPartner ? mappedPartner.id : null);
+
   const createdAtStr = new Date().toLocaleDateString('en-IN');
   try {
     const [result] = await db.query(
-      'INSERT INTO support_tickets (userName, email, mobile, subject, message, status, createdAt) VALUES (?, ?, ?, ?, ?, "Open", ?)',
-      [userName, email, mobile, subject, message, createdAtStr]
+      'INSERT INTO support_tickets (userName, email, mobile, subject, message, status, createdAt, partnerId) VALUES (?, ?, ?, ?, ?, "Open", ?, ?)',
+      [userName, email, mobile, subject, message, createdAtStr, resolvedPartnerId]
     );
-
-    const partner = await findPartnerByMobile(mobile);
-    const mappedPartner = mapPartnerDetails(partner, req);
 
     res.status(201).json({
       success: true,
@@ -215,6 +218,7 @@ router.post('/', async (req, res) => {
         message,
         status: 'Open',
         createdAt: createdAtStr,
+        partnerId: resolvedPartnerId,
         partnerImage: mappedPartner ? mappedPartner.image : resolveDocUrl('', req, 'profile'),
         partnerDocuments: mappedPartner ? mappedPartner.documents : [],
         partner: mappedPartner
@@ -228,7 +232,7 @@ router.post('/', async (req, res) => {
 // PUT update support ticket details (e.g. update status/resolve)
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { userName, email, mobile, subject, message, status } = req.body;
+  const { userName, email, mobile, subject, message, status, partnerId } = req.body;
 
   try {
     const fields = [];
@@ -240,6 +244,7 @@ router.put('/:id', async (req, res) => {
     if (subject !== undefined) { fields.push('`subject` = ?'); values.push(subject); }
     if (message !== undefined) { fields.push('`message` = ?'); values.push(message); }
     if (status !== undefined) { fields.push('`status` = ?'); values.push(status); }
+    if (partnerId !== undefined) { fields.push('`partnerId` = ?'); values.push(partnerId); }
 
     if (fields.length === 0) {
       return res.status(400).json({ success: false, message: 'No fields to update' });
@@ -263,6 +268,7 @@ router.put('/:id', async (req, res) => {
       message: 'Ticket updated successfully',
       data: {
         ...ticket,
+        partnerId: ticket.partnerId || (mappedPartner ? mappedPartner.id : null),
         partnerImage: mappedPartner ? mappedPartner.image : resolveDocUrl('', req, 'profile'),
         partnerDocuments: mappedPartner ? mappedPartner.documents : [],
         partner: mappedPartner
