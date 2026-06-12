@@ -392,14 +392,14 @@ Example:
 11. SUPPORT TICKETS
 ----------------------------------------------------------------------
 Endpoint: GET /api/support
-Description: Retrieve support tickets list.
+Description: Retrieve support tickets list. Enriched with partnerId and resolved partner profile image/documents.
 Query Parameters (Optional):
   - query: Search UserName, Email, Subject, or Message (LIKE match)
   - status: Filter by status (Open, Closed, etc.)
 Response Data: Array of Ticket objects.
 
 Endpoint: GET /api/support/:id
-Description: Fetch details of a single ticket by ID.
+Description: Fetch details of a single ticket by ID. Enriched with partnerId and resolved partner profile image/documents.
 Response Data: Ticket object.
 
 Endpoint: POST /api/support
@@ -410,13 +410,14 @@ Request Body (JSON):
   "email": "rahul@gmail.com",
   "mobile": "9876543210",
   "subject": "AC cooling issue",
-  "message": "The repair did not fix the cooling problem."
+  "message": "The repair did not fix the cooling problem.",
+  "partnerId": 123                              // Optional
 }
-Response Data: Created Support Ticket object.
+Response Data: Created Support Ticket object (enriched with resolved partner details and partnerId).
 
 Endpoint: PUT /api/support/:id
 Description: Update support ticket status/details.
-Request Body (JSON): { "status": "Closed" }
+Request Body (JSON): { "status": "Closed", "partnerId": 123 }
 Response Data: Updated Ticket object.
 
 Endpoint: DELETE /api/support/:id

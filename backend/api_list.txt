@@ -128,13 +128,13 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 11. SUPPORT TICKETS MANAGEMENT
 ----------------------------------------------------------------------
 * GET /api/support
-  - Fetch all support tickets. Optional query params: 'query', 'status'. Automatically resolves and maps sender's partner details (partnerImage, partnerDocuments, partner object) using mobile number, falling back to default SVGs if empty/missing on disk.
+  - Fetch all support tickets. Optional query params: 'query', 'status'. Automatically resolves and maps sender's partner details (partnerImage, partnerDocuments, partner object, and partnerId) using mobile number, falling back to default SVGs if empty/missing on disk.
 * GET /api/support/:id
-  - Fetch details of a single support ticket by ID. Enriched with resolved partner profile image, documents, and fallback placeholders.
+  - Fetch details of a single support ticket by ID. Enriched with resolved partner profile image, documents, partnerId, and fallback placeholders.
 * POST /api/support
-  - Create a support ticket. Body: { "userName": "...", "email": "...", "mobile": "...", "subject": "...", "message": "..." }. Enriches response data with resolved partner details.
+  - Create a support ticket. Body: { "userName": "...", "email": "...", "mobile": "...", "subject": "...", "message": "...", "partnerId": 123 (optional) }. Enriches response data with resolved partner details and partnerId.
 * PUT /api/support/:id
-  - Update support ticket status. Body: { "status": "Closed" }. Returns updated ticket with resolved partner details.
+  - Update support ticket status/details. Body: { "status": "Closed", "partnerId": 123 (optional) }. Returns updated ticket with resolved partner details.
 * DELETE /api/support/:id
   - Delete support ticket by ID.
 
