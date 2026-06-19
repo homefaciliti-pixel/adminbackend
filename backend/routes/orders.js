@@ -3,10 +3,12 @@ const router = express.Router();
 const db = require('../db');
 
 // ─────────────────────────────────────────────
-// TABLE: node_orders_v2
-// Columns: id, userPhone, serviceName, price, date, status, bookingStatus,
-//          partnerName, partnerDistance, productId, description, timeSlot,
-//          address (JSON), payment (JSON), razorpayOrderId, razorpayPaymentId, createdAt
+// NOTE: db.js auto-prefixes table names with "node_"
+// So writing 'orders'  → queries 'node_orders'  (admin panel orders)
+//    writing 'partners' → queries 'node_partners' (but we use 'partners' table)
+// node_orders schema: id, serviceRequestNumber, serviceName, serviceAmount,
+//   slotTime, serviceDate, city, locality, status, vendorName, vendorMobile,
+//   address, createdAt, paymentMethod, latitude, longitude
 // ─────────────────────────────────────────────
 
 // Helper: Haversine distance in km
@@ -21,55 +23,7 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Helper: Parse address JSON safely
-function parseAddr(order) {
-  try {
-    return typeof order.address === 'string' ? JSON.parse(order.address) : (order.address || {});
-  } catch (e) {
-    return {};
-  }
-}
-
-// Helper: Parse payment JSON safely
-function parsePayment(order) {
-  try {
-    return typeof order.payment === 'string' ? JSON.parse(order.payment) : (order.payment || {});
-  } catch (e) {
-    return {};
-  }
-}
-
-// Helper: Map node_orders_v2 row → admin API response
-function mapOrder(row) {
-  const addr = parseAddr(row);
-  const pay = parsePayment(row);
-  return {
-    id: row.id,
-    serviceRequestNumber: row.id.toString(),
-    serviceName: row.serviceName,
-    serviceAmount: parseFloat(row.price || 0),
-    slotTime: row.timeSlot,
-    serviceDate: row.date,
-    status: row.status,
-    bookingStatus: row.bookingStatus,
-    vendorName: row.partnerName || '-',
-    vendorMobile: '',
-    address: addr.houseNo
-      ? `${addr.houseNo}, ${addr.society || ''}, ${addr.floor ? 'Floor ' + addr.floor + ', ' : ''}${addr.locality || ''}, ${addr.city || ''} ${addr.pincode || ''}`.replace(/,\s*,/g, ',').trim()
-      : (typeof row.address === 'string' ? row.address : ''),
-    city: addr.city || '',
-    locality: addr.locality || '',
-    latitude: addr.latitude ? addr.latitude.toString() : null,
-    longitude: addr.longitude ? addr.longitude.toString() : null,
-    customerName: addr.name || '',
-    customerPhone: row.userPhone || '',
-    paymentMethod: pay.paymentMethod || '',
-    amountPaid: pay.amountPaid || 0,
-    createdAt: row.createdAt
-  };
-}
-
-// Helper: Resolve partner name from phone (looks up `partners` table)
+// Helper: Resolve partner name from phone number
 async function resolveVendorName(vendorName, vendorPhone, phone, mobile) {
   let targetPhone = vendorPhone || phone || mobile;
   let lookupName = vendorName || '';
@@ -89,14 +43,18 @@ async function resolveVendorName(vendorName, vendorPhone, phone, mobile) {
   return (lookupName === '' || lookupName === '-') ? null : lookupName;
 }
 
-
 // ─────────────────────────────────────────────
-// GET /api/orders  — List all orders (admin)
+// GET /api/orders  — List all orders (admin panel)
 // ─────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 ORDER BY id DESC');
-    res.json({ success: true, data: rows.map(mapOrder) });
+    const [rows] = await db.query('SELECT * FROM orders ORDER BY id DESC');
+    const mapped = rows.map(r => ({
+      ...r,
+      vendorName: r.vendorName === null ? '-' : r.vendorName,
+      serviceAmount: parseFloat(r.serviceAmount)
+    }));
+    res.json({ success: true, data: mapped });
   } catch (error) {
     console.error('Error fetching orders:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch orders', error: error.message });
@@ -109,11 +67,18 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
-    res.json({ success: true, data: mapOrder(rows[0]) });
+    res.json({
+      success: true,
+      data: {
+        ...rows[0],
+        vendorName: rows[0].vendorName === null ? '-' : rows[0].vendorName,
+        serviceAmount: parseFloat(rows[0].serviceAmount)
+      }
+    });
   } catch (error) {
     console.error('Error fetching order details:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch order details', error: error.message });
@@ -121,11 +86,11 @@ router.get('/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// PUT /api/orders/:id  — Update order (status, vendorName, etc.)
+// PUT /api/orders/:id  — Update order fields
 // ─────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { status, vendorName } = req.body;
+  const { status, vendorName, slotTime, serviceDate, city, locality, address } = req.body;
 
   try {
     const fields = [];
@@ -134,35 +99,47 @@ router.put('/:id', async (req, res) => {
     if (status !== undefined) {
       fields.push('`status` = ?');
       values.push(status);
-      // Also update bookingStatus to match
-      const bs = status.toLowerCase() === 'assigned' ? 'assigned'
-        : status.toLowerCase() === 'completed' ? 'completed'
-        : status.toLowerCase() === 'cancelled' ? 'cancelled'
-        : status.toLowerCase() === 'in progress' ? 'in_progress'
-        : 'searching';
-      fields.push('`bookingStatus` = ?');
-      values.push(bs);
     }
 
-    if (vendorName !== undefined) {
-      const resolvedName = (vendorName === '' || vendorName === '-') ? null : vendorName;
-      fields.push('`partnerName` = ?');
+    const hasVendorUpdate = (vendorName !== undefined || req.body.vendorPhone !== undefined || req.body.phone !== undefined || req.body.mobile !== undefined);
+    if (hasVendorUpdate) {
+      let resolvedName;
+      try {
+        resolvedName = await resolveVendorName(vendorName, req.body.vendorPhone, req.body.phone, req.body.mobile);
+      } catch (err) {
+        return res.status(404).json({ success: false, message: err.message });
+      }
+      fields.push('`vendorName` = ?');
       values.push(resolvedName);
     }
+
+    if (slotTime !== undefined) { fields.push('`slotTime` = ?'); values.push(slotTime); }
+    if (serviceDate !== undefined) { fields.push('`serviceDate` = ?'); values.push(serviceDate); }
+    if (city !== undefined) { fields.push('`city` = ?'); values.push(city); }
+    if (locality !== undefined) { fields.push('`locality` = ?'); values.push(locality); }
+    if (address !== undefined) { fields.push('`address` = ?'); values.push(address); }
 
     if (fields.length === 0) {
       return res.status(400).json({ success: false, message: 'No fields to update' });
     }
 
     values.push(id);
-    const [result] = await db.query(`UPDATE node_orders_v2 SET ${fields.join(', ')} WHERE id = ?`, values);
+    const [result] = await db.query(`UPDATE orders SET ${fields.join(', ')} WHERE id = ?`, values);
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
-    res.json({ success: true, message: 'Order updated successfully', data: mapOrder(rows[0]) });
+    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+    res.json({
+      success: true,
+      message: 'Order updated successfully',
+      data: {
+        ...rows[0],
+        vendorName: rows[0].vendorName === null ? '-' : rows[0].vendorName,
+        serviceAmount: parseFloat(rows[0].serviceAmount)
+      }
+    });
   } catch (error) {
     console.error('Error updating order:', error);
     res.status(500).json({ success: false, message: 'Failed to update order', error: error.message });
@@ -170,12 +147,12 @@ router.put('/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// DELETE /api/orders/:id  — Delete order
+// DELETE /api/orders/:id
 // ─────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const [result] = await db.query('DELETE FROM node_orders_v2 WHERE id = ?', [id]);
+    const [result] = await db.query('DELETE FROM orders WHERE id = ?', [id]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -194,31 +171,34 @@ router.put('/:id/assign', async (req, res) => {
   const { id } = req.params;
   const { vendorName, vendorPhone, phone, mobile } = req.body;
 
-  let dbPartnerName;
+  let dbVendorName;
   try {
-    dbPartnerName = await resolveVendorName(vendorName, vendorPhone, phone, mobile);
+    dbVendorName = await resolveVendorName(vendorName, vendorPhone, phone, mobile);
   } catch (err) {
     return res.status(404).json({ success: false, message: err.message });
   }
 
-  const newStatus = dbPartnerName === null ? 'Pending' : 'Assigned';
-  const newBookingStatus = dbPartnerName === null ? 'searching' : 'assigned';
+  const newStatus = dbVendorName === null ? 'Pending' : 'Assigned';
 
   try {
     const [result] = await db.query(
-      'UPDATE node_orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
-      [dbPartnerName, newStatus, newBookingStatus, id]
+      'UPDATE orders SET vendorName = ?, status = ? WHERE id = ?',
+      [dbVendorName, newStatus, id]
     );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
     res.json({
       success: true,
-      message: dbPartnerName === null ? 'Order unassigned successfully' : `Order assigned to ${dbPartnerName} successfully`,
-      data: mapOrder(rows[0])
+      message: dbVendorName === null ? 'Order unassigned successfully' : `Order assigned to ${dbVendorName} successfully`,
+      data: {
+        ...rows[0],
+        vendorName: rows[0].vendorName === null ? '-' : rows[0].vendorName,
+        serviceAmount: parseFloat(rows[0].serviceAmount)
+      }
     });
   } catch (error) {
     console.error('Error assigning order:', error);
@@ -227,94 +207,115 @@ router.put('/:id/assign', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
-// POST /api/orders  — Create new order (from admin or user app)
-// Supports auto-assign to nearest active, approved, paid partner within 5/10 km
+// POST /api/orders  — Create new order with optional auto-assign
 // ─────────────────────────────────────────────
 router.post('/', async (req, res) => {
   const {
+    serviceRequestNumber,
     serviceName,
     serviceAmount,
     slotTime,
     serviceDate,
+    city,
+    locality,
     status,
     vendorName,
     address,
-    userPhone,
+    createdAt,
     latitude,
     longitude,
     lat,
     lon,
-    lng,
-    createdAt
+    lng
   } = req.body;
 
-  if (!serviceName || serviceAmount === undefined || !slotTime || !serviceDate || !address) {
+  if (!serviceRequestNumber || !serviceName || serviceAmount === undefined || !slotTime || !serviceDate || !city || !locality || !status || !address) {
     return res.status(400).json({ success: false, message: 'Missing required order fields' });
   }
 
   const amt = parseFloat(serviceAmount);
-  let dbPartnerName = (!vendorName || vendorName === '-') ? null : vendorName;
-  let assignedStatus = status || 'Pending';
+  const rawVendorName = vendorName || '-';
+  let dbVendorName = rawVendorName === '-' ? null : rawVendorName;
+  let dbVendorMobile = req.body.vendorMobile || req.body.vendorPhone || null;
+  let assignedStatus = status;
 
   const orderLat = parseFloat(latitude || lat);
   const orderLon = parseFloat(longitude || lon || lng);
-  const hasCoords = !isNaN(orderLat) && !isNaN(orderLon);
+  const hasCoordinates = !isNaN(orderLat) && !isNaN(orderLon);
 
-  // Build address JSON
-  const addrJson = typeof address === 'object' ? JSON.stringify(address) : address;
-
-  const cTime = createdAt || Date.now();
+  const cTime = createdAt || new Date().toLocaleString();
 
   try {
-    // Auto-assign if no vendor specified and coordinates available
-    if (hasCoords && !dbPartnerName) {
+    // Auto-assign to nearest active, approved, paid partner within 5/10 km
+    if (hasCoordinates && !dbVendorName) {
       const [partners] = await db.query(
         'SELECT id, name, mobile, services, category, latitude, longitude FROM partners WHERE status = 1 AND isApproved = 1 AND isPaid = 1'
       );
 
       const orderService = serviceName.toLowerCase().trim();
-      const eligible = [];
+      const eligiblePartners = [];
 
       for (const partner of partners) {
         const partnerServices = (partner.services || '').toLowerCase().split(',').map(s => s.trim());
         const partnerCategory = (partner.category || '').toLowerCase().trim();
-        const qualified = partnerServices.includes(orderService) ||
-                          partnerCategory === orderService ||
-                          orderService.includes(partnerCategory) ||
-                          partnerCategory.includes(orderService);
+        const isQualified = partnerServices.includes(orderService) ||
+                            partnerCategory === orderService ||
+                            orderService.includes(partnerCategory) ||
+                            partnerCategory.includes(orderService);
 
-        if (qualified && partner.latitude && partner.longitude) {
+        if (isQualified && partner.latitude && partner.longitude) {
           const pLat = parseFloat(partner.latitude);
           const pLon = parseFloat(partner.longitude);
           if (!isNaN(pLat) && !isNaN(pLon)) {
-            const dist = getDistance(orderLat, orderLon, pLat, pLon);
-            eligible.push({ partner, dist });
+            const distance = getDistance(orderLat, orderLon, pLat, pLon);
+            eligiblePartners.push({ partner, distance });
           }
         }
       }
 
-      if (eligible.length > 0) {
-        let matches = eligible.filter(p => p.dist <= 5);
-        if (matches.length === 0) matches = eligible.filter(p => p.dist <= 10);
+      if (eligiblePartners.length > 0) {
+        let matches = eligiblePartners.filter(p => p.distance <= 5);
+        if (matches.length === 0) matches = eligiblePartners.filter(p => p.distance <= 10);
         if (matches.length > 0) {
-          matches.sort((a, b) => a.dist - b.dist);
-          dbPartnerName = matches[0].partner.name;
+          matches.sort((a, b) => a.distance - b.distance);
+          const assigned = matches[0].partner;
+          dbVendorName = assigned.name;
+          dbVendorMobile = assigned.mobile;
           assignedStatus = 'Assigned';
-          console.log(`[Auto-Assign] Order auto-assigned to ${dbPartnerName} at ${matches[0].dist.toFixed(2)} km`);
+          console.log(`[Auto-Assign] Order ${serviceRequestNumber} → ${dbVendorName} at ${matches[0].distance.toFixed(2)} km`);
         }
       }
     }
 
-    const bookingStatus = assignedStatus === 'Assigned' ? 'assigned' : 'searching';
-
     const [result] = await db.query(
-      `INSERT INTO node_orders_v2 (userPhone, serviceName, price, date, status, bookingStatus, partnerName, address, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userPhone || '', serviceName, amt, serviceDate, assignedStatus, bookingStatus, dbPartnerName, addrJson, cTime]
+      `INSERT INTO orders 
+      (serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, vendorMobile, address, createdAt, latitude, longitude)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        serviceRequestNumber, serviceName, amt, slotTime, serviceDate,
+        city, locality, assignedStatus, dbVendorName, dbVendorMobile,
+        address, cTime,
+        hasCoordinates ? orderLat.toString() : null,
+        hasCoordinates ? orderLon.toString() : null
+      ]
     );
 
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [result.insertId]);
-    res.status(201).json({ success: true, message: 'Order created successfully', data: mapOrder(rows[0]) });
+    res.status(201).json({
+      success: true,
+      message: 'Order created successfully',
+      data: {
+        id: result.insertId,
+        serviceRequestNumber, serviceName,
+        serviceAmount: amt, slotTime, serviceDate,
+        city, locality,
+        status: assignedStatus,
+        vendorName: dbVendorName || '-',
+        vendorMobile: dbVendorMobile,
+        address, createdAt: cTime,
+        latitude: hasCoordinates ? orderLat.toString() : null,
+        longitude: hasCoordinates ? orderLon.toString() : null
+      }
+    });
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ success: false, message: 'Failed to create order', error: error.message });

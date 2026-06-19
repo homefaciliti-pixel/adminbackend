@@ -29,7 +29,7 @@ function prefixQuery(sql) {
   if (!tablePrefix) return sql;
   
   const tables = [
-    'users', 'categories', 'services', 'orders', 'pages', 'partners',
+    'users', 'categories', 'services', 'orders', 'orders_v2', 'pages', 'partners',
     'booking_earnings', 'subscription_earnings', 'banners', 'states',
     'cities', 'localities', 'notifications', 'reviews', 'settings_config',
     'support_tickets'

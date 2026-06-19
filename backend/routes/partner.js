@@ -1534,12 +1534,12 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
       if (filterStatus === 'upcoming') {
         // Assigned orders for this partner
         const [assignedRows] = await db.query(
-          `SELECT * FROM node_orders_v2 WHERE partnerName = ? AND status = 'Assigned' ORDER BY id DESC`,
+          `SELECT * FROM orders_v2 WHERE partnerName = ? AND status = 'Assigned' ORDER BY id DESC`,
           [partnerName]
         );
         // Pending/searching orders nearby
         const [pendingRows] = await db.query(
-          `SELECT * FROM node_orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
+          `SELECT * FROM orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
         );
         const nearbyPending = pendingRows.filter(isNearby);
         rows = [...assignedRows, ...nearbyPending];
@@ -1551,7 +1551,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
         else if (filterStatus === 'in_progress') dbStatus = 'In Progress';
 
         const [filtered] = await db.query(
-          'SELECT * FROM node_orders_v2 WHERE partnerName = ? AND status = ? ORDER BY id DESC',
+          'SELECT * FROM orders_v2 WHERE partnerName = ? AND status = ? ORDER BY id DESC',
           [partnerName, dbStatus]
         );
         rows = filtered;
@@ -1559,11 +1559,11 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     } else {
       // All: assigned to this partner + nearby pending
       const [assignedRows] = await db.query(
-        `SELECT * FROM node_orders_v2 WHERE partnerName = ? ORDER BY id DESC`,
+        `SELECT * FROM orders_v2 WHERE partnerName = ? ORDER BY id DESC`,
         [partnerName]
       );
       const [pendingRows] = await db.query(
-        `SELECT * FROM node_orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
+        `SELECT * FROM orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
       );
       const nearbyPending = pendingRows.filter(isNearby);
 
@@ -1607,9 +1607,9 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
   const partnerLocality = req.partner.locality;
 
   try {
-    const [assignedRows] = await db.query('SELECT status FROM node_orders_v2 WHERE partnerName = ?', [partnerName]);
+    const [assignedRows] = await db.query('SELECT status FROM orders_v2 WHERE partnerName = ?', [partnerName]);
     const [pendingRows] = await db.query(
-      `SELECT status FROM node_orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '')`
+      `SELECT status FROM orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '')`
     );
 
     const total = assignedRows.length;
@@ -1660,7 +1660,7 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
 
 
   try {
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
@@ -1671,7 +1671,7 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
     }
 
     await db.query(
-      'UPDATE node_orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
+      'UPDATE orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
       [partnerName, 'Assigned', 'assigned', id]
     );
 
@@ -1701,7 +1701,7 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
   }
 
   try {
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
@@ -1712,7 +1712,7 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
     }
 
     await db.query(
-      'UPDATE node_orders_v2 SET partnerName = NULL, status = ?, bookingStatus = ? WHERE id = ?',
+      'UPDATE orders_v2 SET partnerName = NULL, status = ?, bookingStatus = ? WHERE id = ?',
       ['Pending', 'searching', id]
     );
 
@@ -1798,7 +1798,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
 
 
   try {
-    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Booking not found' });
     }
