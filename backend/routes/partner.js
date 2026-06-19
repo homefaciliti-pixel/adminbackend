@@ -1466,7 +1466,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
   const hasPartnerCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
   const RADIUS_KM = 10; // Show nearby pending orders within 10 km
 
-  // Haversine distance helper (inline)
+  // Haversine distance helper
   function distKm(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -1477,41 +1477,73 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
+  // Parse address JSON to get lat/lon/city/locality
+  function parseAddress(order) {
+    try {
+      return typeof order.address === 'string' ? JSON.parse(order.address) : (order.address || {});
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // Check if order is within radius of partner
+  function isNearby(order) {
+    const addr = parseAddress(order);
+    const oLat = parseFloat(addr.latitude);
+    const oLon = parseFloat(addr.longitude);
+    if (hasPartnerCoords && !isNaN(oLat) && !isNaN(oLon)) {
+      return distKm(partnerLat, partnerLon, oLat, oLon) <= RADIUS_KM;
+    }
+    // Fallback: city match
+    const orderCity = (addr.city || '').toLowerCase();
+    const partCity = (req.partner.city || '').toLowerCase();
+    return orderCity.includes(partCity) || partCity.includes(orderCity);
+  }
+
+  // Map node_orders_v2 row to app response format
+  function mapOrder(order) {
+    const addr = parseAddress(order);
+    const statusLower = (order.status || '').toLowerCase();
+    let appStatus = 'accepted';
+    if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
+    else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
+    else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
+    else if (statusLower === 'assigned') appStatus = 'accepted';
+    else if (statusLower === 'pending' || statusLower === 'searching') appStatus = 'pending';
+
+    return {
+      id: order.id.toString(),
+      status: appStatus,
+      service: order.serviceName,
+      date: order.date,
+      time: order.timeSlot,
+      serviceAmount: order.price,
+      serviceRequestNumber: order.id.toString(),
+      address: addr.houseNo ? `${addr.houseNo}, ${addr.society || ''}, ${addr.locality || ''}, ${addr.city || ''}`.trim() : (order.address || ''),
+      city: addr.city || '',
+      locality: addr.locality || '',
+      customerName: addr.name || 'Customer',
+      customerPhone: order.userPhone || ''
+    };
+  }
+
   try {
     let rows = [];
 
     if (filterStatus) {
       if (filterStatus === 'upcoming') {
-        // Fetch orders assigned to this partner
+        // Assigned orders for this partner
         const [assignedRows] = await db.query(
-          `SELECT * FROM orders WHERE vendorName = ? AND status = 'Assigned' ORDER BY id DESC`,
+          `SELECT * FROM node_orders_v2 WHERE partnerName = ? AND status = 'Assigned' ORDER BY id DESC`,
           [partnerName]
         );
-
-        // Fetch all pending unassigned orders and filter by GPS radius
+        // Pending/searching orders nearby
         const [pendingRows] = await db.query(
-          `SELECT * FROM orders WHERE status = 'Pending' AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') ORDER BY id DESC`
+          `SELECT * FROM node_orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
         );
-
-        let nearbyPending = pendingRows;
-        if (hasPartnerCoords) {
-          nearbyPending = pendingRows.filter(order => {
-            const oLat = parseFloat(order.latitude);
-            const oLon = parseFloat(order.longitude);
-            if (!isNaN(oLat) && !isNaN(oLon)) {
-              return distKm(partnerLat, partnerLon, oLat, oLon) <= RADIUS_KM;
-            }
-            // Fallback: city match if no GPS on order
-            return (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase();
-          });
-        } else {
-          // No partner GPS: fallback to city match
-          nearbyPending = pendingRows.filter(order =>
-            (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase()
-          );
-        }
-
+        const nearbyPending = pendingRows.filter(isNearby);
         rows = [...assignedRows, ...nearbyPending];
+
       } else {
         let dbStatus = '';
         if (filterStatus === 'completed') dbStatus = 'Completed';
@@ -1519,75 +1551,32 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
         else if (filterStatus === 'in_progress') dbStatus = 'In Progress';
 
         const [filtered] = await db.query(
-          'SELECT * FROM orders WHERE vendorName = ? AND status = ? ORDER BY id DESC',
+          'SELECT * FROM node_orders_v2 WHERE partnerName = ? AND status = ? ORDER BY id DESC',
           [partnerName, dbStatus]
         );
         rows = filtered;
       }
     } else {
-      // All bookings: assigned to this partner + nearby pending orders
+      // All: assigned to this partner + nearby pending
       const [assignedRows] = await db.query(
-        `SELECT * FROM orders WHERE vendorName = ? ORDER BY id DESC`,
+        `SELECT * FROM node_orders_v2 WHERE partnerName = ? ORDER BY id DESC`,
         [partnerName]
       );
-
       const [pendingRows] = await db.query(
-        `SELECT * FROM orders WHERE status = 'Pending' AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') ORDER BY id DESC`
+        `SELECT * FROM node_orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
       );
+      const nearbyPending = pendingRows.filter(isNearby);
 
-      let nearbyPending = pendingRows;
-      if (hasPartnerCoords) {
-        nearbyPending = pendingRows.filter(order => {
-          const oLat = parseFloat(order.latitude);
-          const oLon = parseFloat(order.longitude);
-          if (!isNaN(oLat) && !isNaN(oLon)) {
-            return distKm(partnerLat, partnerLon, oLat, oLon) <= RADIUS_KM;
-          }
-          // Fallback: city match if no GPS on order
-          return (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase();
-        });
-      } else {
-        // No partner GPS: fallback to city match
-        nearbyPending = pendingRows.filter(order =>
-          (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase()
-        );
-      }
-
-      // Merge: avoid duplicates (in case assigned order also appears in pending)
+      // Merge without duplicates
       const assignedIds = new Set(assignedRows.map(r => r.id));
       const uniquePending = nearbyPending.filter(r => !assignedIds.has(r.id));
       rows = [...assignedRows, ...uniquePending];
     }
 
-    // Sort all combined rows by id DESC
+    // Sort by id DESC
     rows.sort((a, b) => b.id - a.id);
 
-    const mapped = rows.map(order => {
-      const statusLower = (order.status || '').toLowerCase();
-      let appStatus = 'accepted';
-      if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
-      else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
-      else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
-      else if (statusLower === 'assigned' || statusLower === 'upcoming') appStatus = 'accepted';
-      else if (statusLower === 'pending') appStatus = 'pending';
-
-      return {
-        id: order.id.toString(),
-        status: appStatus,
-        service: order.serviceName,
-        date: order.serviceDate,
-        time: order.slotTime,
-        serviceAmount: order.serviceAmount,
-        serviceRequestNumber: order.serviceRequestNumber,
-        address: order.address,
-        city: order.city,
-        locality: order.locality,
-        customerName: 'Rahul Sharma',
-        customerPhone: '9876543210'
-      };
-    });
-
-    res.json(mapped);
+    res.json(rows.map(mapOrder));
   } catch (error) {
     console.error('Error fetching partner bookings:', error);
     res.status(500).json([]);
@@ -1618,22 +1607,17 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
   const partnerLocality = req.partner.locality;
 
   try {
-    const [assignedRows] = await db.query('SELECT status FROM orders WHERE vendorName = ?', [partnerName]);
+    const [assignedRows] = await db.query('SELECT status FROM node_orders_v2 WHERE partnerName = ?', [partnerName]);
     const [pendingRows] = await db.query(
-      `SELECT status FROM orders 
-       WHERE status = 'Pending' 
-         AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') 
-         AND city = ? 
-         AND locality = ?`,
-      [partnerCity, partnerLocality]
+      `SELECT status FROM node_orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '')`
     );
 
-    const total = assignedRows.length + pendingRows.length;
-    const upcoming = pendingRows.length;
+    const total = assignedRows.length;
+    const upcoming = assignedRows.filter(o => (o.status || '').toLowerCase() === 'assigned').length;
     
     const accepted = assignedRows.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'assigned' || statusLower === 'upcoming' || statusLower === 'in progress' || statusLower === 'in_progress';
+      return statusLower === 'assigned' || statusLower === 'in progress' || statusLower === 'in_progress';
     }).length;
 
     const inProgress = assignedRows.filter(o => {
@@ -1676,19 +1660,19 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
 
 
   try {
-    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     const order = rows[0];
-    if (order.vendorName && order.vendorName !== '-' && order.vendorName.toLowerCase() !== partnerName.toLowerCase()) {
+    if (order.partnerName && order.partnerName !== '' && order.partnerName.toLowerCase() !== partnerName.toLowerCase()) {
       return res.status(400).json({ error: 'Order already accepted by another partner' });
     }
 
     await db.query(
-      'UPDATE orders SET vendorName = ?, status = ? WHERE id = ?',
-      [partnerName, 'Assigned', id]
+      'UPDATE node_orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
+      [partnerName, 'Assigned', 'assigned', id]
     );
 
     res.json({ success: true, message: 'Order accepted successfully!' });
@@ -1717,19 +1701,19 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
   }
 
   try {
-    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     const order = rows[0];
-    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
+    if ((order.partnerName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(400).json({ error: 'You are not assigned to this booking' });
     }
 
     await db.query(
-      'UPDATE orders SET vendorName = NULL, status = ? WHERE id = ?',
-      ['Pending', id]
+      'UPDATE node_orders_v2 SET partnerName = NULL, status = ?, bookingStatus = ? WHERE id = ?',
+      ['Pending', 'searching', id]
     );
 
     res.json({ success: true, message: 'Order rejected/unassigned successfully!' });
@@ -1814,16 +1798,24 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
 
 
   try {
-    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
     const order = rows[0];
 
+    // Parse address JSON
+    let addr = {};
+    try { addr = typeof order.address === 'string' ? JSON.parse(order.address) : (order.address || {}); } catch (e) {}
+
+    // Parse payment JSON
+    let paymentInfo = {};
+    try { paymentInfo = typeof order.payment === 'string' ? JSON.parse(order.payment) : (order.payment || {}); } catch (e) {}
+
     // Check authorization: it must be assigned to this partner, or be pending/unassigned
-    const isUnassigned = !order.vendorName || order.vendorName === '-' || order.vendorName === 'None';
-    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
+    const isUnassigned = !order.partnerName || order.partnerName === '';
+    if ((order.partnerName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
       return res.status(403).json({ error: 'You do not have access to view this booking' });
     }
 
@@ -1833,23 +1825,23 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
     if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
     else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
     else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
-    else if (statusLower === 'assigned' || statusLower === 'upcoming') appStatus = 'accepted';
-    else if (statusLower === 'pending') appStatus = 'pending';
+    else if (statusLower === 'assigned') appStatus = 'accepted';
+    else if (statusLower === 'pending' || statusLower === 'searching') appStatus = 'pending';
 
     const mapped = {
       id: order.id.toString(),
       status: appStatus,
       service: order.serviceName,
-      date: order.serviceDate,
-      time: order.slotTime,
-      serviceAmount: order.serviceAmount,
-      serviceRequestNumber: order.serviceRequestNumber,
-      address: order.address,
-      city: order.city,
-      locality: order.locality,
-      paymentMethod: order.paymentMethod || 'UPI',
-      customerName: 'Rahul Sharma',
-      customerPhone: '9876543210',
+      date: order.date,
+      time: order.timeSlot,
+      serviceAmount: order.price,
+      serviceRequestNumber: order.id.toString(),
+      address: addr.houseNo ? `${addr.houseNo}, ${addr.society || ''}, ${addr.locality || ''}, ${addr.city || ''}`.trim() : (order.address || ''),
+      city: addr.city || '',
+      locality: addr.locality || '',
+      paymentMethod: paymentInfo.paymentMethod || 'Online',
+      customerName: addr.name || 'Customer',
+      customerPhone: order.userPhone || '',
       createdAt: order.createdAt
     };
 
