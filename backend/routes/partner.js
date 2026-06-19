@@ -1461,44 +1461,106 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     return res.json([]);
   }
 
+  const partnerLat = parseFloat(req.partner.latitude);
+  const partnerLon = parseFloat(req.partner.longitude);
+  const hasPartnerCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
+  const RADIUS_KM = 10; // Show nearby pending orders within 10 km
 
-
-  const partnerCity = req.partner.city;
-  const partnerLocality = req.partner.locality;
+  // Haversine distance helper (inline)
+  function distKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
 
   try {
-    let query = '';
-    const params = [];
+    let rows = [];
 
     if (filterStatus) {
       if (filterStatus === 'upcoming') {
-        query = `
-          SELECT * FROM orders 
-          WHERE (vendorName = ? AND status = 'Assigned')
-             OR (status = 'Pending' AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') AND city = ? AND locality = ?)
-          ORDER BY id DESC
-        `;
-        params.push(partnerName, partnerCity, partnerLocality);
+        // Fetch orders assigned to this partner
+        const [assignedRows] = await db.query(
+          `SELECT * FROM orders WHERE vendorName = ? AND status = 'Assigned' ORDER BY id DESC`,
+          [partnerName]
+        );
+
+        // Fetch all pending unassigned orders and filter by GPS radius
+        const [pendingRows] = await db.query(
+          `SELECT * FROM orders WHERE status = 'Pending' AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') ORDER BY id DESC`
+        );
+
+        let nearbyPending = pendingRows;
+        if (hasPartnerCoords) {
+          nearbyPending = pendingRows.filter(order => {
+            const oLat = parseFloat(order.latitude);
+            const oLon = parseFloat(order.longitude);
+            if (!isNaN(oLat) && !isNaN(oLon)) {
+              return distKm(partnerLat, partnerLon, oLat, oLon) <= RADIUS_KM;
+            }
+            // Fallback: city match if no GPS on order
+            return (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase();
+          });
+        } else {
+          // No partner GPS: fallback to city match
+          nearbyPending = pendingRows.filter(order =>
+            (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase()
+          );
+        }
+
+        rows = [...assignedRows, ...nearbyPending];
       } else {
         let dbStatus = '';
         if (filterStatus === 'completed') dbStatus = 'Completed';
         else if (filterStatus === 'cancel') dbStatus = 'Cancelled';
         else if (filterStatus === 'in_progress') dbStatus = 'In Progress';
 
-        query = 'SELECT * FROM orders WHERE vendorName = ? AND status = ? ORDER BY id DESC';
-        params.push(partnerName, dbStatus);
+        const [filtered] = await db.query(
+          'SELECT * FROM orders WHERE vendorName = ? AND status = ? ORDER BY id DESC',
+          [partnerName, dbStatus]
+        );
+        rows = filtered;
       }
     } else {
-      query = `
-        SELECT * FROM orders 
-        WHERE vendorName = ?
-           OR (status = 'Pending' AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') AND city = ? AND locality = ?)
-        ORDER BY id DESC
-      `;
-      params.push(partnerName, partnerCity, partnerLocality);
+      // All bookings: assigned to this partner + nearby pending orders
+      const [assignedRows] = await db.query(
+        `SELECT * FROM orders WHERE vendorName = ? ORDER BY id DESC`,
+        [partnerName]
+      );
+
+      const [pendingRows] = await db.query(
+        `SELECT * FROM orders WHERE status = 'Pending' AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') ORDER BY id DESC`
+      );
+
+      let nearbyPending = pendingRows;
+      if (hasPartnerCoords) {
+        nearbyPending = pendingRows.filter(order => {
+          const oLat = parseFloat(order.latitude);
+          const oLon = parseFloat(order.longitude);
+          if (!isNaN(oLat) && !isNaN(oLon)) {
+            return distKm(partnerLat, partnerLon, oLat, oLon) <= RADIUS_KM;
+          }
+          // Fallback: city match if no GPS on order
+          return (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase();
+        });
+      } else {
+        // No partner GPS: fallback to city match
+        nearbyPending = pendingRows.filter(order =>
+          (order.city || '').toLowerCase() === (req.partner.city || '').toLowerCase()
+        );
+      }
+
+      // Merge: avoid duplicates (in case assigned order also appears in pending)
+      const assignedIds = new Set(assignedRows.map(r => r.id));
+      const uniquePending = nearbyPending.filter(r => !assignedIds.has(r.id));
+      rows = [...assignedRows, ...uniquePending];
     }
 
-    const [rows] = await db.query(query, params);
+    // Sort all combined rows by id DESC
+    rows.sort((a, b) => b.id - a.id);
 
     const mapped = rows.map(order => {
       const statusLower = (order.status || '').toLowerCase();
