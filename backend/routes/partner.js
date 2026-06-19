@@ -464,7 +464,7 @@ router.post('/auth/register', (req, res) => {
       const mappedPartner = mapPartnerForApp(newPartnerRows[0], req);
 
       // Generate token
-      const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET, { expiresIn: '30d' });
+      const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET);
 
       // Generate dynamic Razorpay Order ID for unpaid partners
       let razorpayOrderId = null;
@@ -534,7 +534,7 @@ router.post('/auth/login', async (req, res) => {
     }
 
     const mappedPartner = mapPartnerForApp(partner, req);
-    const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ id: mappedPartner.id, mobile: mappedPartner.phone }, JWT_SECRET);
 
     // Generate dynamic Razorpay Order ID for unpaid partners
     let razorpayOrderId = null;
