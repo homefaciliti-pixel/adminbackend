@@ -163,6 +163,52 @@ function mapPartnerForApp(r, req) {
   };
 }
 
+// Helper to parse booking ID and detect source table
+async function resolveBookingIdAndTable(idString) {
+  let id = idString;
+  let isV2 = false;
+  let source = null;
+
+  if (typeof id === 'string') {
+    if (id.startsWith('v2_')) {
+      id = parseInt(id.replace('v2_', ''));
+      isV2 = true;
+      source = 'app';
+    } else if (id.startsWith('admin_')) {
+      id = parseInt(id.replace('admin_', ''));
+      isV2 = false;
+      source = 'admin';
+    } else {
+      id = parseInt(id);
+    }
+  } else {
+    id = parseInt(id);
+  }
+
+  if (isNaN(id)) {
+    return null;
+  }
+
+  // If source is not determined yet, look up in both tables
+  if (!source) {
+    // Try orders_v2 first
+    const [rowsV2] = await db.query('SELECT id FROM orders_v2 WHERE id = ?', [id]);
+    if (rowsV2.length > 0) {
+      isV2 = true;
+      source = 'app';
+    } else {
+      // Try orders
+      const [rowsAdmin] = await db.query('SELECT id FROM orders WHERE id = ?', [id]);
+      if (rowsAdmin.length > 0) {
+        isV2 = false;
+        source = 'admin';
+      }
+    }
+  }
+
+  return { id, isV2, source };
+}
+
 // In-memory mock data store for Partner ID 10 testing
 const mockBookingsStore = {
   "101": {
@@ -1501,7 +1547,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     const s = (o.status||'').toLowerCase();
     let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
     return {
-      id: 'v2_'+o.id, status: st, service: o.serviceName, date: o.date, time: o.timeSlot,
+      id: parseInt(o.id), status: st, service: o.serviceName, date: o.date, time: o.timeSlot,
       serviceAmount: o.price, serviceRequestNumber: o.id.toString(),
       address: a.houseNo ? `${a.houseNo}, ${a.society||''}, ${a.locality||''}, ${a.city||''}`.replace(/,\s*,/g,',').trim() : (o.address||''),
       city: a.city||'', locality: a.locality||'', customerName: a.name||'Customer', customerPhone: o.userPhone||'', source:'app'
@@ -1513,7 +1559,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     const s = (o.status||'').toLowerCase();
     let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
     return {
-      id: 'admin_'+o.id, status: st, service: o.serviceName, date: o.serviceDate, time: o.slotTime,
+      id: parseInt(o.id), status: st, service: o.serviceName, date: o.serviceDate, time: o.slotTime,
       serviceAmount: parseFloat(o.serviceAmount||0), serviceRequestNumber: o.serviceRequestNumber||o.id.toString(),
       address: o.address||'', city: o.city||'', locality: o.locality||'', customerName: 'Customer', customerPhone: '', source:'admin'
     };
@@ -1636,14 +1682,17 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
 
 // POST /api/bookings/:id/accept - Accept a booking (sets vendorName and sets status to Assigned)
 router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
-  const { id } = req.params;
   const partnerName = req.partner.name;
 
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-
+  const resolved = await resolveBookingIdAndTable(req.params.id);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  const { id } = resolved;
 
   try {
     const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
@@ -1668,14 +1717,18 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
   }
 });
 
-// POST /api/bookings/:id/reject - Reject a booking (unassign partner and set back to Pending)
 router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
-  const { id } = req.params;
   const partnerName = req.partner.name;
 
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
+
+  const resolved = await resolveBookingIdAndTable(req.params.id);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  const { id } = resolved;
 
   // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
   if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
@@ -1776,62 +1829,103 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
   }
 });
 
-// GET /api/bookings/:id - Get single booking details
 router.get('/bookings/:id', authenticatePartner, async (req, res) => {
-  const { id } = req.params;
   const partnerName = req.partner.name;
 
-
+  const resolved = await resolveBookingIdAndTable(req.params.id);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+  const { id, isV2 } = resolved;
 
   try {
-    const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Booking not found' });
+    if (isV2) {
+      const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'Booking not found' });
+      }
+
+      const order = rows[0];
+
+      // Parse address JSON
+      let addr = {};
+      try { addr = typeof order.address === 'string' ? JSON.parse(order.address) : (order.address || {}); } catch (e) {}
+
+      // Parse payment JSON
+      let paymentInfo = {};
+      try { paymentInfo = typeof order.payment === 'string' ? JSON.parse(order.payment) : (order.payment || {}); } catch (e) {}
+
+      // Check authorization
+      const isUnassigned = !order.partnerName || order.partnerName === '';
+      if ((order.partnerName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
+        return res.status(403).json({ error: 'You do not have access to view this booking' });
+      }
+
+      const statusLower = (order.status || '').toLowerCase();
+      let appStatus = 'accepted';
+      if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
+      else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
+      else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
+      else if (statusLower === 'assigned') appStatus = 'accepted';
+      else if (statusLower === 'pending' || statusLower === 'searching') appStatus = 'pending';
+
+      return res.json({
+        id: parseInt(order.id),
+        status: appStatus,
+        service: order.serviceName,
+        date: order.date,
+        time: order.timeSlot,
+        serviceAmount: order.price,
+        serviceRequestNumber: order.id.toString(),
+        address: addr.houseNo ? `${addr.houseNo}, ${addr.society || ''}, ${addr.locality || ''}, ${addr.city || ''}`.trim() : (order.address || ''),
+        city: addr.city || '',
+        locality: addr.locality || '',
+        paymentMethod: paymentInfo.paymentMethod || 'Online',
+        customerName: addr.name || 'Customer',
+        customerPhone: order.userPhone || '',
+        createdAt: order.createdAt,
+        source: 'app'
+      });
+    } else {
+      const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'Booking not found' });
+      }
+
+      const order = rows[0];
+
+      // Check authorization
+      const isUnassigned = !order.vendorName || order.vendorName === '-' || order.vendorName === '';
+      if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
+        return res.status(403).json({ error: 'You do not have access to view this booking' });
+      }
+
+      const statusLower = (order.status || '').toLowerCase();
+      let appStatus = 'accepted';
+      if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
+      else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
+      else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
+      else if (statusLower === 'assigned') appStatus = 'accepted';
+      else if (statusLower === 'pending') appStatus = 'pending';
+
+      return res.json({
+        id: parseInt(order.id),
+        status: appStatus,
+        service: order.serviceName,
+        date: order.serviceDate,
+        time: order.slotTime,
+        serviceAmount: parseFloat(order.serviceAmount || 0),
+        serviceRequestNumber: order.serviceRequestNumber || order.id.toString(),
+        address: order.address || '',
+        city: order.city || '',
+        locality: order.locality || '',
+        paymentMethod: order.paymentMethod || 'UPI',
+        customerName: 'Customer',
+        customerPhone: '',
+        createdAt: order.createdAt,
+        source: 'admin'
+      });
     }
-
-    const order = rows[0];
-
-    // Parse address JSON
-    let addr = {};
-    try { addr = typeof order.address === 'string' ? JSON.parse(order.address) : (order.address || {}); } catch (e) {}
-
-    // Parse payment JSON
-    let paymentInfo = {};
-    try { paymentInfo = typeof order.payment === 'string' ? JSON.parse(order.payment) : (order.payment || {}); } catch (e) {}
-
-    // Check authorization: it must be assigned to this partner, or be pending/unassigned
-    const isUnassigned = !order.partnerName || order.partnerName === '';
-    if ((order.partnerName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
-      return res.status(403).json({ error: 'You do not have access to view this booking' });
-    }
-
-    // Map database status to mobile app status
-    const statusLower = (order.status || '').toLowerCase();
-    let appStatus = 'accepted';
-    if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
-    else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
-    else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
-    else if (statusLower === 'assigned') appStatus = 'accepted';
-    else if (statusLower === 'pending' || statusLower === 'searching') appStatus = 'pending';
-
-    const mapped = {
-      id: order.id.toString(),
-      status: appStatus,
-      service: order.serviceName,
-      date: order.date,
-      time: order.timeSlot,
-      serviceAmount: order.price,
-      serviceRequestNumber: order.id.toString(),
-      address: addr.houseNo ? `${addr.houseNo}, ${addr.society || ''}, ${addr.locality || ''}, ${addr.city || ''}`.trim() : (order.address || ''),
-      city: addr.city || '',
-      locality: addr.locality || '',
-      paymentMethod: paymentInfo.paymentMethod || 'Online',
-      customerName: addr.name || 'Customer',
-      customerPhone: order.userPhone || '',
-      createdAt: order.createdAt
-    };
-
-    res.json(mapped);
   } catch (error) {
     console.error('Error fetching booking details:', error);
     res.status(500).json({ error: 'Failed to retrieve booking details: ' + error.message });
@@ -1843,7 +1937,6 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
 // -------------------------------------------------------------
 // PUT /api/bookings/:id/status - Update booking status and dynamically increment partner earnings
 router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
-  const { id } = req.params;
   const { status } = req.body;
   const partnerName = req.partner.name;
   const partnerId = req.partner.id;
@@ -1851,8 +1944,6 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
   if (!status) {
     return res.status(400).json({ error: 'status is required' });
   }
-
-
 
   // Map lowercase app status to database status
   let dbStatus = '';
@@ -1865,21 +1956,29 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
     return res.status(400).json({ error: 'Invalid status. Allowed values: accepted, upcoming, in_progress, completed, cancel' });
   }
 
+  const resolved = await resolveBookingIdAndTable(req.params.id);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  const { id, isV2 } = resolved;
+
   try {
-    const [orders] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+    const tableName = isV2 ? 'orders_v2' : 'orders';
+    const [orders] = await db.query(`SELECT * FROM ${tableName} WHERE id = ?`, [id]);
     if (orders.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     const order = orders[0];
-    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
+    const vendorNameField = isV2 ? order.partnerName : order.vendorName;
+    if ((vendorNameField || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(403).json({ error: 'You are not authorized to update this booking' });
     }
 
     const oldStatus = order.status;
 
     // Update status of order
-    await db.query('UPDATE orders SET status = ? WHERE id = ?', [dbStatus, id]);
+    await db.query(`UPDATE ${tableName} SET status = ? WHERE id = ?`, [dbStatus, id]);
 
     // Handle completed transition
     if (dbStatus === 'Completed' && oldStatus !== 'Completed') {
@@ -2350,7 +2449,6 @@ router.get('/metadata/categories', async (req, res) => {
 
 // POST /api/bookings/:id/start - Start booking service (sets status to 'In Progress')
 router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
-  const { id } = req.params;
   const partnerName = req.partner.name;
 
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
@@ -2361,14 +2459,22 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
     return res.status(400).json({ error: 'Please go online to start this service' });
   }
 
+  const resolved = await resolveBookingIdAndTable(req.params.id);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  const { id, isV2 } = resolved;
+
   try {
-    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+    const tableName = isV2 ? 'orders_v2' : 'orders';
+    const [rows] = await db.query(`SELECT * FROM ${tableName} WHERE id = ?`, [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     const order = rows[0];
-    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
+    const vendorNameField = isV2 ? order.partnerName : order.vendorName;
+    if ((vendorNameField || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
@@ -2377,7 +2483,7 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
     }
 
     await db.query(
-      "UPDATE orders SET status = 'In Progress' WHERE id = ?",
+      `UPDATE ${tableName} SET status = 'In Progress' WHERE id = ?`,
       [id]
     );
 
@@ -2427,7 +2533,6 @@ router.post('/bookings/send-complete-otp', async (req, res) => {
 
 // POST /api/bookings/:id/complete - Complete booking service (calculates earnings and updates stats)
 router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
-  const { id } = req.params;
   const partnerId = req.partner.id;
   const partnerName = req.partner.name;
   const { paymentMethod, otp, customerPhone } = req.body;
@@ -2436,16 +2541,22 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
   }
 
-
+  const resolved = await resolveBookingIdAndTable(req.params.id);
+  if (!resolved) {
+    return res.status(404).json({ error: 'Order not found' });
+  }
+  const { id, isV2 } = resolved;
 
   try {
-    const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+    const tableName = isV2 ? 'orders_v2' : 'orders';
+    const [rows] = await db.query(`SELECT * FROM ${tableName} WHERE id = ?`, [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
     const order = rows[0];
-    if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
+    const vendorNameField = isV2 ? order.partnerName : order.vendorName;
+    if ((vendorNameField || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
@@ -2481,24 +2592,31 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
     }
 
     // Get payment method from request body, default to UPI
-    const paymentMethod = req.body.paymentMethod || 'UPI';
-    const isCash = paymentMethod.toLowerCase() === 'cash';
+    const finalPaymentMethod = paymentMethod || 'UPI';
+    const isCash = finalPaymentMethod.toLowerCase() === 'cash';
 
     // Commission rate is 25% for all payments (Cash and UPI) as requested
     const commissionRate = 25;
 
-    const serviceAmount = parseFloat(order.serviceAmount);
+    const serviceAmount = parseFloat(isV2 ? order.price : order.serviceAmount);
     const commissionAmount = (serviceAmount * commissionRate) / 100;
     const partnerShare = serviceAmount - commissionAmount;
 
     // Begin transaction to update Order status and Partner wallet/earnings
     await db.query('START TRANSACTION');
 
-    // Update order status to Completed and save paymentMethod
-    await db.query(
-      "UPDATE orders SET status = 'Completed', paymentMethod = ? WHERE id = ?",
-      [paymentMethod, id]
-    );
+    // Update order status to Completed
+    if (isV2) {
+      await db.query(
+        "UPDATE orders_v2 SET status = 'Completed' WHERE id = ?",
+        [id]
+      );
+    } else {
+      await db.query(
+        "UPDATE orders SET status = 'Completed', paymentMethod = ? WHERE id = ?",
+        [finalPaymentMethod, id]
+      );
+    }
 
     // Update partner details:
     // If Cash: walletBalance increases by 0, payToCompany increases by commissionAmount
@@ -2523,7 +2641,7 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
       `INSERT INTO booking_earnings 
        (transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
        VALUES (?, ?, ?, 0.00, '-', ?, ?)`,
-      [txnId, serviceAmount, paymentMethod, serviceAmount, todayStr]
+      [txnId, serviceAmount, finalPaymentMethod, serviceAmount, todayStr]
     );
 
     await db.query('COMMIT');
