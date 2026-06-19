@@ -1773,7 +1773,7 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
       return res.json({
         message: 'New order available!',
         order: {
-          id: pending.id,
+          id: parseInt(pending.id),
           serviceRequestNumber: pending.serviceRequestNumber,
           serviceName: pending.service,
           serviceAmount: parseFloat(pending.serviceAmount),
@@ -1812,7 +1812,7 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
     res.json({
       message: 'New order available!',
       order: {
-        id: rows[0].id.toString(),
+        id: parseInt(rows[0].id),
         serviceRequestNumber: rows[0].serviceRequestNumber,
         serviceName: rows[0].serviceName,
         serviceAmount: parseFloat(rows[0].serviceAmount),
