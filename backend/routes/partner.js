@@ -134,7 +134,7 @@ function resolveDocUrl(url, req, type = 'document') {
 function mapPartnerForApp(r, req) {
   if (!r) return null;
   return {
-    id: r.id,
+    id: parseInt(r.id),
     name: r.name || '',
     phone: r.mobile || '', // Mapping mobile -> phone for Flutter app
     email: r.email || '',
@@ -2792,7 +2792,7 @@ const checkApprovalStatus = async (req, res) => {
 
     res.json({
       success: true,
-      id: partner.id,
+      id: parseInt(partner.id),
       name: partner.name,
       mobile: partner.mobile,
       email: partner.email,
@@ -2967,7 +2967,10 @@ const updatePartnerLocation = async (req, res) => {
     return res.json({
       success: true,
       message: 'Location updated successfully',
-      data: rows[0]
+      data: {
+        ...rows[0],
+        id: parseInt(rows[0].id)
+      }
     });
 
   } catch (error) {
@@ -3048,7 +3051,7 @@ const getPartnerLocation = async (req, res) => {
     const partner = rows[0];
     return res.json({
       success: true,
-      id: partner.id,
+      id: parseInt(partner.id),
       name: partner.name,
       mobile: partner.mobile,
       email: partner.email,
