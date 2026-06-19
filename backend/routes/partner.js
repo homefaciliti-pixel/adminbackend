@@ -1456,127 +1456,113 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
   const partnerName = req.partner.name;
   const filterStatus = req.query.status;
 
-  // RULE: Dashboard shows BLANK (empty array) until partner has paid AND is approved by the admin
+  // RULE: Dashboard shows BLANK until partner has paid AND is approved
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.json([]);
   }
 
   const partnerLat = parseFloat(req.partner.latitude);
   const partnerLon = parseFloat(req.partner.longitude);
-  const hasPartnerCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
-  const RADIUS_KM = 10; // Show nearby pending orders within 10 km
+  const hasCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
+  const RADIUS_KM = 10;
 
-  // Haversine distance helper
-  function distKm(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  function distKm(la1, lo1, la2, lo2) {
+    const R = 6371, dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
+    const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   }
 
-  // Parse address JSON to get lat/lon/city/locality
-  function parseAddress(order) {
-    try {
-      return typeof order.address === 'string' ? JSON.parse(order.address) : (order.address || {});
-    } catch (e) {
-      return {};
-    }
+  // Parse JSON address from orders_v2
+  function parseAddrV2(o) {
+    try { return typeof o.address === 'string' ? JSON.parse(o.address) : (o.address||{}); }
+    catch(e) { return {}; }
   }
 
-  // Check if order is within radius of partner
-  function isNearby(order) {
-    const addr = parseAddress(order);
-    const oLat = parseFloat(addr.latitude);
-    const oLon = parseFloat(addr.longitude);
-    if (hasPartnerCoords && !isNaN(oLat) && !isNaN(oLon)) {
-      return distKm(partnerLat, partnerLon, oLat, oLon) <= RADIUS_KM;
-    }
-    // Fallback: city match
-    const orderCity = (addr.city || '').toLowerCase();
-    const partCity = (req.partner.city || '').toLowerCase();
-    return orderCity.includes(partCity) || partCity.includes(orderCity);
+  // GPS/city proximity check for orders_v2
+  function nearbyV2(o) {
+    const a = parseAddrV2(o);
+    const oLa = parseFloat(a.latitude), oLo = parseFloat(a.longitude);
+    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) return distKm(partnerLat,partnerLon,oLa,oLo)<=RADIUS_KM;
+    return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+           ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
   }
 
-  // Map node_orders_v2 row to app response format
-  function mapOrder(order) {
-    const addr = parseAddress(order);
-    const statusLower = (order.status || '').toLowerCase();
-    let appStatus = 'accepted';
-    if (statusLower === 'completed' || statusLower === 'complete') appStatus = 'completed';
-    else if (statusLower === 'cancelled' || statusLower === 'rejected') appStatus = 'cancel';
-    else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
-    else if (statusLower === 'assigned') appStatus = 'accepted';
-    else if (statusLower === 'pending' || statusLower === 'searching') appStatus = 'pending';
+  // GPS/city proximity check for admin orders
+  function nearbyAdmin(o) {
+    const oLa = parseFloat(o.latitude), oLo = parseFloat(o.longitude);
+    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) return distKm(partnerLat,partnerLon,oLa,oLo)<=RADIUS_KM;
+    return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+           ((req.partner.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
+  }
 
+  // Map orders_v2 row to unified response
+  function mapV2(o) {
+    const a = parseAddrV2(o);
+    const s = (o.status||'').toLowerCase();
+    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
     return {
-      id: order.id.toString(),
-      status: appStatus,
-      service: order.serviceName,
-      date: order.date,
-      time: order.timeSlot,
-      serviceAmount: order.price,
-      serviceRequestNumber: order.id.toString(),
-      address: addr.houseNo ? `${addr.houseNo}, ${addr.society || ''}, ${addr.locality || ''}, ${addr.city || ''}`.trim() : (order.address || ''),
-      city: addr.city || '',
-      locality: addr.locality || '',
-      customerName: addr.name || 'Customer',
-      customerPhone: order.userPhone || ''
+      id: 'v2_'+o.id, status: st, service: o.serviceName, date: o.date, time: o.timeSlot,
+      serviceAmount: o.price, serviceRequestNumber: o.id.toString(),
+      address: a.houseNo ? `${a.houseNo}, ${a.society||''}, ${a.locality||''}, ${a.city||''}`.replace(/,\s*,/g,',').trim() : (o.address||''),
+      city: a.city||'', locality: a.locality||'', customerName: a.name||'Customer', customerPhone: o.userPhone||'', source:'app'
+    };
+  }
+
+  // Map admin orders row to unified response
+  function mapAdmin(o) {
+    const s = (o.status||'').toLowerCase();
+    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
+    return {
+      id: 'admin_'+o.id, status: st, service: o.serviceName, date: o.serviceDate, time: o.slotTime,
+      serviceAmount: parseFloat(o.serviceAmount||0), serviceRequestNumber: o.serviceRequestNumber||o.id.toString(),
+      address: o.address||'', city: o.city||'', locality: o.locality||'', customerName: 'Customer', customerPhone: '', source:'admin'
     };
   }
 
   try {
-    let rows = [];
+    let final = [];
 
-    if (filterStatus) {
-      if (filterStatus === 'upcoming') {
-        // Assigned orders for this partner
-        const [assignedRows] = await db.query(
-          `SELECT * FROM orders_v2 WHERE partnerName = ? AND status = 'Assigned' ORDER BY id DESC`,
-          [partnerName]
-        );
-        // Pending/searching orders nearby
-        const [pendingRows] = await db.query(
-          `SELECT * FROM orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
-        );
-        const nearbyPending = pendingRows.filter(isNearby);
-        rows = [...assignedRows, ...nearbyPending];
+    if (filterStatus === 'upcoming') {
+      const [v2A] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Assigned' ORDER BY id DESC`,[partnerName]);
+      const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
+      const [adA] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='Assigned' ORDER BY id DESC`,[partnerName]);
+      const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
+      final = [...v2A.map(mapV2), ...v2P.filter(nearbyV2).map(mapV2), ...adA.map(mapAdmin), ...adP.filter(nearbyAdmin).map(mapAdmin)];
 
-      } else {
-        let dbStatus = '';
-        if (filterStatus === 'completed') dbStatus = 'Completed';
-        else if (filterStatus === 'cancel') dbStatus = 'Cancelled';
-        else if (filterStatus === 'in_progress') dbStatus = 'In Progress';
+    } else if (filterStatus === 'completed') {
+      const [v2R] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Completed' ORDER BY id DESC`,[partnerName]);
+      const [adR] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='Completed' ORDER BY id DESC`,[partnerName]);
+      final = [...v2R.map(mapV2), ...adR.map(mapAdmin)];
 
-        const [filtered] = await db.query(
-          'SELECT * FROM orders_v2 WHERE partnerName = ? AND status = ? ORDER BY id DESC',
-          [partnerName, dbStatus]
-        );
-        rows = filtered;
-      }
+    } else if (filterStatus === 'cancel') {
+      const [v2R] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Cancelled' ORDER BY id DESC`,[partnerName]);
+      const [adR] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='Cancelled' ORDER BY id DESC`,[partnerName]);
+      final = [...v2R.map(mapV2), ...adR.map(mapAdmin)];
+
+    } else if (filterStatus === 'in_progress') {
+      const [v2R] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='In Progress' ORDER BY id DESC`,[partnerName]);
+      const [adR] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='In Progress' ORDER BY id DESC`,[partnerName]);
+      final = [...v2R.map(mapV2), ...adR.map(mapAdmin)];
+
     } else {
-      // All: assigned to this partner + nearby pending
-      const [assignedRows] = await db.query(
-        `SELECT * FROM orders_v2 WHERE partnerName = ? ORDER BY id DESC`,
-        [partnerName]
-      );
-      const [pendingRows] = await db.query(
-        `SELECT * FROM orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '') ORDER BY id DESC`
-      );
-      const nearbyPending = pendingRows.filter(isNearby);
-
-      // Merge without duplicates
-      const assignedIds = new Set(assignedRows.map(r => r.id));
-      const uniquePending = nearbyPending.filter(r => !assignedIds.has(r.id));
-      rows = [...assignedRows, ...uniquePending];
+      // All: assigned + nearby pending from BOTH tables
+      const [v2A] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? ORDER BY id DESC`,[partnerName]);
+      const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
+      const [adA] = await db.query(`SELECT * FROM orders WHERE vendorName=? ORDER BY id DESC`,[partnerName]);
+      const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
+      const v2Ids = new Set(v2A.map(r=>r.id));
+      const adIds = new Set(adA.map(r=>r.id));
+      final = [
+        ...v2A.map(mapV2),
+        ...v2P.filter(r=>!v2Ids.has(r.id)&&nearbyV2(r)).map(mapV2),
+        ...adA.map(mapAdmin),
+        ...adP.filter(r=>!adIds.has(r.id)&&nearbyAdmin(r)).map(mapAdmin)
+      ];
     }
 
-    // Sort by id DESC
-    rows.sort((a, b) => b.id - a.id);
-
-    res.json(rows.map(mapOrder));
+    // Sort newest first
+    final.sort((a,b)=>parseInt(String(b.id).split('_').pop())-parseInt(String(a.id).split('_').pop()));
+    res.json(final);
   } catch (error) {
     console.error('Error fetching partner bookings:', error);
     res.status(500).json([]);
