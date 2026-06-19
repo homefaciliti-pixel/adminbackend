@@ -2,6 +2,20 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// Helper to calculate distance in km using Haversine formula
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    ;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // Helper to resolve partner name by phone number
 async function resolveVendorName(vendorName, vendorPhone, phone, mobile) {
   let targetPhone = vendorPhone || phone || mobile;
@@ -79,7 +93,12 @@ router.post('/', async (req, res) => {
     status, 
     vendorName, 
     address, 
-    createdAt 
+    createdAt,
+    latitude,
+    longitude,
+    lat,
+    lon,
+    lng
   } = req.body;
 
   if (!serviceRequestNumber || !serviceName || serviceAmount === undefined || !slotTime || !serviceDate || !city || !locality || !status || !address) {
@@ -88,15 +107,84 @@ router.post('/', async (req, res) => {
 
   const amt = parseFloat(serviceAmount);
   const rawVendorName = vendorName || '-';
-  const dbVendorName = rawVendorName === '-' ? null : rawVendorName;
+  let dbVendorName = rawVendorName === '-' ? null : rawVendorName;
+  let dbVendorMobile = req.body.vendorMobile || req.body.vendorPhone || null;
+  let assignedStatus = status;
+
+  const orderLat = parseFloat(latitude || lat);
+  const orderLon = parseFloat(longitude || lon || lng);
+  const hasCoordinates = !isNaN(orderLat) && !isNaN(orderLon);
+
   const cTime = createdAt || new Date().toLocaleString();
 
   try {
+    if (hasCoordinates && !dbVendorName) {
+      // Find eligible active partners
+      const [partners] = await db.query(
+        'SELECT id, name, mobile, services, category, latitude, longitude FROM partners WHERE status = 1 AND isApproved = 1 AND isPaid = 1'
+      );
+      
+      const orderService = serviceName.toLowerCase().trim();
+      const eligiblePartners = [];
+
+      for (const partner of partners) {
+        const partnerServices = (partner.services || '').toLowerCase().split(',').map(s => s.trim());
+        const partnerCategory = (partner.category || '').toLowerCase().trim();
+        const isQualified = partnerServices.includes(orderService) || 
+                            partnerCategory === orderService || 
+                            orderService.includes(partnerCategory) || 
+                            partnerCategory.includes(orderService);
+
+        if (isQualified && partner.latitude && partner.longitude) {
+          const partnerLat = parseFloat(partner.latitude);
+          const partnerLon = parseFloat(partner.longitude);
+          if (!isNaN(partnerLat) && !isNaN(partnerLon)) {
+            const distance = getDistance(orderLat, orderLon, partnerLat, partnerLon);
+            eligiblePartners.push({ partner, distance });
+          }
+        }
+      }
+
+      if (eligiblePartners.length > 0) {
+        // Look within 5 km first
+        let matches = eligiblePartners.filter(p => p.distance <= 5);
+        if (matches.length === 0) {
+          // Fallback to 10 km
+          matches = eligiblePartners.filter(p => p.distance <= 10);
+        }
+
+        if (matches.length > 0) {
+          // Sort by distance ascending
+          matches.sort((a, b) => a.distance - b.distance);
+          const assignedPartner = matches[0].partner;
+          dbVendorName = assignedPartner.name;
+          dbVendorMobile = assignedPartner.mobile;
+          assignedStatus = 'Assigned';
+          console.log(`[Auto-Assign] Order ${serviceRequestNumber} auto-assigned to ${dbVendorName} (${dbVendorMobile}) at distance ${matches[0].distance.toFixed(2)} km.`);
+        }
+      }
+    }
+
     const [result] = await db.query(
       `INSERT INTO orders 
-      (serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, address, createdAt) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [serviceRequestNumber, serviceName, amt, slotTime, serviceDate, city, locality, status, dbVendorName, address, cTime]
+      (serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, vendorMobile, address, createdAt, latitude, longitude) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        serviceRequestNumber, 
+        serviceName, 
+        amt, 
+        slotTime, 
+        serviceDate, 
+        city, 
+        locality, 
+        assignedStatus, 
+        dbVendorName, 
+        dbVendorMobile, 
+        address, 
+        cTime,
+        hasCoordinates ? orderLat.toString() : null,
+        hasCoordinates ? orderLon.toString() : null
+      ]
     );
 
     res.status(201).json({
@@ -111,10 +199,13 @@ router.post('/', async (req, res) => {
         serviceDate,
         city,
         locality,
-        status,
-        vendorName: rawVendorName,
+        status: assignedStatus,
+        vendorName: dbVendorName || '-',
+        vendorMobile: dbVendorMobile,
         address,
-        createdAt: cTime
+        createdAt: cTime,
+        latitude: hasCoordinates ? orderLat.toString() : null,
+        longitude: hasCoordinates ? orderLon.toString() : null
       }
     });
   } catch (error) {
