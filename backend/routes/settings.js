@@ -1,6 +1,68 @@
 const express = require('express');
-const router = express.Router();
+const router = require('express').Router();
 const db = require('../db');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { Jimp } = require('jimp');
+
+// Multer setup for banner image uploads
+const bannerStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads/banners');
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const unique = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
+    cb(null, unique);
+  }
+});
+const uploadBanner = multer({ storage: bannerStorage });
+
+async function cropToBannerRatio(filePath) {
+  try {
+    const image = await Jimp.read(filePath);
+    const width = image.bitmap.width;
+    const height = image.bitmap.height;
+    
+    let targetWidth = width;
+    let targetHeight = Math.round(width * 370 / 1000);
+    
+    if (targetHeight > height) {
+      targetHeight = height;
+      targetWidth = Math.round(height * 1000 / 370);
+    }
+    
+    const x = Math.round((width - targetWidth) / 2);
+    const y = Math.round((height - targetHeight) / 2);
+    
+    await image.crop({ x, y, w: targetWidth, h: targetHeight });
+    await image.write(filePath);
+    console.log(`Cropped image to banner aspect ratio (1000:370): ${targetWidth}x${targetHeight}`);
+  } catch (err) {
+    console.error('Failed to crop image to banner aspect ratio:', err);
+  }
+}
+
+async function handleBannerUpload(file) {
+  if (!file) return;
+  try {
+    // 1. Crop to banner aspect ratio (1000:370)
+    await cropToBannerRatio(file.path);
+    
+    // 2. Copy to uploads folder
+    const destDir = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    const destPath = path.join(destDir, file.filename);
+    fs.copyFileSync(file.path, destPath);
+    console.log(`Synced cropped banner image to ${destPath}`);
+  } catch (err) {
+    console.error('Failed to handle banner upload:', err);
+  }
+}
 
 // ==========================================
 // 1. BANNERS API
@@ -27,44 +89,100 @@ router.get('/banners', async (req, res) => {
   }
 });
 
-// POST add banner
-router.post('/banners', async (req, res) => {
-  const { title, image, status } = req.body;
-  if (!title || !image) {
-    return res.status(400).json({ success: false, message: 'Title and Image are required' });
+// POST add banner (multipart + JSON both supported)
+router.post('/banners', uploadBanner.single('image'), async (req, res) => {
+  const { title, status, category, badge, subtitle, buttonText } = req.body;
+  if (!title) {
+    return res.status(400).json({ success: false, message: 'Title is required' });
   }
   const statusInt = status === true || status === 1 || status === 'true' ? 1 : 0;
+
+  let imageValue = req.body.image || '';
+  if (req.file) {
+    imageValue = req.file.filename;
+    await handleBannerUpload(req.file);
+  }
+
+  if (!imageValue) {
+    return res.status(400).json({ success: false, message: 'Image is required' });
+  }
+
   try {
     const [result] = await db.query(
-      'INSERT INTO banners (title, image, status) VALUES (?, ?, ?)',
-      [title, image, statusInt]
+      'INSERT INTO banners (title, image, status, category, badge, subtitle, buttonText) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [title.trim(), imageValue, statusInt, category || '', badge || '', subtitle || '', buttonText || 'Book Now']
     );
     res.status(201).json({
       success: true,
-      data: { id: result.insertId, title, image, status: statusInt === 1 }
+      data: { id: result.insertId, title, image: imageValue, status: statusInt === 1, category: category || '', badge: badge || '', subtitle: subtitle || '', buttonText: buttonText || 'Book Now' }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to create banner', error: error.message });
   }
 });
 
-// PUT update banner
-router.put('/banners/:id', async (req, res) => {
+// PUT update banner (multipart + JSON both supported)
+router.put('/banners/:id', uploadBanner.single('image'), async (req, res) => {
   const { id } = req.params;
-  const { title, image, status } = req.body;
+  const { title, status, category, badge, subtitle, buttonText } = req.body;
   try {
     const fields = [];
     const values = [];
-    if (title !== undefined) { fields.push('`title` = ?'); values.push(title); }
-    if (image !== undefined) { fields.push('`image` = ?'); values.push(image); }
+
+    if (title !== undefined && title !== '') { fields.push('`title` = ?'); values.push(title.trim()); }
     if (status !== undefined) { fields.push('`status` = ?'); values.push(status === true || status === 1 || status === 'true' ? 1 : 0); }
-    
-    if (fields.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
+    if (category !== undefined) { fields.push('`category` = ?'); values.push(category); }
+    if (badge !== undefined) { fields.push('`badge` = ?'); values.push(badge); }
+    if (subtitle !== undefined) { fields.push('`subtitle` = ?'); values.push(subtitle); }
+    if (buttonText !== undefined) { fields.push('`buttonText` = ?'); values.push(buttonText); }
+
+    if (req.file) {
+      fields.push('`image` = ?');
+      values.push(req.file.filename);
+      await handleBannerUpload(req.file);
+    } else if (req.body.image !== undefined && req.body.image !== '') {
+      fields.push('`image` = ?');
+      values.push(req.body.image);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update. Please provide at least one field.' });
+    }
+
     values.push(id);
-    
     const [result] = await db.query(`UPDATE banners SET ${fields.join(', ')} WHERE id = ?`, values);
     if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Banner not found' });
-    
+
+    const [rows] = await db.query('SELECT * FROM banners WHERE id = ?', [id]);
+    res.json({ success: true, data: { ...rows[0], status: rows[0].status === 1 } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to update banner', error: error.message });
+  }
+});
+
+// PATCH partial update / status toggle banner
+router.patch('/banners/:id', async (req, res) => {
+  const { id } = req.params;
+  const { title, status, category, badge, subtitle, buttonText } = req.body;
+  try {
+    const fields = [];
+    const values = [];
+
+    if (title !== undefined && title !== '') { fields.push('`title` = ?'); values.push(title.trim()); }
+    if (status !== undefined) { fields.push('`status` = ?'); values.push(status === true || status === 1 || status === 'true' ? 1 : 0); }
+    if (category !== undefined) { fields.push('`category` = ?'); values.push(category); }
+    if (badge !== undefined) { fields.push('`badge` = ?'); values.push(badge); }
+    if (subtitle !== undefined) { fields.push('`subtitle` = ?'); values.push(subtitle); }
+    if (buttonText !== undefined) { fields.push('`buttonText` = ?'); values.push(buttonText); }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update' });
+    }
+
+    values.push(id);
+    const [result] = await db.query(`UPDATE banners SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Banner not found' });
+
     const [rows] = await db.query('SELECT * FROM banners WHERE id = ?', [id]);
     res.json({ success: true, data: { ...rows[0], status: rows[0].status === 1 } });
   } catch (error) {
