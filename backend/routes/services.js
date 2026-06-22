@@ -60,7 +60,7 @@ router.get('/', async (req, res) => {
 
 // POST create service
 router.post('/', async (req, res) => {
-  const { title, price, image, description, status, rating, time, isHighlighted, discount } = req.body;
+  const { title, price, image, description, status, rating, time, isHighlighted, discount, highlights } = req.body;
   const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
 
   if (!title || price === undefined || !description) {
@@ -102,10 +102,15 @@ router.post('/', async (req, res) => {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
 
+  let highlightsStr = '[]';
+  if (highlights !== undefined && highlights !== null) {
+    highlightsStr = typeof highlights === 'string' ? highlights : JSON.stringify(highlights);
+  }
+
   try {
-    let query = 'INSERT INTO services (title, slug, price, image, description, status, isHighlighted, discount';
-    const params = [title, slug, priceFloat, imageVal, description, statusInt, highlightedStr, discountVal];
-    let placeholders = '?, ?, ?, ?, ?, ?, ?, ?';
+    let query = 'INSERT INTO services (title, slug, price, image, description, status, isHighlighted, discount, highlights';
+    const params = [title, slug, priceFloat, imageVal, description, statusInt, highlightedStr, discountVal, highlightsStr];
+    let placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?';
 
     if (dbCategoryId !== null) {
       query += ', category_id';
@@ -158,6 +163,7 @@ router.put('/:id', async (req, res) => {
   const highlightedVal = req.body.isHighlighted !== undefined ? req.body.isHighlighted : req.body.is_highlighted;
   const discountVal = req.body.discount;
   const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
+  const highlightsVal = req.body.highlights;
 
   try {
     const [existingRows] = await db.query('SELECT * FROM services WHERE id = ?', [id]);
@@ -243,6 +249,10 @@ router.put('/:id', async (req, res) => {
     if (highlightedVal !== undefined) {
       fields.push('`isHighlighted` = ?');
       values.push(highlightedVal === null ? null : String(highlightedVal));
+    }
+    if (highlightsVal !== undefined) {
+      fields.push('`highlights` = ?');
+      values.push(highlightsVal === null ? '[]' : (typeof highlightsVal === 'string' ? highlightsVal : JSON.stringify(highlightsVal)));
     }
 
     if (fields.length === 0) {
