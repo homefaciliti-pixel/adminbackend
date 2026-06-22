@@ -632,6 +632,52 @@ router.post('/auth/logout', (req, res) => {
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
+// DELETE /api/auth/delete-account - Delete partner account by phone number
+router.delete('/auth/delete-account', async (req, res) => {
+  const { phone, reason } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({ error: 'Phone number is required' });
+  }
+
+  const cleanPhone = phone.replace(/\D/g, '');
+  if (cleanPhone.length !== 10) {
+    return res.status(400).json({ error: 'Please enter a valid 10-digit phone number' });
+  }
+
+  try {
+    const [rows] = await db.query('SELECT id, name FROM partners WHERE mobile = ?', [cleanPhone]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No partner account found with this phone number' });
+    }
+
+    const partner = rows[0];
+
+    // Log deletion reason if provided
+    if (reason && reason.trim()) {
+      console.log(`[Account Deletion] Partner ID: ${partner.id}, Name: ${partner.name}, Phone: ${cleanPhone}, Reason: ${reason.trim()}`);
+    } else {
+      console.log(`[Account Deletion] Partner ID: ${partner.id}, Name: ${partner.name}, Phone: ${cleanPhone}, Reason: Not provided`);
+    }
+
+    // Delete partner from database
+    await db.query('DELETE FROM partners WHERE mobile = ?', [cleanPhone]);
+
+    return res.json({
+      success: true,
+      message: 'Account deleted successfully',
+      deletedPartner: {
+        id: partner.id,
+        name: partner.name,
+        phone: cleanPhone
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting partner account:', error);
+    res.status(500).json({ error: 'Failed to delete account: ' + error.message });
+  }
+});
+
 // Helper to format phone number to include 91 prefix (required by SMS Gateway Hub)
 function formatPhoneForSMS(phone) {
   let clean = phone.replace(/\D/g, '');

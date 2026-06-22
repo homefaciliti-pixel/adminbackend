@@ -126,7 +126,37 @@ Response Example (Status 200 OK):
   "message": "Logged out successfully"
 }
 
-1.5 SEND OTP
+1.5 DELETE ACCOUNT
+------------------
+Endpoint: DELETE /api/auth/delete-account
+Request Format: application/json
+Description: Permanently deletes the partner account associated with the given phone number.
+             Phone number is required. Reason is optional.
+
+Request Body:
+{
+  "phone": "9911223344",     (Required)
+  "reason": "Not using anymore"  (Optional - can be omitted)
+}
+
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Account deleted successfully",
+  "deletedPartner": {
+    "id": 12,
+    "name": "Amit Kumar",
+    "phone": "9911223344"
+  }
+}
+
+Error Responses:
+- 400 Bad Request: { "error": "Phone number is required" }
+- 400 Bad Request: { "error": "Please enter a valid 10-digit phone number" }
+- 404 Not Found:   { "error": "No partner account found with this phone number" }
+- 500 Server Error: { "error": "Failed to delete account: ..." }
+
+1.6 SEND OTP
 ------------
 Endpoint: POST /api/auth/send-otp
 Request Format: application/json
