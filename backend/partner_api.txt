@@ -903,6 +903,55 @@ Response Example (Status 200 OK):
   }
 }
 
+----------------------------------------------------------------------
+11. BANNERS API (PARTNER & GLOBAL)
+----------------------------------------------------------------------
 
+11.1 GET ALL BANNERS
+-------------------
+Endpoint: GET /api/settings/banners
+Description: Retrieves a list of all banners in the system.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "data": [
+    {
+      "id": 29,
+      "title": "Save Video Banner",
+      "image": "save.mp4",
+      "status": true,
+      "category": "",
+      "badge": "",
+      "subtitle": "",
+      "buttonText": "Watch Video"
+    }
+  ]
+}
 
-
+11.2 UPLOAD/ADD NEW BANNER
+-------------------------
+Endpoint: POST /api/settings/banners
+Request Format: multipart/form-data
+Description: Adds a new banner with an image/video file.
+Request Fields:
+- title (String, Required) - e.g., "Save Video Banner"
+- status (Boolean/String, Optional) - "true" or 1
+- image (File, Required) - The banner image or video file
+- category (String, Optional)
+- badge (String, Optional)
+- subtitle (String, Optional)
+- buttonText (String, Optional)
+Response Example (Status 201 Created):
+{
+  "success": true,
+  "data": {
+    "id": 29,
+    "title": "Save Video Banner",
+    "image": "save.mp4",
+    "status": true,
+    "category": "",
+    "badge": "",
+    "subtitle": "",
+    "buttonText": "Watch Video"
+  }
+}

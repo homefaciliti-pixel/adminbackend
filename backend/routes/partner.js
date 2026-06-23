@@ -1714,30 +1714,33 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
   const partnerLocality = req.partner.locality;
 
   try {
-    const [assignedRows] = await db.query('SELECT status FROM orders_v2 WHERE partnerName = ?', [partnerName]);
-    const [pendingRows] = await db.query(
-      `SELECT status FROM orders_v2 WHERE (status = 'Pending' OR bookingStatus = 'searching') AND (partnerName IS NULL OR partnerName = '')`
-    );
+    const [assignedRowsV2] = await db.query('SELECT status FROM orders_v2 WHERE partnerName = ?', [partnerName]);
+    const [assignedRowsAdmin] = await db.query('SELECT status FROM orders WHERE vendorName = ?', [partnerName]);
 
-    const total = assignedRows.length;
-    const upcoming = assignedRows.filter(o => (o.status || '').toLowerCase() === 'assigned').length;
+    const allAssigned = [
+      ...assignedRowsV2.map(o => ({ status: o.status })),
+      ...assignedRowsAdmin.map(o => ({ status: o.status }))
+    ];
+
+    const total = allAssigned.length;
+    const upcoming = allAssigned.filter(o => (o.status || '').toLowerCase() === 'assigned').length;
     
-    const accepted = assignedRows.filter(o => {
+    const accepted = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'assigned' || statusLower === 'in progress' || statusLower === 'in_progress';
     }).length;
 
-    const inProgress = assignedRows.filter(o => {
+    const inProgress = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'in progress' || statusLower === 'in_progress';
     }).length;
 
-    const completed = assignedRows.filter(o => {
+    const completed = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'completed' || statusLower === 'complete';
     }).length;
 
-    const cancel = assignedRows.filter(o => {
+    const cancel = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'cancelled' || statusLower === 'rejected';
     }).length;
@@ -2803,7 +2806,13 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
   let banners = [];
   try {
     const [bannersRes] = await db.query('SELECT image FROM banners WHERE status = 1');
-    banners = bannersRes.map(b => b.image);
+    banners = bannersRes.map(b => {
+      if (!b.image) return '';
+      if (b.image.startsWith('http://') || b.image.startsWith('https://')) {
+        return b.image;
+      }
+      return `${req.protocol}://${req.get('host')}/uploads/banners/${b.image}`;
+    }).filter(Boolean);
   } catch (err) {
     console.error('Error fetching banners:', err);
   }
