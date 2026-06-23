@@ -262,9 +262,9 @@ Description: Fetches full details of a single booking by ID.
 
 Field Types:
   - id                   -> String  (e.g., "181")
-  - serviceAmount        -> String, 2 decimal places (e.g., "399.00")
+  - serviceAmount        -> Float (e.g., 399.00)
   - serviceRequestNumber -> String, "REQ-YYYY-XXXX" format (e.g., "REQ-2026-0181")
-  - createdAt            -> String, "DD-MM-YYYY HH:MM" format (e.g., "19-06-2026 14:36")
+  - createdAt            -> String, "DD-MM-YYYY HH:MM AM/PM" format (e.g., "19-06-2026 02:36 PM")
   - latitude/longitude   -> Number or null
 
 Response Example (Status 200 OK):
@@ -274,7 +274,7 @@ Response Example (Status 200 OK):
   "service": "Tap / Faucet Repair & Replacement",
   "date": "2026-06-19",
   "time": "6:00 PM - 7:00 PM",
-  "serviceAmount": "399.00",
+  "serviceAmount": 399.00,
   "serviceRequestNumber": "REQ-2026-0181",
   "address": "adi, zhhz, Mansarovar, Rajasthan, Jaipur",
   "city": "Rajasthan, Jaipur",
@@ -284,7 +284,7 @@ Response Example (Status 200 OK):
   "paymentMethod": "Online",
   "customerName": "shirt",
   "customerPhone": "9116919356",
-  "createdAt": "19-06-2026 14:36",
+  "createdAt": "19-06-2026 02:36 PM",
   "source": "app"
 }
 

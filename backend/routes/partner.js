@@ -1927,9 +1927,11 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
           const dd = String(d.getDate()).padStart(2,'0');
           const mm = String(d.getMonth()+1).padStart(2,'0');
           const yyyy = d.getFullYear();
-          const hh = String(d.getHours()).padStart(2,'0');
+          let hh = d.getHours();
           const min = String(d.getMinutes()).padStart(2,'0');
-          createdAtStr = `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+          const ampm = hh >= 12 ? 'PM' : 'AM';
+          hh = hh % 12 || 12;
+          createdAtStr = `${dd}-${mm}-${yyyy} ${String(hh).padStart(2,'0')}:${min} ${ampm}`;
         }
       }
 
@@ -1943,7 +1945,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
         service: order.serviceName,
         date: order.date,
         time: order.timeSlot,
-        serviceAmount: parseFloat(order.price || 0).toFixed(2),
+        serviceAmount: parseFloat(parseFloat(order.price || 0).toFixed(2)),
         serviceRequestNumber: reqNum,
         address: addr.houseNo ? `${addr.houseNo}, ${addr.society || ''}, ${addr.locality || ''}, ${addr.city || ''}`.trim() : (order.address || ''),
         city: addr.city || '',
@@ -1986,9 +1988,11 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
           const dd = String(d.getDate()).padStart(2,'0');
           const mm = String(d.getMonth()+1).padStart(2,'0');
           const yyyy = d.getFullYear();
-          const hh = String(d.getHours()).padStart(2,'0');
+          let hh = d.getHours();
           const min = String(d.getMinutes()).padStart(2,'0');
-          createdAtStrAdmin = `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+          const ampm = hh >= 12 ? 'PM' : 'AM';
+          hh = hh % 12 || 12;
+          createdAtStrAdmin = `${dd}-${mm}-${yyyy} ${String(hh).padStart(2,'0')}:${min} ${ampm}`;
         } else {
           createdAtStrAdmin = order.createdAt.toString();
         }
@@ -2006,7 +2010,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
         service: order.serviceName,
         date: order.serviceDate,
         time: order.slotTime,
-        serviceAmount: parseFloat(order.serviceAmount || 0).toFixed(2),
+        serviceAmount: parseFloat(parseFloat(order.serviceAmount || 0).toFixed(2)),
         serviceRequestNumber: adminReqNum,
         address: order.address || '',
         city: order.city || '',
