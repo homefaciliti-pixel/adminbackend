@@ -229,23 +229,29 @@ Endpoint: GET /api/bookings
 Query Parameters (Optional):
   - status: Filter by lowercase app status ('upcoming', 'completed', 'cancel', 'in_progress')
 Description: Fetches list of bookings assigned to the logged-in partner. Mapped directly to the JSON format expected by Flutter.
+             Latitude and longitude of the customer's location are included in each booking.
 Response Example (Status 200 OK - Raw JSON Array):
 [
   {
-    "id": "1",
-    "status": "upcoming",
-    "service": "Sofa Cleaning",
-    "date": "15-05-2026",
-    "time": "10:00 AM - 12:00 PM",
-    "serviceAmount": 599.00,
-    "serviceRequestNumber": "REQ1001",
-    "address": "H.No 12, Block B, CP, New Delhi",
-    "city": "Delhi",
-    "locality": "Connaught Place",
-    "customerName": "Rahul Sharma",
-    "customerPhone": "9876543210"
+    "id": 129,
+    "status": "pending",
+    "service": "Tap / Faucet Repair & Replacement",
+    "date": "2026-06-19",
+    "time": "6:00 PM - 7:00 PM",
+    "serviceAmount": "399.00",
+    "serviceRequestNumber": "129",
+    "address": "adi, zhhz, Mansarovar, Rajasthan, Jaipur",
+    "city": "Rajasthan, Jaipur",
+    "locality": "Mansarovar",
+    "customerName": "shirt",
+    "customerPhone": "9116919356",
+    "latitude": 26.8328341,
+    "longitude": 75.7528878,
+    "source": "app"
   }
 ]
+
+Note: latitude and longitude may be null if coordinates are not available for that booking.
 
 3.1b GET SINGLE BOOKING DETAILS
 -------------------------------

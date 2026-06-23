@@ -1596,7 +1596,9 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
       id: parseInt(o.id), status: st, service: o.serviceName, date: o.date, time: o.timeSlot,
       serviceAmount: o.price, serviceRequestNumber: o.id.toString(),
       address: a.houseNo ? `${a.houseNo}, ${a.society||''}, ${a.locality||''}, ${a.city||''}`.replace(/,\s*,/g,',').trim() : (o.address||''),
-      city: a.city||'', locality: a.locality||'', customerName: a.name||'Customer', customerPhone: o.userPhone||'', source:'app'
+      city: a.city||'', locality: a.locality||'', customerName: a.name||'Customer', customerPhone: o.userPhone||'',
+      latitude: parseFloat(a.latitude) || null, longitude: parseFloat(a.longitude) || null,
+      source:'app'
     };
   }
 
@@ -1607,7 +1609,9 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     return {
       id: parseInt(o.id), status: st, service: o.serviceName, date: o.serviceDate, time: o.slotTime,
       serviceAmount: parseFloat(o.serviceAmount||0), serviceRequestNumber: o.serviceRequestNumber||o.id.toString(),
-      address: o.address||'', city: o.city||'', locality: o.locality||'', customerName: 'Customer', customerPhone: '', source:'admin'
+      address: o.address||'', city: o.city||'', locality: o.locality||'', customerName: 'Customer', customerPhone: '',
+      latitude: parseFloat(o.latitude) || null, longitude: parseFloat(o.longitude) || null,
+      source:'admin'
     };
   }
 
