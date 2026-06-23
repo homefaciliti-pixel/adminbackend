@@ -257,23 +257,30 @@ Note: latitude and longitude may be null if coordinates are not available for th
 -------------------------------
 Endpoint: GET /api/bookings/:id (PROTECTED)
 Description: Fetches full details of a single booking by ID.
+             Supports pure integer IDs (e.g., /api/bookings/142).
+             Automatically resolves whether booking is from app (orders_v2) or admin (orders) table.
 Response Example (Status 200 OK):
 {
-  "id": "1",
-  "status": "upcoming",
-  "service": "AC Deep Repairing",
-  "date": "06-06-2026",
-  "time": "10:00 AM - 12:00 PM",
-  "serviceAmount": 499.00,
-  "serviceRequestNumber": "REQ-2026-0001",
-  "address": "H.No 12, Block B, Connaught Place, New Delhi",
-  "city": "Delhi",
-  "locality": "Connaught Place",
-  "paymentMethod": "UPI",
-  "customerName": "Rahul Sharma",
-  "customerPhone": "9876543210",
-  "createdAt": "05-06-2026 10:15 AM"
+  "id": 142,
+  "status": "pending",
+  "service": "Tap / Faucet Repair & Replacement",
+  "date": "2026-06-19",
+  "time": "6:00 PM - 7:00 PM",
+  "serviceAmount": "399.00",
+  "serviceRequestNumber": "142",
+  "address": "adi, zhhz, Mansarovar, Rajasthan, Jaipur",
+  "city": "Rajasthan, Jaipur",
+  "locality": "Mansarovar",
+  "latitude": 26.8328341,
+  "longitude": 75.7528878,
+  "paymentMethod": "Online",
+  "customerName": "shirt",
+  "customerPhone": "9116919356",
+  "createdAt": 1781870165652,
+  "source": "app"
 }
+
+Note: latitude and longitude may be null if coordinates are not available for that booking.
 
 3.2 BOOKING STATS (DASHBOARD)
 -----------------------------
