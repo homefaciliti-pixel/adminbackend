@@ -1919,14 +1919,32 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
       else if (statusLower === 'assigned') appStatus = 'accepted';
       else if (statusLower === 'pending' || statusLower === 'searching') appStatus = 'pending';
 
+      // Format createdAt: orders_v2 stores as ms timestamp
+      let createdAtStr = '';
+      if (order.createdAt) {
+        const d = new Date(typeof order.createdAt === 'number' ? order.createdAt : parseInt(order.createdAt));
+        if (!isNaN(d.getTime())) {
+          const dd = String(d.getDate()).padStart(2,'0');
+          const mm = String(d.getMonth()+1).padStart(2,'0');
+          const yyyy = d.getFullYear();
+          const hh = String(d.getHours()).padStart(2,'0');
+          const min = String(d.getMinutes()).padStart(2,'0');
+          createdAtStr = `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+        }
+      }
+
+      // Format serviceRequestNumber as REQ-YYYY-XXXX
+      const orderYear = order.date ? order.date.substring(0,4) : new Date().getFullYear();
+      const reqNum = `REQ-${orderYear}-${String(order.id).padStart(4,'0')}`;
+
       return res.json({
-        id: parseInt(order.id),
+        id: order.id.toString(),
         status: appStatus,
         service: order.serviceName,
         date: order.date,
         time: order.timeSlot,
-        serviceAmount: order.price,
-        serviceRequestNumber: order.id.toString(),
+        serviceAmount: parseInt(parseFloat(order.price || 0)),
+        serviceRequestNumber: reqNum,
         address: addr.houseNo ? `${addr.houseNo}, ${addr.society || ''}, ${addr.locality || ''}, ${addr.city || ''}`.trim() : (order.address || ''),
         city: addr.city || '',
         locality: addr.locality || '',
@@ -1935,7 +1953,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
         paymentMethod: paymentInfo.paymentMethod || 'Online',
         customerName: addr.name || 'Customer',
         customerPhone: order.userPhone || '',
-        createdAt: order.createdAt,
+        createdAt: createdAtStr,
         source: 'app'
       });
     } else {
@@ -1960,14 +1978,36 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
       else if (statusLower === 'assigned') appStatus = 'accepted';
       else if (statusLower === 'pending') appStatus = 'pending';
 
+      // Format createdAt: admin orders store as date string or timestamp
+      let createdAtStrAdmin = '';
+      if (order.createdAt) {
+        const d = new Date(order.createdAt);
+        if (!isNaN(d.getTime())) {
+          const dd = String(d.getDate()).padStart(2,'0');
+          const mm = String(d.getMonth()+1).padStart(2,'0');
+          const yyyy = d.getFullYear();
+          const hh = String(d.getHours()).padStart(2,'0');
+          const min = String(d.getMinutes()).padStart(2,'0');
+          createdAtStrAdmin = `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+        } else {
+          createdAtStrAdmin = order.createdAt.toString();
+        }
+      }
+
+      // Format serviceRequestNumber as REQ-YYYY-XXXX
+      const adminOrderYear = order.serviceDate ? order.serviceDate.toString().substring(0,4) : new Date().getFullYear();
+      const adminReqNum = order.serviceRequestNumber && order.serviceRequestNumber !== order.id.toString()
+        ? order.serviceRequestNumber
+        : `REQ-${adminOrderYear}-${String(order.id).padStart(4,'0')}`;
+
       return res.json({
-        id: parseInt(order.id),
+        id: order.id.toString(),
         status: appStatus,
         service: order.serviceName,
         date: order.serviceDate,
         time: order.slotTime,
-        serviceAmount: parseFloat(order.serviceAmount || 0),
-        serviceRequestNumber: order.serviceRequestNumber || order.id.toString(),
+        serviceAmount: parseInt(parseFloat(order.serviceAmount || 0)),
+        serviceRequestNumber: adminReqNum,
         address: order.address || '',
         city: order.city || '',
         locality: order.locality || '',
@@ -1976,7 +2016,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
         paymentMethod: order.paymentMethod || 'UPI',
         customerName: 'Customer',
         customerPhone: '',
-        createdAt: order.createdAt,
+        createdAt: createdAtStrAdmin,
         source: 'admin'
       });
     }
