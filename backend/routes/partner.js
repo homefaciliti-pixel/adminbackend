@@ -432,21 +432,38 @@ router.post('/auth/register', (req, res) => {
       return res.status(400).json({ error: err.message });
     }
 
-    const {
-      name, phone, email, address, state, city, locality, password, gender,
-      category, subCategory, hasVehicle, services,
-      aadharNumber, panNumber, bankName, accountHolder, accountNumber, ifscCode
-    } = req.body;
+    // Create a normalized body with lowercase keys and no spaces/underscores/hyphens
+    const normalizedBody = {};
+    for (const key in req.body) {
+      if (req.body[key] !== undefined && req.body[key] !== null) {
+        const normalizedKey = key.trim().toLowerCase().replace(/[\s_-]/g, '');
+        normalizedBody[normalizedKey] = req.body[key];
+      }
+    }
 
-    // Robust field capture to prevent nulls if client sends alternate casings/names
-    const aadharVal = aadharNumber || req.body.aadhaarNumber || req.body.aadhar || req.body.aadhaar || '';
-    const panVal = panNumber || req.body.pan || req.body.panCard || '';
-    const bankVal = bankName || req.body.bank || '';
-    const accHolderVal = accountHolder || req.body.accountHolderName || req.body.holderName || '';
-    const accNumVal = accountNumber || req.body.accountNo || req.body.accNumber || req.body.accNo || '';
-    const ifscVal = ifscCode || req.body.ifsc || req.body.ifsc_code || '';
+    const nameVal = req.body.name || normalizedBody['name'] || '';
+    const phoneVal = req.body.phone || req.body.mobile || normalizedBody['phone'] || normalizedBody['mobile'] || '';
+    const emailVal = req.body.email || normalizedBody['email'] || '';
+    const passwordVal = req.body.password || normalizedBody['password'] || '';
+    const cityVal = req.body.city || normalizedBody['city'] || '';
+    const stateVal = req.body.state || normalizedBody['state'] || '';
+    const localityVal = req.body.locality || normalizedBody['locality'] || '';
+    const addressVal = req.body.address || normalizedBody['address'] || '';
 
-    if (!name || !phone || !email || !password || !city || !state || !locality || !address) {
+    const genderVal = req.body.gender || normalizedBody['gender'] || 'Male';
+    const categoryVal = req.body.category || normalizedBody['category'] || '';
+    const subCategoryVal = req.body.subCategory || normalizedBody['subcategory'] || '';
+    const hasVehicleVal = req.body.hasVehicle || normalizedBody['hasvehicle'] || 'No';
+    const servicesVal = req.body.services || normalizedBody['services'] || '';
+
+    const aadharVal = req.body.aadharNumber || req.body.aadhaarNumber || normalizedBody['aadharnumber'] || normalizedBody['aadhaarnumber'] || normalizedBody['aadhar'] || normalizedBody['aadhaar'] || '';
+    const panVal = req.body.panNumber || normalizedBody['pannumber'] || normalizedBody['pan'] || normalizedBody['pancard'] || '';
+    const bankVal = req.body.bankName || normalizedBody['bankname'] || normalizedBody['bank'] || '';
+    const accHolderVal = req.body.accountHolder || normalizedBody['accountholder'] || normalizedBody['accountholdername'] || normalizedBody['holdername'] || '';
+    const accNumVal = req.body.accountNumber || normalizedBody['accountnumber'] || normalizedBody['accountno'] || normalizedBody['accnumber'] || normalizedBody['accno'] || '';
+    const ifscVal = req.body.ifscCode || normalizedBody['ifsccode'] || normalizedBody['ifsc'] || '';
+
+    if (!nameVal || !phoneVal || !emailVal || !passwordVal || !cityVal || !stateVal || !localityVal || !addressVal) {
       return res.status(400).json({ error: 'All primary fields (name, phone, email, password, location) are required' });
     }
 
@@ -475,13 +492,13 @@ router.post('/auth/register', (req, res) => {
 
     try {
       // Check if mobile/phone already exists
-      const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', [phone]);
+      const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', [phoneVal]);
       if (existing.length > 0) {
         return res.status(400).json({ error: 'Phone number already registered' });
       }
 
       // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(passwordVal, 10);
 
       const profileImageUrl = getFileUrl(req, profileImageName);
       const aadharFrontUrl = getFileUrl(req, aadharFrontName);
@@ -505,11 +522,11 @@ router.post('/auth/register', (req, res) => {
           panImage, policeVerificationImage, hasVehicle, category, subCategory, accountHolder, isPaid
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, '0 Years', ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 0.00, 0, 0, 0, 0, 0.0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [
-          name, email, phone, city, state, locality, address, profileImageUrl,
-          gender || 'Male', services || '', aadharVal, panVal,
+          nameVal, emailVal, phoneVal, cityVal, stateVal, localityVal, addressVal, profileImageUrl,
+          genderVal || 'Male', servicesVal || '', aadharVal, panVal,
           bankVal, accNumVal, ifscVal, docUrls, createdDate,
           hashedPassword, aadharFrontUrl, aadharBackUrl, panImageUrl, policeVerificationUrl,
-          hasVehicle || 'No', category || '', subCategory || '', accHolderVal
+          hasVehicleVal || 'No', categoryVal || '', subCategoryVal || '', accHolderVal
         ]
       );
 
