@@ -438,6 +438,14 @@ router.post('/auth/register', (req, res) => {
       aadharNumber, panNumber, bankName, accountHolder, accountNumber, ifscCode
     } = req.body;
 
+    // Robust field capture to prevent nulls if client sends alternate casings/names
+    const aadharVal = aadharNumber || req.body.aadhaarNumber || req.body.aadhar || req.body.aadhaar || '';
+    const panVal = panNumber || req.body.pan || req.body.panCard || '';
+    const bankVal = bankName || req.body.bank || '';
+    const accHolderVal = accountHolder || req.body.accountHolderName || req.body.holderName || '';
+    const accNumVal = accountNumber || req.body.accountNo || req.body.accNumber || req.body.accNo || '';
+    const ifscVal = ifscCode || req.body.ifsc || req.body.ifsc_code || '';
+
     if (!name || !phone || !email || !password || !city || !state || !locality || !address) {
       return res.status(400).json({ error: 'All primary fields (name, phone, email, password, location) are required' });
     }
@@ -498,10 +506,10 @@ router.post('/auth/register', (req, res) => {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, '0 Years', ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 0.00, 0, 0, 0, 0, 0.0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [
           name, email, phone, city, state, locality, address, profileImageUrl,
-          gender || 'Male', services || '', aadharNumber || '', panNumber || '',
-          bankName || '', accountNumber || '', ifscCode || '', docUrls, createdDate,
+          gender || 'Male', services || '', aadharVal, panVal,
+          bankVal, accNumVal, ifscVal, docUrls, createdDate,
           hashedPassword, aadharFrontUrl, aadharBackUrl, panImageUrl, policeVerificationUrl,
-          hasVehicle || 'No', category || '', subCategory || '', accountHolder || ''
+          hasVehicle || 'No', category || '', subCategory || '', accHolderVal
         ]
       );
 
