@@ -1643,12 +1643,25 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
   try {
     let final = [];
 
+    // Fetch dismissed booking IDs for this partner
+    const [dismissedRows] = await db.query(
+      'SELECT bookingId, source FROM partner_dismissed_bookings WHERE partnerId = ?',
+      [req.partner.id]
+    );
+    const dismissedAppIds = new Set(dismissedRows.filter(r => r.source === 'app').map(r => r.bookingId));
+    const dismissedAdminIds = new Set(dismissedRows.filter(r => r.source === 'admin').map(r => r.bookingId));
+
     if (filterStatus === 'upcoming') {
       const [v2A] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Assigned' ORDER BY id DESC`,[partnerName]);
       const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
       const [adA] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='Assigned' ORDER BY id DESC`,[partnerName]);
       const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
-      final = [...v2A.map(mapV2), ...v2P.filter(nearbyV2).map(mapV2), ...adA.map(mapAdmin), ...adP.filter(nearbyAdmin).map(mapAdmin)];
+      final = [
+        ...v2A.map(mapV2),
+        ...v2P.filter(r => !dismissedAppIds.has(r.id) && nearbyV2(r)).map(mapV2),
+        ...adA.map(mapAdmin),
+        ...adP.filter(r => !dismissedAdminIds.has(r.id) && nearbyAdmin(r)).map(mapAdmin)
+      ];
 
     } else if (filterStatus === 'completed') {
       const [v2R] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Completed' ORDER BY id DESC`,[partnerName]);
@@ -1675,9 +1688,9 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
       const adIds = new Set(adA.map(r=>r.id));
       final = [
         ...v2A.map(mapV2),
-        ...v2P.filter(r=>!v2Ids.has(r.id)&&nearbyV2(r)).map(mapV2),
+        ...v2P.filter(r => !v2Ids.has(r.id) && !dismissedAppIds.has(r.id) && nearbyV2(r)).map(mapV2),
         ...adA.map(mapAdmin),
-        ...adP.filter(r=>!adIds.has(r.id)&&nearbyAdmin(r)).map(mapAdmin)
+        ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r)).map(mapAdmin)
       ];
     }
 
@@ -1829,18 +1842,19 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
       const assignedPartner = (order.partnerName || '').trim().toLowerCase();
       const currentPartner = (partnerName || '').trim().toLowerCase();
 
-      if (assignedPartner !== currentPartner) {
-        return res.status(400).json({
-          error: 'You are not assigned to this booking',
-          assignedTo: order.partnerName,
-          yourName: partnerName
-        });
+      if (assignedPartner === currentPartner) {
+        // Booking is assigned to this partner — unassign it
+        await db.query(
+          'UPDATE orders_v2 SET partnerName = NULL, status = ?, bookingStatus = ? WHERE id = ?',
+          ['Pending', 'searching', id]
+        );
+      } else {
+        // Booking is unassigned/assigned to someone else — just dismiss for this partner
+        await db.query(
+          'INSERT IGNORE INTO partner_dismissed_bookings (partnerId, bookingId, source) VALUES (?, ?, ?)',
+          [req.partner.id, id, 'app']
+        );
       }
-
-      await db.query(
-        'UPDATE orders_v2 SET partnerName = NULL, status = ?, bookingStatus = ? WHERE id = ?',
-        ['Pending', 'searching', id]
-      );
     } else {
       // orders table (admin bookings)
       const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
@@ -1852,21 +1866,22 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
       const assignedPartner = (order.vendorName || '').trim().toLowerCase();
       const currentPartner = (partnerName || '').trim().toLowerCase();
 
-      if (assignedPartner !== currentPartner) {
-        return res.status(400).json({
-          error: 'You are not assigned to this booking',
-          assignedTo: order.vendorName,
-          yourName: partnerName
-        });
+      if (assignedPartner === currentPartner) {
+        // Booking is assigned to this partner — unassign it
+        await db.query(
+          "UPDATE orders SET vendorName = NULL, vendorId = NULL, status = 'Pending' WHERE id = ?",
+          [id]
+        );
+      } else {
+        // Booking is unassigned/assigned to someone else — just dismiss for this partner
+        await db.query(
+          'INSERT IGNORE INTO partner_dismissed_bookings (partnerId, bookingId, source) VALUES (?, ?, ?)',
+          [req.partner.id, id, 'admin']
+        );
       }
-
-      await db.query(
-        "UPDATE orders SET vendorName = NULL, vendorId = NULL, status = 'Pending' WHERE id = ?",
-        [id]
-      );
     }
 
-    res.json({ success: true, message: 'Order rejected/unassigned successfully!' });
+    res.json({ success: true, message: 'Order rejected/dismissed successfully!' });
   } catch (error) {
     console.error('Error rejecting order:', error);
     res.status(500).json({ error: 'Database update failed: ' + error.message });
