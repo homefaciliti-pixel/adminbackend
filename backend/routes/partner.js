@@ -350,6 +350,39 @@ function getMockEarningsStats(partner, mockStore) {
   };
 }
 
+function isDateBeforeToday(dateStr) {
+  if (!dateStr) return false;
+  const s = dateStr.trim();
+  let bookingDate = null;
+  // Try YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-').map(Number);
+    bookingDate = new Date(y, m - 1, d);
+  }
+  // Try DD-MM-YYYY or D-M-YYYY or DD/MM/YYYY or D/M/YYYY
+  else if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(s)) {
+    const sep = s.includes('-') ? '-' : '/';
+    const parts = s.split(sep).map(Number);
+    const d = parts[0];
+    const m = parts[1];
+    const y = parts[2];
+    bookingDate = new Date(y, m - 1, d);
+  } else {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      bookingDate = d;
+    }
+  }
+
+  if (!bookingDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  bookingDate.setHours(0, 0, 0, 0);
+
+  return bookingDate < today;
+}
+
 // -------------------------------------------------------------
 // AUTHENTICATION MIDDLEWARE
 // -------------------------------------------------------------
@@ -1693,6 +1726,14 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
         ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r)).map(mapAdmin)
       ];
     }
+    // Filter out past bookings if they are pending, accepted, or in_progress
+    final = final.filter(b => {
+      const isPast = isDateBeforeToday(b.date);
+      if (isPast && (b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress')) {
+        return false;
+      }
+      return true;
+    });
 
     // Sort newest first
     final.sort((a,b)=>parseInt(String(b.id).split('_').pop())-parseInt(String(a.id).split('_').pop()));
@@ -1919,34 +1960,34 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.json({ message: 'No new orders nearby', order: null });
   }
-  
   try {
     const [rows] = await db.query(
       `SELECT * FROM orders 
        WHERE status = 'Pending' 
          AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') 
          AND city = ? 
-         AND locality = ? 
-       LIMIT 1`,
+         AND locality = ?`,
       [city, locality]
     );
 
-    if (rows.length === 0) {
+    const validRow = rows.find(r => !isDateBeforeToday(r.serviceDate));
+
+    if (!validRow) {
       return res.json({ message: 'No new orders nearby', order: null });
     }
 
     res.json({
       message: 'New order available!',
       order: {
-        id: parseInt(rows[0].id),
-        serviceRequestNumber: rows[0].serviceRequestNumber,
-        serviceName: rows[0].serviceName,
-        serviceAmount: parseFloat(rows[0].serviceAmount),
-        slotTime: rows[0].slotTime,
-        serviceDate: rows[0].serviceDate,
-        city: rows[0].city,
-        locality: rows[0].locality,
-        address: rows[0].address
+        id: parseInt(validRow.id),
+        serviceRequestNumber: validRow.serviceRequestNumber,
+        serviceName: validRow.serviceName,
+        serviceAmount: parseFloat(validRow.serviceAmount),
+        slotTime: validRow.slotTime,
+        serviceDate: validRow.serviceDate,
+        city: validRow.city,
+        locality: validRow.locality,
+        address: validRow.address
       }
     });
   } catch (error) {
