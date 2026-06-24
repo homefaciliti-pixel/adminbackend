@@ -1806,7 +1806,7 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
   if (!resolved) {
     return res.status(404).json({ error: 'Order not found' });
   }
-  const { id } = resolved;
+  const { id, isV2 } = resolved;
 
   // Interceptor for Partner ID 10 (Amitkumar, mobile 8307511386) / mobile 7250642635 testing
   if (req.partner.id === 10 || req.partner.mobile === '8307511386' || req.partner.mobile === '7250642635') {
@@ -1818,20 +1818,53 @@ router.post('/bookings/:id/reject', authenticatePartner, async (req, res) => {
   }
 
   try {
-    const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
+    if (isV2) {
+      // orders_v2 table
+      const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'Order not found in orders_v2' });
+      }
 
-    const order = rows[0];
-    if ((order.partnerName || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
-      return res.status(400).json({ error: 'You are not assigned to this booking' });
-    }
+      const order = rows[0];
+      const assignedPartner = (order.partnerName || '').trim().toLowerCase();
+      const currentPartner = (partnerName || '').trim().toLowerCase();
 
-    await db.query(
-      'UPDATE orders_v2 SET partnerName = NULL, status = ?, bookingStatus = ? WHERE id = ?',
-      ['Pending', 'searching', id]
-    );
+      if (assignedPartner !== currentPartner) {
+        return res.status(400).json({
+          error: 'You are not assigned to this booking',
+          assignedTo: order.partnerName,
+          yourName: partnerName
+        });
+      }
+
+      await db.query(
+        'UPDATE orders_v2 SET partnerName = NULL, status = ?, bookingStatus = ? WHERE id = ?',
+        ['Pending', 'searching', id]
+      );
+    } else {
+      // orders table (admin bookings)
+      const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+      if (rows.length === 0) {
+        return res.status(404).json({ error: 'Order not found in orders' });
+      }
+
+      const order = rows[0];
+      const assignedPartner = (order.vendorName || '').trim().toLowerCase();
+      const currentPartner = (partnerName || '').trim().toLowerCase();
+
+      if (assignedPartner !== currentPartner) {
+        return res.status(400).json({
+          error: 'You are not assigned to this booking',
+          assignedTo: order.vendorName,
+          yourName: partnerName
+        });
+      }
+
+      await db.query(
+        "UPDATE orders SET vendorName = NULL, vendorId = NULL, status = 'Pending' WHERE id = ?",
+        [id]
+      );
+    }
 
     res.json({ success: true, message: 'Order rejected/unassigned successfully!' });
   } catch (error) {
