@@ -578,6 +578,50 @@ router.put('/:id/disapprove', async (req, res) => {
   }
 });
 
+// GET /active - get all active (online) partners
+router.get('/active', async (req, res) => {
+  try {
+    let list = await getAllPartners();
+    
+    // Filter to active/online partners: status = 1 or true
+    const activeList = list.filter(p => p.status === 1 || p.status === '1' || p.status === true);
+
+    // Map active list to the format expected by the ActivePartnerModel in the Flutter app
+    const mapped = [];
+    for (const p of activeList) {
+      // Get currentOrders count
+      const [[{ count }]] = await db.query(
+        "SELECT COUNT(*) as count FROM orders WHERE (vendorName = ? OR vendorMobile = ?) AND status IN ('Assigned', 'In Progress')",
+        [p.name || '', p.mobile || '']
+      );
+
+      mapped.push({
+        partnerId: String(p.id),
+        profileImage: resolveDocUrl(p.image, req, 'profile'),
+        name: p.name || '',
+        phone: p.mobile || '',
+        category: p.category || '',
+        subCategory: p.subCategory || '',
+        area: p.city || p.locality || '',
+        latitude: parseFloat(p.latitude || 0),
+        longitude: parseFloat(p.longitude || 0),
+        currentOrders: count,
+        isOnline: p.status === 1 || p.status === '1' || p.status === true,
+        activeAt: p.locationTime || '',
+        lastActive: p.locationTime || ''
+      });
+    }
+
+    res.json({
+      success: true,
+      data: mapped
+    });
+  } catch (error) {
+    console.error('Error fetching active partners:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch active partners', error: error.message });
+  }
+});
+
 // GET single partner details
 router.get('/:id', async (req, res) => {
   const rawId = parseInt(req.params.id);
