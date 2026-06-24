@@ -350,7 +350,28 @@ function getMockEarningsStats(partner, mockStore) {
   };
 }
 
-function isDateBeforeToday(dateStr) {
+function getCurrentIST() {
+  const d = new Date();
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  return new Date(utc + (3600000 * 5.5)); // Asia/Kolkata timezone is UTC+5.5
+}
+
+function parseTime(timeStr) {
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+  let hours = parseInt(match[1]);
+  const minutes = parseInt(match[2]);
+  const ampm = match[3].toUpperCase();
+
+  if (ampm === 'PM' && hours !== 12) {
+    hours += 12;
+  } else if (ampm === 'AM' && hours === 12) {
+    hours = 0;
+  }
+  return { hours, minutes };
+}
+
+function isDateBeforeToday(dateStr, timeSlotStr) {
   if (!dateStr) return false;
   const s = dateStr.trim();
   let bookingDate = null;
@@ -376,11 +397,32 @@ function isDateBeforeToday(dateStr) {
 
   if (!bookingDate) return false;
 
-  const today = new Date();
+  const today = getCurrentIST();
   today.setHours(0, 0, 0, 0);
   bookingDate.setHours(0, 0, 0, 0);
 
-  return bookingDate < today;
+  if (bookingDate < today) {
+    return true;
+  }
+
+  if (bookingDate.getTime() === today.getTime() && timeSlotStr) {
+    const parts = timeSlotStr.split('-');
+    if (parts.length === 2) {
+      const endPart = parts[1].trim();
+      const endTime = parseTime(endPart);
+      if (endTime) {
+        const nowIST = getCurrentIST();
+        const currentHours = nowIST.getHours();
+        const currentMinutes = nowIST.getMinutes();
+        
+        if (currentHours > endTime.hours || (currentHours === endTime.hours && currentMinutes >= endTime.minutes)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 // -------------------------------------------------------------
@@ -1728,7 +1770,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
     }
     // Filter out past bookings if they are pending, accepted, or in_progress
     final = final.filter(b => {
-      const isPast = isDateBeforeToday(b.date);
+      const isPast = isDateBeforeToday(b.date, b.time);
       if (isPast && (b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress')) {
         return false;
       }
@@ -1970,7 +2012,7 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
       [city, locality]
     );
 
-    const validRow = rows.find(r => !isDateBeforeToday(r.serviceDate));
+    const validRow = rows.find(r => !isDateBeforeToday(r.serviceDate, r.slotTime));
 
     if (!validRow) {
       return res.json({ message: 'No new orders nearby', order: null });
