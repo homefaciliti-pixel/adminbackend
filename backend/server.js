@@ -86,6 +86,13 @@ server.use('/uploads', async (req, res, next) => {
       return res.status(404).send('Not Found');
     }
 
+    // For video files (mp4, mov, avi, etc.), return 404 directly — don't serve a PNG fallback
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
+    const ext = path.extname(filename).toLowerCase();
+    if (videoExtensions.includes(ext)) {
+      return res.status(404).json({ error: 'Video file not found: ' + filename });
+    }
+
     try {
       // Check if this filename is stored as the partner's profile image
       const [rows] = await db.query(
