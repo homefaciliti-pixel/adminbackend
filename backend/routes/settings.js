@@ -18,7 +18,18 @@ const bannerStorage = multer.diskStorage({
     cb(null, unique);
   }
 });
-const uploadBanner = multer({ storage: bannerStorage });
+
+// Only allow image files for banner uploads (videos not supported - use git committed files)
+const bannerFileFilter = (req, file, cb) => {
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (videoExtensions.includes(ext)) {
+    return cb(new Error('Video files cannot be uploaded via admin panel. Please commit video files to git (e.g. save.mp4) and use the filename directly in the DB.'), false);
+  }
+  cb(null, true);
+};
+
+const uploadBanner = multer({ storage: bannerStorage, fileFilter: bannerFileFilter });
 
 async function cropToBannerRatio(filePath) {
   try {
@@ -47,6 +58,12 @@ async function cropToBannerRatio(filePath) {
 
 async function handleBannerUpload(file) {
   if (!file) return;
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  if (videoExtensions.includes(ext)) {
+    // Skip Jimp processing for video files
+    return;
+  }
   try {
     // 1. Crop to banner aspect ratio (1000:370)
     await cropToBannerRatio(file.path);
