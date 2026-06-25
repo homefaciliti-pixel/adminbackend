@@ -498,6 +498,8 @@ Response Example:
   - Fetches nested active states, cities, and localities hierarchy.
 * GET /api/metadata/categories (PUBLIC)
   - Fetches active categories and nested subcategories with service title lists.
+* GET /api/countries (PUBLIC)
+  - Returns a list of all countries with flags and international calling codes.
 
 13.6 PHONE OTP VERIFICATION
 ---------------------------

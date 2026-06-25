@@ -545,6 +545,20 @@ Response Example (Status 200 OK):
   }
 }
 
+7.2.1 GET COUNTRIES LIST
+------------------------
+Endpoint: GET /api/countries
+Description: Returns a comprehensive list of countries with flag emojis and international dialing calling codes (e.g. for registration dropdowns).
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "countries": [
+    { "name": "India", "code": "+91", "flag": "🇮🇳" },
+    { "name": "United States", "code": "+1", "flag": "🇺🇸" },
+    { "name": "United Kingdom", "code": "+44", "flag": "🇬🇧" }
+  ]
+}
+
 7.3 GET UNIFIED PARTNER DASHBOARD
 ---------------------------------
 Endpoint: GET /api/partner/dashboard (PROTECTED)

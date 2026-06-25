@@ -220,6 +220,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * GET /api/bookings/pending-popup - Fetch next available pending order for popup alerts.
 
 - PARTNER SERVICES & METADATA (PUBLIC):
+  * GET /api/countries - Fetch list of all countries with names, country calling codes, and flag emojis.
   * GET /api/metadata/locations - Fetch nested State -> City -> Locality dropdown hierarchy.
   * GET /api/metadata/categories - Fetch nested Category -> Subcategory -> Services dropdown hierarchy.
   * GET /api/locations/states - List active states names array.
