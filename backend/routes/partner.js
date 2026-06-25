@@ -1961,7 +1961,10 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
       [partnerName]
     );
 
-    const activeCount = v2ActiveList.length + adminActiveList.length;
+    const activeCount = 
+      v2ActiveList.filter(b => !isDateBeforeToday(b.date, b.timeSlot)).length + 
+      adminActiveList.filter(b => !isDateBeforeToday(b.serviceDate, b.slotTime)).length;
+
     if (activeCount >= 5) {
       return res.status(400).json({ 
         error: 'Booking limit exceeded. You can have a maximum of 5 active bookings at a time. Please complete your current bookings before accepting new ones.' 
@@ -2860,21 +2863,24 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
 
   try {
     // Check if the partner already has another booking in progress
-    const [v2InProgress] = await db.query(
-      `SELECT COUNT(*) as count FROM orders_v2 
+    const [v2InProgressList] = await db.query(
+      `SELECT date, timeSlot FROM orders_v2 
        WHERE partnerName = ? 
          AND status = 'In Progress'`,
       [partnerName]
     );
 
-    const [adminInProgress] = await db.query(
-      `SELECT COUNT(*) as count FROM orders 
+    const [adminInProgressList] = await db.query(
+      `SELECT serviceDate, slotTime FROM orders 
        WHERE vendorName = ? 
          AND status = 'In Progress'`,
       [partnerName]
     );
 
-    const inProgressCount = (v2InProgress[0]?.count || 0) + (adminInProgress[0]?.count || 0);
+    const inProgressCount = 
+      v2InProgressList.filter(b => !isDateBeforeToday(b.date, b.timeSlot)).length +
+      adminInProgressList.filter(b => !isDateBeforeToday(b.serviceDate, b.slotTime)).length;
+
     if (inProgressCount > 0) {
       return res.status(400).json({ 
         error: 'You already have a booking in progress. Please complete your current booking before starting a new one.' 
