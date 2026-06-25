@@ -1733,7 +1733,15 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
   function nearbyV2(o) {
     const a = parseAddrV2(o);
     const oLa = parseFloat(a.latitude), oLo = parseFloat(a.longitude);
-    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) return distKm(partnerLat,partnerLon,oLa,oLo)<=RADIUS_KM;
+    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
+      const distance = distKm(partnerLat, partnerLon, oLa, oLo);
+      if (distance <= RADIUS_KM) return true;
+      if (distance > 1000) {
+        return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+               ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
+      }
+      return false;
+    }
     return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
            ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
   }
@@ -1741,7 +1749,15 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
   // GPS/city proximity check for admin orders
   function nearbyAdmin(o) {
     const oLa = parseFloat(o.latitude), oLo = parseFloat(o.longitude);
-    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) return distKm(partnerLat,partnerLon,oLa,oLo)<=RADIUS_KM;
+    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
+      const distance = distKm(partnerLat, partnerLon, oLa, oLo);
+      if (distance <= RADIUS_KM) return true;
+      if (distance > 1000) {
+        return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+               ((o.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
+      }
+      return false;
+    }
     return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
            ((req.partner.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
   }
@@ -2432,8 +2448,6 @@ router.get('/earnings', authenticatePartner, async (req, res) => {
   const walletVal = parseFloat(req.partner.walletBalance || 0);
   const totalVal = parseFloat(req.partner.totalEarnings || 0);
 
-
-
   // RULE: Earnings show ZERO until partner has paid AND is approved by the admin
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.json({
@@ -2448,49 +2462,113 @@ router.get('/earnings', authenticatePartner, async (req, res) => {
   }
 
   try {
-    const [ordersRes] = await db.query(
-      "SELECT SUM(serviceAmount) as totalAmount, COUNT(*) as completedCount FROM orders WHERE vendorName = ? AND status = 'Completed'",
+    // 1. Fetch completed admin orders
+    const [adminOrders] = await db.query(
+      "SELECT serviceAmount, paymentMethod, serviceDate FROM orders WHERE vendorName = ? AND status = 'Completed'",
       [partnerName]
     );
 
-    const calculatedTotal = parseFloat(ordersRes[0].totalAmount || 0);
-    const totalEarnings = calculatedTotal;
+    // 2. Fetch completed app orders (v2)
+    const [v2Orders] = await db.query(
+      "SELECT price, payment, date FROM orders_v2 WHERE partnerName = ? AND status = 'Completed'",
+      [partnerName]
+    );
+
+    // Helper functions for date matching in IST
+    const today = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const todayIST = new Date(Date.now() + istOffset + (new Date().getTimezoneOffset() * 60000));
     
-    const todayStr = new Date().toLocaleDateString('en-IN');
-    const [todayRes] = await db.query(
-      "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed' AND serviceDate = ?",
-      [partnerName, todayStr]
-    );
-    const todayEarning = Math.round(parseFloat(todayRes[0].amount || 0));
+    const yyyy = todayIST.getFullYear();
+    const mm = String(todayIST.getMonth() + 1).padStart(2, '0');
+    const dd = String(todayIST.getDate()).padStart(2, '0');
+    
+    const dVal = todayIST.getDate();
+    const mVal = todayIST.getMonth() + 1;
 
-    const [monthRes] = await db.query(
-      "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed'",
-      [partnerName]
-    );
-    const monthlyEarning = Math.round(parseFloat(monthRes[0].amount || 0));
+    // ISO formats
+    const todayISO1 = yyyy + '-' + mm + '-' + dd;
+    const todayISO2 = yyyy + '-' + mVal + '-' + dVal;
+    const todayISO3 = yyyy + '-' + mm + '-' + dVal;
+    const todayISO4 = yyyy + '-' + mVal + '-' + dd;
 
-    // Calculate cash earnings (partner's share, i.e., 75% of cash bookings total)
-    const [cashRes] = await db.query(
-      "SELECT SUM(serviceAmount) as totalAmount FROM orders WHERE vendorName = ? AND status = 'Completed' AND paymentMethod = 'Cash'",
-      [partnerName]
-    );
-    const cashTotal = parseFloat(cashRes[0].totalAmount || 0);
-    const cashEarning = Math.round(cashTotal * 0.75);
+    // Dashed formats
+    const todayDashed1 = dd + '-' + mm + '-' + yyyy;
+    const todayDashed2 = dVal + '-' + mVal + '-' + yyyy;
+    const todayDashed3 = dd + '-' + mVal + '-' + yyyy;
+    const todayDashed4 = dVal + '-' + mm + '-' + yyyy;
 
-    // Calculate online earnings (partner's share, i.e., 75% of online bookings total)
-    const [onlineRes] = await db.query(
-      "SELECT SUM(serviceAmount) as totalAmount FROM orders WHERE vendorName = ? AND status = 'Completed' AND paymentMethod != 'Cash'",
-      [partnerName]
-    );
-    const onlineTotal = parseFloat(onlineRes[0].totalAmount || 0);
-    const onlineEarning = Math.round(onlineTotal * 0.75);
+    // Slashed formats
+    const todaySlashed1 = dd + '/' + mm + '/' + yyyy;
+    const todaySlashed2 = dVal + '/' + mVal + '/' + yyyy;
+    const todaySlashed3 = dd + '/' + mVal + '/' + yyyy;
+    const todaySlashed4 = dVal + '/' + mm + '/' + yyyy;
+
+    const isToday = (dateStr) => {
+      if (!dateStr) return false;
+      const clean = dateStr.trim();
+      return clean === todayISO1 || 
+             clean === todayISO2 || 
+             clean === todayISO3 || 
+             clean === todayISO4 || 
+             clean === todayDashed1 || 
+             clean === todayDashed2 || 
+             clean === todayDashed3 || 
+             clean === todayDashed4 || 
+             clean === todaySlashed1 || 
+             clean === todaySlashed2 || 
+             clean === todaySlashed3 || 
+             clean === todaySlashed4;
+    };
+
+    let totalEarningsCalculated = 0;
+    let todayEarning = 0;
+    let cashEarning = 0;
+    let onlineEarning = 0;
+
+    for (const o of adminOrders) {
+      const amount = parseFloat(o.serviceAmount || 0);
+      const partnerShare = amount * 0.75;
+      const isCash = (o.paymentMethod || '').toLowerCase() === 'cash';
+      
+      totalEarningsCalculated += partnerShare;
+      if (isToday(o.serviceDate)) {
+        todayEarning += partnerShare;
+      }
+      if (isCash) {
+        cashEarning += partnerShare;
+      } else {
+        onlineEarning += partnerShare;
+      }
+    }
+
+    for (const o of v2Orders) {
+      const amount = parseFloat(o.price || 0);
+      const partnerShare = amount * 0.75;
+      
+      let isCash = false;
+      try {
+        const payObj = typeof o.payment === 'string' ? JSON.parse(o.payment) : (o.payment || {});
+        isCash = (payObj.paymentMethod || '').toLowerCase() === 'cash';
+      } catch(e) {}
+
+      totalEarningsCalculated += partnerShare;
+      if (isToday(o.date)) {
+        todayEarning += partnerShare;
+      }
+      if (isCash) {
+        cashEarning += partnerShare;
+      } else {
+        onlineEarning += partnerShare;
+      }
+    }
 
     res.json({
-      totalEarning: Math.round(totalEarnings),
-      todayEarning: todayEarning,
-      monthlyEarning: monthlyEarning,
-      onlineEarning: onlineEarning,
-      cashEarning: cashEarning,
+      totalEarning: Math.round(totalEarningsCalculated),
+      todayEarning: Math.round(todayEarning),
+      monthlyEarning: Math.round(totalEarningsCalculated),
+      onlineEarning: Math.round(onlineEarning),
+      cashEarning: Math.round(cashEarning),
       payToCompany: parseFloat(req.partner.payToCompany || 0),
       walletBalance: parseFloat(req.partner.walletBalance || 0)
     });
@@ -3153,80 +3231,200 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
   }
 
   try {
-    // 2. Fetch booking stats
-    const [assignedRes] = await db.query('SELECT status FROM orders WHERE vendorName = ?', [partnerName]);
-    const [pendingRes] = await db.query(
-      `SELECT status FROM orders 
+    // 2. Fetch booking stats (combining both orders and orders_v2 tables)
+    const [assignedRowsV2] = await db.query('SELECT status FROM orders_v2 WHERE partnerName = ?', [partnerName]);
+    const [assignedRowsAdmin] = await db.query('SELECT status FROM orders WHERE vendorName = ?', [partnerName]);
+
+    // Fetch pending bookings from both tables for proximity check
+    const [pendingRowsV2] = await db.query(
+      `SELECT * FROM orders_v2 
+       WHERE (status = 'Pending' OR bookingStatus = 'searching') 
+         AND (partnerName IS NULL OR partnerName = '')`
+    );
+    const [pendingRowsAdmin] = await db.query(
+      `SELECT * FROM orders 
        WHERE status = 'Pending' 
-         AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '') 
-         AND city = ? 
-         AND locality = ?`,
-      [req.partner.city, req.partner.locality]
+         AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '')`
     );
 
-    const totalBooking = assignedRes.length + pendingRes.length;
-    const upcomingBooking = pendingRes.length;
+    // Proximity helpers
+    const partnerLat = parseFloat(req.partner.latitude);
+    const partnerLon = parseFloat(req.partner.longitude);
+    const hasCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
+    const RADIUS_KM = 10;
 
-    const acceptedBooking = assignedRes.filter(o => {
+    function distKm(la1, lo1, la2, lo2) {
+      const R = 6371, dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
+      const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
+
+    function parseAddrV2(o) {
+      try { return typeof o.address === 'string' ? JSON.parse(o.address) : (o.address||{}); }
+      catch(e) { return {}; }
+    }
+
+    function nearbyV2(o) {
+      const a = parseAddrV2(o);
+      const oLa = parseFloat(a.latitude), oLo = parseFloat(a.longitude);
+      if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
+        const distance = distKm(partnerLat, partnerLon, oLa, oLo);
+        if (distance <= RADIUS_KM) return true;
+        if (distance > 1000) {
+          return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+                 ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
+        }
+        return false;
+      }
+      return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+             ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
+    }
+
+    function nearbyAdmin(o) {
+      const oLa = parseFloat(o.latitude), oLo = parseFloat(o.longitude);
+      if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
+        const distance = distKm(partnerLat, partnerLon, oLa, oLo);
+        if (distance <= RADIUS_KM) return true;
+        if (distance > 1000) {
+          return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+                 ((o.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
+        }
+        return false;
+      }
+      return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
+             ((o.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
+    }
+
+    const filteredPendingV2 = pendingRowsV2.filter(nearbyV2);
+    const filteredPendingAdmin = pendingRowsAdmin.filter(nearbyAdmin);
+
+    const totalBooking = assignedRowsV2.length + assignedRowsAdmin.length + filteredPendingV2.length + filteredPendingAdmin.length;
+    const upcomingBooking = filteredPendingV2.length + filteredPendingAdmin.length;
+
+    const allAssigned = [
+      ...assignedRowsV2.map(o => ({ status: o.status })),
+      ...assignedRowsAdmin.map(o => ({ status: o.status }))
+    ];
+
+    const acceptedBooking = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'assigned' || statusLower === 'upcoming' || statusLower === 'in progress' || statusLower === 'in_progress';
     }).length;
 
-    const inProgressBooking = assignedRes.filter(o => {
+    const inProgressBooking = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'in progress' || statusLower === 'in_progress';
     }).length;
 
-    const completedBooking = assignedRes.filter(o => {
+    const completedBooking = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'completed' || statusLower === 'complete';
     }).length;
 
-    const cancelBooking = assignedRes.filter(o => {
+    const cancelBooking = allAssigned.filter(o => {
       const statusLower = (o.status || '').toLowerCase();
       return statusLower === 'cancelled' || statusLower === 'rejected';
     }).length;
 
-    // 3. Fetch earnings stats
-    const walletVal = parseFloat(req.partner.walletBalance || 0);
-    const totalVal = parseFloat(req.partner.totalEarnings || 0);
-
-    const [ordersRes] = await db.query(
-      "SELECT SUM(serviceAmount) as totalAmount FROM orders WHERE vendorName = ? AND status = 'Completed'",
+    // 3. Fetch earnings stats (combining both orders and orders_v2 tables)
+    const [adminOrders] = await db.query(
+      "SELECT serviceAmount, paymentMethod, serviceDate FROM orders WHERE vendorName = ? AND status = 'Completed'",
       [partnerName]
     );
 
-    const calculatedTotal = parseFloat(ordersRes[0].totalAmount || 0);
-    const totalEarning = calculatedTotal;
+    const [v2Orders] = await db.query(
+      "SELECT price, payment, date FROM orders_v2 WHERE partnerName = ? AND status = 'Completed'",
+      [partnerName]
+    );
+
+    // Helper functions for date matching in IST
+    const today = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const todayIST = new Date(Date.now() + istOffset + (new Date().getTimezoneOffset() * 60000));
     
-    const todayStr = new Date().toLocaleDateString('en-IN');
-    const [todayRes] = await db.query(
-      "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed' AND serviceDate = ?",
-      [partnerName, todayStr]
-    );
-    const todayEarning = Math.round(parseFloat(todayRes[0].amount || 0));
+    const yyyy = todayIST.getFullYear();
+    const mm = String(todayIST.getMonth() + 1).padStart(2, '0');
+    const dd = String(todayIST.getDate()).padStart(2, '0');
+    
+    const dVal = todayIST.getDate();
+    const mVal = todayIST.getMonth() + 1;
 
-    const [monthRes] = await db.query(
-      "SELECT SUM(serviceAmount) as amount FROM orders WHERE vendorName = ? AND status = 'Completed'",
-      [partnerName]
-    );
-    const monthlyEarning = Math.round(parseFloat(monthRes[0].amount || 0));
+    // ISO formats
+    const todayISO1 = yyyy + '-' + mm + '-' + dd;
+    const todayISO2 = yyyy + '-' + mVal + '-' + dVal;
+    const todayISO3 = yyyy + '-' + mm + '-' + dVal;
+    const todayISO4 = yyyy + '-' + mVal + '-' + dd;
 
-    // Calculate cash earnings (partner's share, i.e., 75% of cash bookings total)
-    const [cashRes] = await db.query(
-      "SELECT SUM(serviceAmount) as totalAmount FROM orders WHERE vendorName = ? AND status = 'Completed' AND paymentMethod = 'Cash'",
-      [partnerName]
-    );
-    const cashTotal = parseFloat(cashRes[0].totalAmount || 0);
-    const cashEarning = Math.round(cashTotal * 0.75);
+    // Dashed formats
+    const todayDashed1 = dd + '-' + mm + '-' + yyyy;
+    const todayDashed2 = dVal + '-' + mVal + '-' + yyyy;
+    const todayDashed3 = dd + '-' + mVal + '-' + yyyy;
+    const todayDashed4 = dVal + '-' + mm + '-' + yyyy;
 
-    // Calculate online earnings (partner's share, i.e., 75% of online bookings total)
-    const [onlineRes] = await db.query(
-      "SELECT SUM(serviceAmount) as totalAmount FROM orders WHERE vendorName = ? AND status = 'Completed' AND paymentMethod != 'Cash'",
-      [partnerName]
-    );
-    const onlineTotal = parseFloat(onlineRes[0].totalAmount || 0);
-    const onlineEarning = Math.round(onlineTotal * 0.75);
+    // Slashed formats
+    const todaySlashed1 = dd + '/' + mm + '/' + yyyy;
+    const todaySlashed2 = dVal + '/' + mVal + '/' + yyyy;
+    const todaySlashed3 = dd + '/' + mVal + '/' + yyyy;
+    const todaySlashed4 = dVal + '/' + mm + '/' + yyyy;
+
+    const isToday = (dateStr) => {
+      if (!dateStr) return false;
+      const clean = dateStr.trim();
+      return clean === todayISO1 || 
+             clean === todayISO2 || 
+             clean === todayISO3 || 
+             clean === todayISO4 || 
+             clean === todayDashed1 || 
+             clean === todayDashed2 || 
+             clean === todayDashed3 || 
+             clean === todayDashed4 || 
+             clean === todaySlashed1 || 
+             clean === todaySlashed2 || 
+             clean === todaySlashed3 || 
+             clean === todaySlashed4;
+    };
+
+    let totalEarningsCalculated = 0;
+    let todayEarning = 0;
+    let cashEarning = 0;
+    let onlineEarning = 0;
+
+    for (const o of adminOrders) {
+      const amount = parseFloat(o.serviceAmount || 0);
+      const partnerShare = amount * 0.75;
+      const isCash = (o.paymentMethod || '').toLowerCase() === 'cash';
+      
+      totalEarningsCalculated += partnerShare;
+      if (isToday(o.serviceDate)) {
+        todayEarning += partnerShare;
+      }
+      if (isCash) {
+        cashEarning += partnerShare;
+      } else {
+        onlineEarning += partnerShare;
+      }
+    }
+
+    for (const o of v2Orders) {
+      const amount = parseFloat(o.price || 0);
+      const partnerShare = amount * 0.75;
+      
+      let isCash = false;
+      try {
+        const payObj = typeof o.payment === 'string' ? JSON.parse(o.payment) : (o.payment || {});
+        isCash = (payObj.paymentMethod || '').toLowerCase() === 'cash';
+      } catch(e) {}
+
+      totalEarningsCalculated += partnerShare;
+      if (isToday(o.date)) {
+        todayEarning += partnerShare;
+      }
+      if (isCash) {
+        cashEarning += partnerShare;
+      } else {
+        onlineEarning += partnerShare;
+      }
+    }
 
     res.json({
       id: partnerId,
@@ -3242,11 +3440,11 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
         cancelBooking
       },
       earningsStats: {
-        totalEarning: Math.round(totalEarning),
-        todayEarning,
-        monthlyEarning,
-        onlineEarning,
-        cashEarning,
+        totalEarning: Math.round(totalEarningsCalculated),
+        todayEarning: Math.round(todayEarning),
+        monthlyEarning: Math.round(totalEarningsCalculated),
+        onlineEarning: Math.round(onlineEarning),
+        cashEarning: Math.round(cashEarning),
         payToCompany: parseFloat(req.partner.payToCompany || 0),
         walletBalance: parseFloat(req.partner.walletBalance || 0)
       },
