@@ -275,12 +275,21 @@ const getFilteredBookingsList = async (partner) => {
 
   // 4. Apply common date/time filters
   const filtered = mapped.filter(b => {
-    const isPast = isDateBeforeToday(b.date, b.time);
-    if (isPast && (b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress')) {
-      return false;
+    // IMPORTANT: accepted, in_progress, completed, and cancel bookings are NEVER
+    // removed by date/time filters — they must always stay visible until explicitly
+    // changed by the partner or admin.
+    if (b.status === 'accepted' || b.status === 'in_progress' || b.status === 'completed' || b.status === 'cancel') {
+      return true;
     }
 
+    // For PENDING bookings only: remove if the booking date/time has already passed
     if (b.status === 'pending') {
+      const isPast = isDateBeforeToday(b.date, b.time);
+      if (isPast) {
+        return false;
+      }
+
+      // Also hide pending bookings for future dates until 1 hour before slot starts
       const startDateTime = getTimeslotStartDateTime(b.date, b.time);
       if (startDateTime) {
         const today = getCurrentIST();
@@ -296,6 +305,7 @@ const getFilteredBookingsList = async (partner) => {
         }
       }
     }
+
     return true;
   });
 
