@@ -109,6 +109,67 @@ const partnerUpload = upload.fields([
 // -------------------------------------------------------------
 // HELPER FUNCTIONS
 // -------------------------------------------------------------
+// Helper to prefetch all services and their categories mapping
+const getServiceMap = async () => {
+  const map = new Map();
+  try {
+    const [rows] = await db.query(`
+      SELECT s.title AS serviceTitle, c.title AS categoryTitle
+      FROM services s
+      LEFT JOIN categories c ON s.category_id = c.id
+    `);
+    for (const r of rows) {
+      if (r.serviceTitle) {
+        map.set(r.serviceTitle.toLowerCase().trim(), {
+          serviceTitle: r.serviceTitle.trim(),
+          categoryTitle: (r.categoryTitle || '').trim()
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching service map:', err);
+  }
+  return map;
+};
+
+// Helper to check if a booking matches partner's selected category and services
+const partnerMatchesBooking = (partner, booking, serviceMap) => {
+  const bookingServiceLower = (booking.serviceName || booking.service || '').trim().toLowerCase();
+  if (!bookingServiceLower) return false;
+
+  const mapped = serviceMap.get(bookingServiceLower) || {
+    serviceTitle: bookingServiceLower,
+    categoryTitle: ''
+  };
+
+  const bService = mapped.serviceTitle.toLowerCase();
+  const bCategory = mapped.categoryTitle.toLowerCase();
+
+  const pCategory = (partner.category || '').trim().toLowerCase();
+  const pServices = (partner.services || '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!pCategory && pServices.length === 0) {
+    return false;
+  }
+
+  // 1. Check if matches partner's category
+  if (pCategory) {
+    if (bCategory === pCategory) return true;
+    if (bCategory.includes(pCategory) || pCategory.includes(bCategory)) return true;
+  }
+
+  // 2. Check if matches any of the partner's selected services
+  for (const ps of pServices) {
+    if (bService === ps || bService.includes(ps) || ps.includes(bService)) return true;
+    if (bCategory === ps || bCategory.includes(ps) || ps.includes(bCategory)) return true;
+  }
+
+  return false;
+};
+
 function resolveDocUrl(url, req, type = 'document') {
   const currentBase = `${req.protocol}://${req.get('host')}`;
   if (!url || url.trim() === '') {
@@ -1792,6 +1853,7 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
 
   try {
     let final = [];
+    const serviceMap = await getServiceMap();
 
     // Fetch dismissed booking IDs for this partner
     const [dismissedRows] = await db.query(
@@ -1808,9 +1870,9 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
       const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
       final = [
         ...v2A.map(mapV2),
-        ...v2P.filter(r => !dismissedAppIds.has(r.id) && nearbyV2(r)).map(mapV2),
+        ...v2P.filter(r => !dismissedAppIds.has(r.id) && nearbyV2(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapV2),
         ...adA.map(mapAdmin),
-        ...adP.filter(r => !dismissedAdminIds.has(r.id) && nearbyAdmin(r)).map(mapAdmin)
+        ...adP.filter(r => !dismissedAdminIds.has(r.id) && nearbyAdmin(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapAdmin)
       ];
 
     } else if (filterStatus === 'completed') {
@@ -1838,9 +1900,9 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
       const adIds = new Set(adA.map(r=>r.id));
       final = [
         ...v2A.map(mapV2),
-        ...v2P.filter(r => !v2Ids.has(r.id) && !dismissedAppIds.has(r.id) && nearbyV2(r)).map(mapV2),
+        ...v2P.filter(r => !v2Ids.has(r.id) && !dismissedAppIds.has(r.id) && nearbyV2(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapV2),
         ...adA.map(mapAdmin),
-        ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r)).map(mapAdmin)
+        ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapAdmin)
       ];
     }
     // Filter out past bookings, and future pending bookings before 1 hour of slot
@@ -2148,6 +2210,7 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
       [city, locality]
     );
 
+    const serviceMap = await getServiceMap();
     const validRow = rows.find(r => {
       const isPast = isDateBeforeToday(r.serviceDate, r.slotTime);
       if (isPast) return false;
@@ -2165,6 +2228,9 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
             return false;
           }
         }
+      }
+      if (!partnerMatchesBooking(req.partner, r, serviceMap)) {
+        return false;
       }
       return true;
     });
@@ -3295,8 +3361,9 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
              ((o.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
     }
 
-    const filteredPendingV2 = pendingRowsV2.filter(nearbyV2);
-    const filteredPendingAdmin = pendingRowsAdmin.filter(nearbyAdmin);
+    const serviceMap = await getServiceMap();
+    const filteredPendingV2 = pendingRowsV2.filter(r => nearbyV2(r) && partnerMatchesBooking(req.partner, r, serviceMap));
+    const filteredPendingAdmin = pendingRowsAdmin.filter(r => nearbyAdmin(r) && partnerMatchesBooking(req.partner, r, serviceMap));
 
     const totalBooking = assignedRowsV2.length + assignedRowsAdmin.length + filteredPendingV2.length + filteredPendingAdmin.length;
     const upcomingBooking = filteredPendingV2.length + filteredPendingAdmin.length;
