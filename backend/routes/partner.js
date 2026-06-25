@@ -448,6 +448,13 @@ function isDateBeforeToday(dateStr, timeSlotStr) {
   return false;
 }
 
+function isSameBookingDate(dateStr1, dateStr2) {
+  const d1 = getBookingDateOnly(dateStr1);
+  const d2 = getBookingDateOnly(dateStr2);
+  if (!d1 || !d2) return false;
+  return d1.getTime() === d2.getTime();
+}
+
 // -------------------------------------------------------------
 // AUTHENTICATION MIDDLEWARE
 // -------------------------------------------------------------
@@ -1938,22 +1945,23 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
   const { id } = resolved;
 
   try {
-    // Check if the partner has already reached the limit of 5 active bookings
-    const [v2Active] = await db.query(
-      `SELECT COUNT(*) as count FROM orders_v2 
+    // Fetch active bookings in orders_v2
+    const [v2ActiveList] = await db.query(
+      `SELECT date, timeSlot FROM orders_v2 
        WHERE partnerName = ? 
          AND status IN ('Assigned', 'In Progress')`,
       [partnerName]
     );
 
-    const [adminActive] = await db.query(
-      `SELECT COUNT(*) as count FROM orders 
+    // Fetch active bookings in orders
+    const [adminActiveList] = await db.query(
+      `SELECT serviceDate, slotTime FROM orders 
        WHERE vendorName = ? 
          AND status IN ('Assigned', 'In Progress')`,
       [partnerName]
     );
 
-    const activeCount = (v2Active[0]?.count || 0) + (adminActive[0]?.count || 0);
+    const activeCount = v2ActiveList.length + adminActiveList.length;
     if (activeCount >= 5) {
       return res.status(400).json({ 
         error: 'Booking limit exceeded. You can have a maximum of 5 active bookings at a time. Please complete your current bookings before accepting new ones.' 
@@ -1966,6 +1974,24 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
     }
 
     const order = rows[0];
+
+    // Check if the timeslot conflicts with any of the partner's active bookings
+    if (order.date && order.timeSlot) {
+      const targetDate = order.date;
+      const targetTimeSlot = order.timeSlot;
+      const targetNormTime = targetTimeSlot.replace(/\s+/g, '').toLowerCase();
+
+      const hasConflict = 
+        v2ActiveList.some(b => isSameBookingDate(b.date, targetDate) && b.timeSlot && b.timeSlot.replace(/\s+/g, '').toLowerCase() === targetNormTime) ||
+        adminActiveList.some(b => isSameBookingDate(b.serviceDate, targetDate) && b.slotTime && b.slotTime.replace(/\s+/g, '').toLowerCase() === targetNormTime);
+
+      if (hasConflict) {
+        return res.status(400).json({ 
+          error: 'Timeslot conflict. You already have an active booking assigned for this timeslot.' 
+        });
+      }
+    }
+
     if (order.partnerName && order.partnerName !== '' && order.partnerName.toLowerCase() !== partnerName.toLowerCase()) {
       return res.status(400).json({ error: 'Order already accepted by another partner' });
     }
@@ -2833,6 +2859,28 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
   const { id, isV2 } = resolved;
 
   try {
+    // Check if the partner already has another booking in progress
+    const [v2InProgress] = await db.query(
+      `SELECT COUNT(*) as count FROM orders_v2 
+       WHERE partnerName = ? 
+         AND status = 'In Progress'`,
+      [partnerName]
+    );
+
+    const [adminInProgress] = await db.query(
+      `SELECT COUNT(*) as count FROM orders 
+       WHERE vendorName = ? 
+         AND status = 'In Progress'`,
+      [partnerName]
+    );
+
+    const inProgressCount = (v2InProgress[0]?.count || 0) + (adminInProgress[0]?.count || 0);
+    if (inProgressCount > 0) {
+      return res.status(400).json({ 
+        error: 'You already have a booking in progress. Please complete your current booking before starting a new one.' 
+      });
+    }
+
     const tableName = isV2 ? 'orders_v2' : 'orders';
     const [rows] = await db.query(`SELECT * FROM ${tableName} WHERE id = ?`, [id]);
     if (rows.length === 0) {
