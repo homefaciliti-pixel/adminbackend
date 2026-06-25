@@ -170,6 +170,138 @@ const partnerMatchesBooking = (partner, booking, serviceMap) => {
   return false;
 };
 
+// Helper to retrieve the unified, fully filtered list of bookings for a partner
+const getFilteredBookingsList = async (partner) => {
+  const partnerName = partner.name;
+  const partnerLat = parseFloat(partner.latitude);
+  const partnerLon = parseFloat(partner.longitude);
+  const hasCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
+  const RADIUS_KM = 10;
+
+  function distKm(la1, lo1, la2, lo2) {
+    const R = 6371, dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
+    const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
+  function parseAddrV2(o) {
+    try { return typeof o.address === 'string' ? JSON.parse(o.address) : (o.address||{}); }
+    catch(e) { return {}; }
+  }
+
+  function nearbyV2(o) {
+    const a = parseAddrV2(o);
+    const oLa = parseFloat(a.latitude), oLo = parseFloat(a.longitude);
+    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
+      const distance = distKm(partnerLat, partnerLon, oLa, oLo);
+      if (distance <= RADIUS_KM) return true;
+      if (distance > 1000) {
+        return ((a.city||'').toLowerCase()).includes((partner.city||'').toLowerCase()) ||
+               ((partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
+      }
+      return false;
+    }
+    return ((a.city||'').toLowerCase()).includes((partner.city||'').toLowerCase()) ||
+           ((partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
+  }
+
+  function nearbyAdmin(o) {
+    const oLa = parseFloat(o.latitude), oLo = parseFloat(o.longitude);
+    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
+      const distance = distKm(partnerLat, partnerLon, oLa, oLo);
+      if (distance <= RADIUS_KM) return true;
+      if (distance > 1000) {
+        return ((o.city||'').toLowerCase()).includes((partner.city||'').toLowerCase()) ||
+               ((partner.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
+      }
+      return false;
+    }
+    return ((o.city||'').toLowerCase()).includes((partner.city||'').toLowerCase()) ||
+           ((partner.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
+  }
+
+  function mapV2(o) {
+    const a = parseAddrV2(o);
+    const s = (o.status||'').toLowerCase();
+    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
+    return {
+      id: parseInt(o.id), status: st, service: o.serviceName, date: o.date, time: o.timeSlot,
+      serviceAmount: o.price, serviceRequestNumber: o.id.toString(),
+      address: a.houseNo ? `${a.houseNo}, ${a.society||''}, ${a.locality||''}, ${a.city||''}`.replace(/,\s*,/g,',').trim() : (o.address||''),
+      city: a.city||'', locality: a.locality||'', customerName: a.name||'Customer', customerPhone: o.userPhone||'',
+      latitude: parseFloat(a.latitude) || null, longitude: parseFloat(a.longitude) || null,
+      source:'app'
+    };
+  }
+
+  function mapAdmin(o) {
+    const s = (o.status||'').toLowerCase();
+    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
+    return {
+      id: parseInt(o.id), status: st, service: o.serviceName, date: o.serviceDate, time: o.slotTime,
+      serviceAmount: parseFloat(o.serviceAmount||0), serviceRequestNumber: o.serviceRequestNumber||o.id.toString(),
+      address: o.address||'', city: o.city||'', locality: o.locality||'', customerName: 'Customer', customerPhone: '',
+      latitude: parseFloat(o.latitude) || null, longitude: parseFloat(o.longitude) || null,
+      source:'admin'
+    };
+  }
+
+  // 1. Fetch dismissed rows
+  const [dismissedRows] = await db.query(
+    'SELECT bookingId, source FROM partner_dismissed_bookings WHERE partnerId = ?',
+    [partner.id]
+  );
+  const dismissedAppIds = new Set(dismissedRows.filter(r => r.source === 'app').map(r => r.bookingId));
+  const dismissedAdminIds = new Set(dismissedRows.filter(r => r.source === 'admin').map(r => r.bookingId));
+
+  // 2. Fetch assigned and pending bookings
+  const [v2A] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? ORDER BY id DESC`,[partnerName]);
+  const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
+  const [adA] = await db.query(`SELECT * FROM orders WHERE vendorName=? ORDER BY id DESC`,[partnerName]);
+  const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
+
+  const serviceMap = await getServiceMap();
+
+  const v2Ids = new Set(v2A.map(r=>r.id));
+  const adIds = new Set(adA.map(r=>r.id));
+
+  // 3. Map all
+  const mapped = [
+    ...v2A.map(mapV2),
+    ...v2P.filter(r => !v2Ids.has(r.id) && !dismissedAppIds.has(r.id) && nearbyV2(r) && partnerMatchesBooking(partner, r, serviceMap)).map(mapV2),
+    ...adA.map(mapAdmin),
+    ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r) && partnerMatchesBooking(partner, r, serviceMap)).map(mapAdmin)
+  ];
+
+  // 4. Apply common date/time filters
+  const filtered = mapped.filter(b => {
+    const isPast = isDateBeforeToday(b.date, b.time);
+    if (isPast && (b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress')) {
+      return false;
+    }
+
+    if (b.status === 'pending') {
+      const startDateTime = getTimeslotStartDateTime(b.date, b.time);
+      if (startDateTime) {
+        const today = getCurrentIST();
+        today.setHours(0, 0, 0, 0);
+        
+        const bookingDate = getBookingDateOnly(b.date);
+        if (bookingDate && bookingDate > today) {
+          const oneHourBefore = new Date(startDateTime.getTime() - 60 * 60 * 1000);
+          const nowIST = getCurrentIST();
+          if (nowIST < oneHourBefore) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  });
+
+  return filtered;
+};
+
 function resolveDocUrl(url, req, type = 'document') {
   const currentBase = `${req.protocol}://${req.get('host')}`;
   if (!url || url.trim() === '') {
@@ -1761,175 +1893,31 @@ router.get('/partner/pay-redirect', async (req, res) => {
 
 // -------------------------------------------------------------
 // BOOKING / ORDERS ENDPOINTS (PROTECTED)
-// -------------------------------------------------------------
-
-// GET /api/bookings - Get list of bookings for the partner (returns empty if unapproved or unpaid)
+// -----------------------------------------------// GET /api/bookings - Get list of bookings for the partner (returns empty if unapproved or unpaid)
 router.get('/bookings', authenticatePartner, async (req, res) => {
-  const partnerName = req.partner.name;
-  const filterStatus = req.query.status;
-
   // RULE: Dashboard shows BLANK until partner has paid AND is approved
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.json([]);
   }
 
-  const partnerLat = parseFloat(req.partner.latitude);
-  const partnerLon = parseFloat(req.partner.longitude);
-  const hasCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
-  const RADIUS_KM = 10;
-
-  function distKm(la1, lo1, la2, lo2) {
-    const R = 6371, dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
-    const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-  }
-
-  // Parse JSON address from orders_v2
-  function parseAddrV2(o) {
-    try { return typeof o.address === 'string' ? JSON.parse(o.address) : (o.address||{}); }
-    catch(e) { return {}; }
-  }
-
-  // GPS/city proximity check for orders_v2
-  function nearbyV2(o) {
-    const a = parseAddrV2(o);
-    const oLa = parseFloat(a.latitude), oLo = parseFloat(a.longitude);
-    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
-      const distance = distKm(partnerLat, partnerLon, oLa, oLo);
-      if (distance <= RADIUS_KM) return true;
-      if (distance > 1000) {
-        return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-               ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
-      }
-      return false;
-    }
-    return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-           ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
-  }
-
-  // GPS/city proximity check for admin orders
-  function nearbyAdmin(o) {
-    const oLa = parseFloat(o.latitude), oLo = parseFloat(o.longitude);
-    if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
-      const distance = distKm(partnerLat, partnerLon, oLa, oLo);
-      if (distance <= RADIUS_KM) return true;
-      if (distance > 1000) {
-        return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-               ((o.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
-      }
-      return false;
-    }
-    return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-           ((req.partner.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
-  }
-
-  // Map orders_v2 row to unified response
-  function mapV2(o) {
-    const a = parseAddrV2(o);
-    const s = (o.status||'').toLowerCase();
-    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
-    return {
-      id: parseInt(o.id), status: st, service: o.serviceName, date: o.date, time: o.timeSlot,
-      serviceAmount: o.price, serviceRequestNumber: o.id.toString(),
-      address: a.houseNo ? `${a.houseNo}, ${a.society||''}, ${a.locality||''}, ${a.city||''}`.replace(/,\s*,/g,',').trim() : (o.address||''),
-      city: a.city||'', locality: a.locality||'', customerName: a.name||'Customer', customerPhone: o.userPhone||'',
-      latitude: parseFloat(a.latitude) || null, longitude: parseFloat(a.longitude) || null,
-      source:'app'
-    };
-  }
-
-  // Map admin orders row to unified response
-  function mapAdmin(o) {
-    const s = (o.status||'').toLowerCase();
-    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
-    return {
-      id: parseInt(o.id), status: st, service: o.serviceName, date: o.serviceDate, time: o.slotTime,
-      serviceAmount: parseFloat(o.serviceAmount||0), serviceRequestNumber: o.serviceRequestNumber||o.id.toString(),
-      address: o.address||'', city: o.city||'', locality: o.locality||'', customerName: 'Customer', customerPhone: '',
-      latitude: parseFloat(o.latitude) || null, longitude: parseFloat(o.longitude) || null,
-      source:'admin'
-    };
-  }
+  const filterStatus = req.query.status;
 
   try {
+    const allFiltered = await getFilteredBookingsList(req.partner);
+
     let final = [];
-    const serviceMap = await getServiceMap();
-
-    // Fetch dismissed booking IDs for this partner
-    const [dismissedRows] = await db.query(
-      'SELECT bookingId, source FROM partner_dismissed_bookings WHERE partnerId = ?',
-      [req.partner.id]
-    );
-    const dismissedAppIds = new Set(dismissedRows.filter(r => r.source === 'app').map(r => r.bookingId));
-    const dismissedAdminIds = new Set(dismissedRows.filter(r => r.source === 'admin').map(r => r.bookingId));
-
     if (filterStatus === 'upcoming') {
-      const [v2A] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Assigned' ORDER BY id DESC`,[partnerName]);
-      const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
-      const [adA] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='Assigned' ORDER BY id DESC`,[partnerName]);
-      const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
-      final = [
-        ...v2A.map(mapV2),
-        ...v2P.filter(r => !dismissedAppIds.has(r.id) && nearbyV2(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapV2),
-        ...adA.map(mapAdmin),
-        ...adP.filter(r => !dismissedAdminIds.has(r.id) && nearbyAdmin(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapAdmin)
-      ];
-
+      final = allFiltered.filter(b => b.status === 'accepted' || b.status === 'pending');
     } else if (filterStatus === 'completed') {
-      const [v2R] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Completed' ORDER BY id DESC`,[partnerName]);
-      const [adR] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='Completed' ORDER BY id DESC`,[partnerName]);
-      final = [...v2R.map(mapV2), ...adR.map(mapAdmin)];
-
+      final = allFiltered.filter(b => b.status === 'completed');
     } else if (filterStatus === 'cancel') {
-      const [v2R] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='Cancelled' ORDER BY id DESC`,[partnerName]);
-      const [adR] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='Cancelled' ORDER BY id DESC`,[partnerName]);
-      final = [...v2R.map(mapV2), ...adR.map(mapAdmin)];
-
+      final = allFiltered.filter(b => b.status === 'cancel');
     } else if (filterStatus === 'in_progress') {
-      const [v2R] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? AND status='In Progress' ORDER BY id DESC`,[partnerName]);
-      const [adR] = await db.query(`SELECT * FROM orders WHERE vendorName=? AND status='In Progress' ORDER BY id DESC`,[partnerName]);
-      final = [...v2R.map(mapV2), ...adR.map(mapAdmin)];
-
+      final = allFiltered.filter(b => b.status === 'in_progress');
     } else {
-      // All: assigned + nearby pending from BOTH tables
-      const [v2A] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? ORDER BY id DESC`,[partnerName]);
-      const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
-      const [adA] = await db.query(`SELECT * FROM orders WHERE vendorName=? ORDER BY id DESC`,[partnerName]);
-      const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
-      const v2Ids = new Set(v2A.map(r=>r.id));
-      const adIds = new Set(adA.map(r=>r.id));
-      final = [
-        ...v2A.map(mapV2),
-        ...v2P.filter(r => !v2Ids.has(r.id) && !dismissedAppIds.has(r.id) && nearbyV2(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapV2),
-        ...adA.map(mapAdmin),
-        ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r) && partnerMatchesBooking(req.partner, r, serviceMap)).map(mapAdmin)
-      ];
+      // All
+      final = allFiltered;
     }
-    // Filter out past bookings, and future pending bookings before 1 hour of slot
-    final = final.filter(b => {
-      const isPast = isDateBeforeToday(b.date, b.time);
-      if (isPast && (b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress')) {
-        return false;
-      }
-
-      if (b.status === 'pending') {
-        const startDateTime = getTimeslotStartDateTime(b.date, b.time);
-        if (startDateTime) {
-          const today = getCurrentIST();
-          today.setHours(0, 0, 0, 0);
-          
-          const bookingDate = getBookingDateOnly(b.date);
-          if (bookingDate && bookingDate > today) {
-            const oneHourBefore = new Date(startDateTime.getTime() - 60 * 60 * 1000);
-            const nowIST = getCurrentIST();
-            if (nowIST < oneHourBefore) {
-              return false;
-            }
-          }
-        }
-      }
-      return true;
-    });
 
     // Sort newest first
     final.sort((a,b)=>parseInt(String(b.id).split('_').pop())-parseInt(String(a.id).split('_').pop()));
@@ -1944,8 +1932,6 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
 
 // GET /api/bookings/stats - Stats summary (returns zeros if unapproved or unpaid)
 router.get('/bookings/stats', authenticatePartner, async (req, res) => {
-  const partnerName = req.partner.name;
-
   // RULE: Dashboard stats show ZERO until partner has paid AND is approved by the admin
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.json({
@@ -1958,42 +1944,15 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
     });
   }
 
-
-
-  const partnerCity = req.partner.city;
-  const partnerLocality = req.partner.locality;
-
   try {
-    const [assignedRowsV2] = await db.query('SELECT status FROM orders_v2 WHERE partnerName = ?', [partnerName]);
-    const [assignedRowsAdmin] = await db.query('SELECT status FROM orders WHERE vendorName = ?', [partnerName]);
+    const allFiltered = await getFilteredBookingsList(req.partner);
 
-    const allAssigned = [
-      ...assignedRowsV2.map(o => ({ status: o.status })),
-      ...assignedRowsAdmin.map(o => ({ status: o.status }))
-    ];
-
-    const total = allAssigned.length;
-    const upcoming = allAssigned.filter(o => (o.status || '').toLowerCase() === 'assigned').length;
-    
-    const accepted = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'assigned' || statusLower === 'in progress' || statusLower === 'in_progress';
-    }).length;
-
-    const inProgress = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'in progress' || statusLower === 'in_progress';
-    }).length;
-
-    const completed = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'completed' || statusLower === 'complete';
-    }).length;
-
-    const cancel = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'cancelled' || statusLower === 'rejected';
-    }).length;
+    const total = allFiltered.length;
+    const upcoming = allFiltered.filter(b => b.status === 'accepted').length;
+    const accepted = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
+    const inProgress = allFiltered.filter(b => b.status === 'in_progress').length;
+    const completed = allFiltered.filter(b => b.status === 'completed').length;
+    const cancel = allFiltered.filter(b => b.status === 'cancel').length;
 
     res.json({
       totalBooking: total,
@@ -3297,101 +3256,15 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
   }
 
   try {
-    // 2. Fetch booking stats (combining both orders and orders_v2 tables)
-    const [assignedRowsV2] = await db.query('SELECT status FROM orders_v2 WHERE partnerName = ?', [partnerName]);
-    const [assignedRowsAdmin] = await db.query('SELECT status FROM orders WHERE vendorName = ?', [partnerName]);
+    // 2. Fetch booking stats (combining both orders and orders_v2 tables) using the unified filtering pipeline
+    const allFiltered = await getFilteredBookingsList(req.partner);
 
-    // Fetch pending bookings from both tables for proximity check
-    const [pendingRowsV2] = await db.query(
-      `SELECT * FROM orders_v2 
-       WHERE (status = 'Pending' OR bookingStatus = 'searching') 
-         AND (partnerName IS NULL OR partnerName = '')`
-    );
-    const [pendingRowsAdmin] = await db.query(
-      `SELECT * FROM orders 
-       WHERE status = 'Pending' 
-         AND (vendorName IS NULL OR vendorName = '-' OR vendorName = '')`
-    );
-
-    // Proximity helpers
-    const partnerLat = parseFloat(req.partner.latitude);
-    const partnerLon = parseFloat(req.partner.longitude);
-    const hasCoords = !isNaN(partnerLat) && !isNaN(partnerLon);
-    const RADIUS_KM = 10;
-
-    function distKm(la1, lo1, la2, lo2) {
-      const R = 6371, dLa = (la2-la1)*Math.PI/180, dLo = (lo2-lo1)*Math.PI/180;
-      const a = Math.sin(dLa/2)**2 + Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
-      return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-    }
-
-    function parseAddrV2(o) {
-      try { return typeof o.address === 'string' ? JSON.parse(o.address) : (o.address||{}); }
-      catch(e) { return {}; }
-    }
-
-    function nearbyV2(o) {
-      const a = parseAddrV2(o);
-      const oLa = parseFloat(a.latitude), oLo = parseFloat(a.longitude);
-      if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
-        const distance = distKm(partnerLat, partnerLon, oLa, oLo);
-        if (distance <= RADIUS_KM) return true;
-        if (distance > 1000) {
-          return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-                 ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
-        }
-        return false;
-      }
-      return ((a.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-             ((req.partner.city||'').toLowerCase()).includes((a.city||'').toLowerCase());
-    }
-
-    function nearbyAdmin(o) {
-      const oLa = parseFloat(o.latitude), oLo = parseFloat(o.longitude);
-      if (hasCoords && !isNaN(oLa) && !isNaN(oLo)) {
-        const distance = distKm(partnerLat, partnerLon, oLa, oLo);
-        if (distance <= RADIUS_KM) return true;
-        if (distance > 1000) {
-          return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-                 ((o.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
-        }
-        return false;
-      }
-      return ((o.city||'').toLowerCase()).includes((req.partner.city||'').toLowerCase()) ||
-             ((o.city||'').toLowerCase()).includes((o.city||'').toLowerCase());
-    }
-
-    const serviceMap = await getServiceMap();
-    const filteredPendingV2 = pendingRowsV2.filter(r => nearbyV2(r) && partnerMatchesBooking(req.partner, r, serviceMap));
-    const filteredPendingAdmin = pendingRowsAdmin.filter(r => nearbyAdmin(r) && partnerMatchesBooking(req.partner, r, serviceMap));
-
-    const totalBooking = assignedRowsV2.length + assignedRowsAdmin.length + filteredPendingV2.length + filteredPendingAdmin.length;
-    const upcomingBooking = filteredPendingV2.length + filteredPendingAdmin.length;
-
-    const allAssigned = [
-      ...assignedRowsV2.map(o => ({ status: o.status })),
-      ...assignedRowsAdmin.map(o => ({ status: o.status }))
-    ];
-
-    const acceptedBooking = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'assigned' || statusLower === 'upcoming' || statusLower === 'in progress' || statusLower === 'in_progress';
-    }).length;
-
-    const inProgressBooking = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'in progress' || statusLower === 'in_progress';
-    }).length;
-
-    const completedBooking = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'completed' || statusLower === 'complete';
-    }).length;
-
-    const cancelBooking = allAssigned.filter(o => {
-      const statusLower = (o.status || '').toLowerCase();
-      return statusLower === 'cancelled' || statusLower === 'rejected';
-    }).length;
+    const totalBooking = allFiltered.length;
+    const upcomingBooking = allFiltered.filter(b => b.status === 'pending').length;
+    const acceptedBooking = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
+    const inProgressBooking = allFiltered.filter(b => b.status === 'in_progress').length;
+    const completedBooking = allFiltered.filter(b => b.status === 'completed').length;
+    const cancelBooking = allFiltered.filter(b => b.status === 'cancel').length;
 
     // 3. Fetch earnings stats (combining both orders and orders_v2 tables)
     const [adminOrders] = await db.query(
