@@ -589,6 +589,33 @@ router.post('/auth/register', (req, res) => {
     }
 
     try {
+      // Save uploaded KYC and profile images to Database for persistence
+      const { saveFileToDb } = require('../filePersistence');
+      const uploadPromises = [];
+      if (req.files) {
+        if (req.files['profileImage']) {
+          const file = req.files['profileImage'][0];
+          uploadPromises.push(saveFileToDb(file.filename, file.path, file.mimetype));
+        }
+        if (req.files['aadharFront']) {
+          const file = req.files['aadharFront'][0];
+          uploadPromises.push(saveFileToDb(file.filename, file.path, file.mimetype));
+        }
+        if (req.files['aadharBack']) {
+          const file = req.files['aadharBack'][0];
+          uploadPromises.push(saveFileToDb(file.filename, file.path, file.mimetype));
+        }
+        if (req.files['panImage']) {
+          const file = req.files['panImage'][0];
+          uploadPromises.push(saveFileToDb(file.filename, file.path, file.mimetype));
+        }
+        if (req.files['policeVerification']) {
+          const file = req.files['policeVerification'][0];
+          uploadPromises.push(saveFileToDb(file.filename, file.path, file.mimetype));
+        }
+      }
+      await Promise.all(uploadPromises);
+
       // Check if mobile/phone already exists
       const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', [phoneVal]);
       if (existing.length > 0) {
@@ -1012,6 +1039,8 @@ router.put('/partner/profile', authenticatePartner, (req, res) => {
 
       // Handle profile image upload
       if (req.file) {
+        const { saveFileToDb } = require('../filePersistence');
+        await saveFileToDb(req.file.filename, req.file.path, req.file.mimetype);
         const imageUrl = getFileUrl(req, req.file.filename);
         fields.push('`image` = ?');
         values.push(imageUrl);

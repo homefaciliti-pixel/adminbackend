@@ -76,6 +76,12 @@ async function handleBannerUpload(file) {
     const destPath = path.join(destDir, file.filename);
     fs.copyFileSync(file.path, destPath);
     console.log(`Synced cropped banner image to ${destPath}`);
+
+    // Save to Database for persistence
+    const { saveFileToDb } = require('../filePersistence');
+    // Save both the subpath and the root path copy
+    await saveFileToDb('banners/' + file.filename, file.path, file.mimetype || 'image/png');
+    await saveFileToDb(file.filename, destPath, file.mimetype || 'image/png');
   } catch (err) {
     console.error('Failed to handle banner upload:', err);
   }

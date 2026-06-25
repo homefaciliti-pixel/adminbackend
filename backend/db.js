@@ -32,7 +32,7 @@ function prefixQuery(sql) {
     'users', 'categories', 'services', 'orders', 'orders_v2', 'pages', 'partners',
     'booking_earnings', 'subscription_earnings', 'banners', 'states',
     'cities', 'localities', 'notifications', 'reviews', 'settings_config',
-    'support_tickets'
+    'support_tickets', 'uploaded_files'
   ];
 
   const regex = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|DESCRIBE|TABLE)\\s+\`?(${tables.join('|')})\`?\\b`, 'gi');
@@ -63,14 +63,28 @@ pool.execute = function (sql, values) {
   return originalExecute.call(this, sql, values);
 };
 
-// Test connection on startup
+// Test connection and initialize tables on startup
 (async () => {
   try {
     const connection = await pool.getConnection();
     console.log('✅ Remote Database connected successfully through connection pool.');
+    
+    // Create node_uploaded_files table if not exists
+    const createTableSql = `
+      CREATE TABLE IF NOT EXISTS \`${tablePrefix}uploaded_files\` (
+        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+        \`filename\` VARCHAR(255) NOT NULL UNIQUE,
+        \`file_data\` LONGTEXT NOT NULL,
+        \`mime_type\` VARCHAR(100) NOT NULL,
+        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `;
+    await connection.query(createTableSql);
+    console.log(`✅ Table "${tablePrefix}uploaded_files" verified/created successfully.`);
+    
     connection.release();
   } catch (error) {
-    console.error('❌ Database connection failed on startup:');
+    console.error('❌ Database connection/initialization failed on startup:');
     console.error(error.message);
     if (error.code === 'ER_ACCESS_DENIED_ERROR' || error.code === 'ETIMEDOUT') {
       console.warn('\n⚠️  FIREWALL WARNING: Remote MySQL connections are likely restricted on this server.');

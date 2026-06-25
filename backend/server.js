@@ -86,6 +86,13 @@ server.use('/uploads', async (req, res, next) => {
       return res.status(404).send('Not Found');
     }
 
+    // Try to load/restore from database if missing from disk
+    const { loadFileFromDb } = require('./filePersistence');
+    const dbFile = await loadFileFromDb(filename, filePath);
+    if (dbFile) {
+      return res.sendFile(filePath);
+    }
+
     // For video files (mp4, mov, avi, etc.), return 404 directly — don't serve a PNG fallback
     const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
     const ext = path.extname(filename).toLowerCase();

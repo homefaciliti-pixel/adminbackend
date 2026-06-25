@@ -3,6 +3,8 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 
+const { saveFileToDb } = require('../filePersistence');
+
 // Configure Multer storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -37,7 +39,7 @@ const upload = multer({
 
 // POST /api/upload - upload a single image file (multipart form field name: 'image')
 router.post('/', (req, res) => {
-  upload.single('image')(req, res, function (err) {
+  upload.single('image')(req, res, async function (err) {
     if (err instanceof multer.MulterError) {
       // A Multer error occurred when uploading.
       return res.status(400).json({ success: false, message: `Multer upload error: ${err.message}` });
@@ -49,6 +51,9 @@ router.post('/', (req, res) => {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Please select an image file to upload (field name: image)' });
     }
+
+    // Save uploaded file to Database for persistence
+    await saveFileToDb(req.file.filename, req.file.path, req.file.mimetype);
 
     // Dynamic absolute URL based on the request headers
     const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
