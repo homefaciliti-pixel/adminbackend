@@ -11,76 +11,55 @@ function getTodayDateString() {
   return `${day}-${month}-${year}`;
 }
 
-// GET dashboard statistics
+// GET dashboard statistics - all queries run in parallel for maximum performance
 router.get('/', async (req, res) => {
   try {
     const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+    const todayStr = getTodayDateString();
 
-    // 1. Total Users
-    const [[{ total: nodeUsersV2Count }]] = await db.query('SELECT COUNT(*) as total FROM node_users_v2');
-    const [[{ total: nodeUsersCount }]] = await db.query('SELECT COUNT(*) as total FROM users');
-    const [[{ total: laravelUsersCount }]] = await db.query(`SELECT COUNT(*) as total FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`);
+    // Run all queries in parallel using Promise.all for maximum speed
+    const [
+      [[{ total: nodeUsersV2Count }]],
+      [[{ total: nodeUsersCount }]],
+      [[{ total: laravelUsersCount }]],
+      [[{ total: totalCategories }]],
+      [[{ total: totalServices }]],
+      [[{ total: nodePartnersCount }]],
+      [[{ total: laravelPartnersCount }]],
+      [[{ total: totalOrders }]],
+      [[{ total: completeOrders }]],
+      [[{ total: assignedOrders }]],
+      [[{ total: inProgressOrders }]],
+      [[{ total: cancelOrders }]],
+      todayResult,
+      subEarningsResult,
+      orderEarningsResult,
+      supportResult,
+    ] = await Promise.all([
+      db.query('SELECT COUNT(*) as total FROM node_users_v2'),
+      db.query('SELECT COUNT(*) as total FROM users'),
+      db.query(`SELECT COUNT(*) as total FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`),
+      db.query('SELECT COUNT(*) as total FROM categories'),
+      db.query('SELECT COUNT(*) as total FROM services'),
+      db.query('SELECT COUNT(*) as total FROM partners'),
+      db.query(`SELECT COUNT(*) as total FROM \`${dbName}\`.\`users\` WHERE role_id = 2`),
+      db.query('SELECT COUNT(*) as total FROM orders'),
+      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Completed'"),
+      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Assigned'"),
+      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'In Progress'"),
+      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Cancelled'"),
+      db.query("SELECT COUNT(*) as total FROM orders WHERE serviceDate = ?", [todayStr]).catch(() => [[{ total: 0 }]]),
+      db.query("SELECT SUM(amount) as total FROM subscription_earnings").catch(() => [[{ total: 0 }]]),
+      db.query("SELECT SUM(totalAmount) as total FROM booking_earnings").catch(() => [[{ total: 0 }]]),
+      db.query('SELECT COUNT(*) as total FROM support_tickets').catch(() => [[{ total: 0 }]]),
+    ]);
+
     const totalUsers = nodeUsersV2Count + nodeUsersCount + laravelUsersCount;
-
-    // 2. Total Categories
-    const [categoryRes] = await db.query('SELECT COUNT(*) as total FROM categories');
-    const totalCategories = categoryRes[0].total;
-
-    // 3. Total Services
-    const [serviceRes] = await db.query('SELECT COUNT(*) as total FROM services');
-    const totalServices = serviceRes[0].total;
-
-    // 4. Total Partners
-    const [[{ total: nodePartnersCount }]] = await db.query('SELECT COUNT(*) as total FROM partners');
-    const [[{ total: laravelPartnersCount }]] = await db.query(`SELECT COUNT(*) as total FROM \`${dbName}\`.\`users\` WHERE role_id = 2`);
     const totalPartners = nodePartnersCount + laravelPartnersCount;
-
-    // 5. Total Orders
-    const [orderRes] = await db.query('SELECT COUNT(*) as total FROM orders');
-    const totalOrders = orderRes[0].total;
-
-    // 6. Complete Orders
-    const [completeRes] = await db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Completed'");
-    const completeOrders = completeRes[0].total;
-
-    // 7. Assigned Orders
-    const [assignedRes] = await db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Assigned'");
-    const assignedOrders = assignedRes[0].total;
-
-    // 7.5 In Progress Orders
-    const [inProgressRes] = await db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'In Progress'");
-    const inProgressOrders = inProgressRes[0].total;
-
-    // 8. Cancelled Orders
-    const [cancelRes] = await db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Cancelled'");
-    const cancelOrders = cancelRes[0].total;
-
-    // 9. Today's Orders
-    let todayOrders = 0;
-    try {
-      const todayStr = getTodayDateString();
-      const [todayRes] = await db.query("SELECT COUNT(*) as total FROM orders WHERE serviceDate = ?", [todayStr]);
-      todayOrders = todayRes[0].total;
-    } catch (e) {
-      todayOrders = 0;
-    }
-
-    // 10. Subscription Earnings
-    const [subEarningsRes] = await db.query("SELECT SUM(amount) as total FROM subscription_earnings");
-    const subEarningsVal = parseFloat(subEarningsRes[0].total || 0);
-
-    // 11. Order Earnings
-    const [orderEarningsRes] = await db.query("SELECT SUM(totalAmount) as total FROM booking_earnings");
-    const orderEarningsVal = parseFloat(orderEarningsRes[0].total || 0);
-
-    // 12. Supporters (Count support tickets dynamically)
-    let totalSupporters = 0;
-    try {
-      const [[{ total: supportersCount }]] = await db.query('SELECT COUNT(*) as total FROM support_tickets');
-      totalSupporters = supportersCount;
-    } catch (err) {
-      console.error('Error fetching supporters count:', err);
-    }
+    const todayOrders = todayResult[0][0]?.total ?? 0;
+    const subEarningsVal = parseFloat(subEarningsResult[0][0]?.total || 0);
+    const orderEarningsVal = parseFloat(orderEarningsResult[0][0]?.total || 0);
+    const totalSupporters = supportResult[0][0]?.total ?? 0;
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
