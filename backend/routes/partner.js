@@ -2975,24 +2975,22 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
   const { id, isV2 } = resolved;
 
   try {
-    // Check if the partner already has another booking in progress
+    // Check if the partner already has another booking in progress (count all active 'In Progress' bookings)
     const [v2InProgressList] = await db.query(
-      `SELECT date, timeSlot FROM orders_v2 
+      `SELECT id FROM orders_v2 
        WHERE partnerName = ? 
          AND status = 'In Progress'`,
       [partnerName]
     );
 
     const [adminInProgressList] = await db.query(
-      `SELECT serviceDate, slotTime FROM orders 
+      `SELECT id FROM orders 
        WHERE vendorName = ? 
          AND status = 'In Progress'`,
       [partnerName]
     );
 
-    const inProgressCount = 
-      v2InProgressList.filter(b => !isDateBeforeToday(b.date, b.timeSlot)).length +
-      adminInProgressList.filter(b => !isDateBeforeToday(b.serviceDate, b.slotTime)).length;
+    const inProgressCount = v2InProgressList.length + adminInProgressList.length;
 
     if (inProgressCount > 0) {
       return res.status(400).json({ 
