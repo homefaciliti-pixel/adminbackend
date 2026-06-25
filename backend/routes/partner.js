@@ -371,8 +371,8 @@ function parseTime(timeStr) {
   return { hours, minutes };
 }
 
-function isDateBeforeToday(dateStr, timeSlotStr) {
-  if (!dateStr) return false;
+function getBookingDateOnly(dateStr) {
+  if (!dateStr) return null;
   const s = dateStr.trim();
   let bookingDate = null;
   // Try YYYY-MM-DD
@@ -395,11 +395,34 @@ function isDateBeforeToday(dateStr, timeSlotStr) {
     }
   }
 
+  if (bookingDate) {
+    bookingDate.setHours(0, 0, 0, 0);
+  }
+  return bookingDate;
+}
+
+function getTimeslotStartDateTime(dateStr, timeSlotStr) {
+  const bookingDate = getBookingDateOnly(dateStr);
+  if (!bookingDate || !timeSlotStr) return null;
+
+  const parts = timeSlotStr.split('-');
+  if (parts.length === 2) {
+    const startPart = parts[0].trim();
+    const startTime = parseTime(startPart);
+    if (startTime) {
+      bookingDate.setHours(startTime.hours, startTime.minutes, 0, 0);
+      return bookingDate;
+    }
+  }
+  return null;
+}
+
+function isDateBeforeToday(dateStr, timeSlotStr) {
+  const bookingDate = getBookingDateOnly(dateStr);
   if (!bookingDate) return false;
 
   const today = getCurrentIST();
   today.setHours(0, 0, 0, 0);
-  bookingDate.setHours(0, 0, 0, 0);
 
   if (bookingDate < today) {
     return true;
@@ -1768,11 +1791,28 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
         ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r)).map(mapAdmin)
       ];
     }
-    // Filter out past bookings if they are pending, accepted, or in_progress
+    // Filter out past bookings, and future pending bookings before 1 hour of slot
     final = final.filter(b => {
       const isPast = isDateBeforeToday(b.date, b.time);
       if (isPast && (b.status === 'pending' || b.status === 'accepted' || b.status === 'in_progress')) {
         return false;
+      }
+
+      if (b.status === 'pending') {
+        const startDateTime = getTimeslotStartDateTime(b.date, b.time);
+        if (startDateTime) {
+          const today = getCurrentIST();
+          today.setHours(0, 0, 0, 0);
+          
+          const bookingDate = getBookingDateOnly(b.date);
+          if (bookingDate && bookingDate > today) {
+            const oneHourBefore = new Date(startDateTime.getTime() - 60 * 60 * 1000);
+            const nowIST = getCurrentIST();
+            if (nowIST < oneHourBefore) {
+              return false;
+            }
+          }
+        }
       }
       return true;
     });
@@ -1869,6 +1909,28 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
   const { id } = resolved;
 
   try {
+    // Check if the partner has already reached the limit of 5 active bookings
+    const [v2Active] = await db.query(
+      `SELECT COUNT(*) as count FROM orders_v2 
+       WHERE partnerName = ? 
+         AND status IN ('Assigned', 'In Progress')`,
+      [partnerName]
+    );
+
+    const [adminActive] = await db.query(
+      `SELECT COUNT(*) as count FROM orders 
+       WHERE vendorName = ? 
+         AND status IN ('Assigned', 'In Progress')`,
+      [partnerName]
+    );
+
+    const activeCount = (v2Active[0]?.count || 0) + (adminActive[0]?.count || 0);
+    if (activeCount >= 5) {
+      return res.status(400).json({ 
+        error: 'Booking limit exceeded. You can have a maximum of 5 active bookings at a time. Please complete your current bookings before accepting new ones.' 
+      });
+    }
+
     const [rows] = await db.query('SELECT * FROM orders_v2 WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Order not found' });
@@ -2012,7 +2074,26 @@ router.get('/bookings/pending-popup', authenticatePartner, async (req, res) => {
       [city, locality]
     );
 
-    const validRow = rows.find(r => !isDateBeforeToday(r.serviceDate, r.slotTime));
+    const validRow = rows.find(r => {
+      const isPast = isDateBeforeToday(r.serviceDate, r.slotTime);
+      if (isPast) return false;
+
+      const startDateTime = getTimeslotStartDateTime(r.serviceDate, r.slotTime);
+      if (startDateTime) {
+        const today = getCurrentIST();
+        today.setHours(0, 0, 0, 0);
+
+        const bookingDate = getBookingDateOnly(r.serviceDate);
+        if (bookingDate && bookingDate > today) {
+          const oneHourBefore = new Date(startDateTime.getTime() - 60 * 60 * 1000);
+          const nowIST = getCurrentIST();
+          if (nowIST < oneHourBefore) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
 
     if (!validRow) {
       return res.json({ message: 'No new orders nearby', order: null });
