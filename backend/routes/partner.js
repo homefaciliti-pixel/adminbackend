@@ -3955,7 +3955,25 @@ router.get('/countries', (req, res) => {
     { name: "Zambia", code: "+260", flag: "🇿🇲" },
     { name: "Zimbabwe", code: "+263", flag: "🇿🇼" }
   ];
-  res.json({ success: true, countries });
+  const countriesEnriched = countries.map(c => {
+    let isoCode = "";
+    if (c.flag) {
+      const codePoints = Array.from(c.flag).map(char => char.codePointAt(0));
+      if (codePoints.length >= 2) {
+        const letter1 = String.fromCodePoint(codePoints[0] - 0x1F1E6 + 65);
+        const letter2 = String.fromCodePoint(codePoints[1] - 0x1F1E6 + 65);
+        isoCode = (letter1 + letter2).toUpperCase();
+      }
+    }
+    return {
+      name: c.name,
+      code: c.code,
+      flag: c.flag,
+      isoCode: isoCode,
+      flagUrl: isoCode ? `https://flagcdn.com/w80/${isoCode.toLowerCase()}.png` : ""
+    };
+  });
+  res.json({ success: true, countries: countriesEnriched });
 });
 
 module.exports = router;

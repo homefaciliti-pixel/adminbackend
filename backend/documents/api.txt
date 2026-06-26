@@ -513,7 +513,7 @@ Response Example:
 * GET /api/metadata/categories (PUBLIC)
   - Fetches active categories and nested subcategories with service title lists.
 * GET /api/countries (PUBLIC)
-  - Returns a list of all countries with flags and international calling codes.
+  - Returns a list of all countries with flags, calling codes, 2-letter ISO codes (isoCode), and flag image CDN URLs (flagUrl).
 
 13.6 PHONE OTP VERIFICATION
 ---------------------------
