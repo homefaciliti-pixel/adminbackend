@@ -340,6 +340,7 @@ function mapPartnerForApp(r, req) {
     id: parseInt(r.id),
     name: r.name || '',
     phone: r.mobile || '', // Mapping mobile -> phone for Flutter app
+    countryCode: r.countryCode || '+91',
     email: r.email || '',
     gender: r.gender || '',
     address: r.address || '',
@@ -751,6 +752,7 @@ router.post('/auth/register', (req, res) => {
 
     const nameVal = req.body.name || normalizedBody['name'] || '';
     const phoneVal = req.body.phone || req.body.mobile || normalizedBody['phone'] || normalizedBody['mobile'] || '';
+    const countryCodeVal = req.body.countryCode || req.body.countrycode || normalizedBody['countrycode'] || '+91';
     const emailVal = req.body.email || normalizedBody['email'] || '';
     const passwordVal = req.body.password || normalizedBody['password'] || '';
     const cityVal = req.body.city || normalizedBody['city'] || '';
@@ -826,10 +828,10 @@ router.post('/auth/register', (req, res) => {
       }
       await Promise.all(uploadPromises);
 
-      // Check if mobile/phone already exists
-      const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', [phoneVal]);
+      // Check if mobile/phone and countryCode already exists
+      const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ? AND countryCode = ?', [phoneVal, countryCodeVal]);
       if (existing.length > 0) {
-        return res.status(400).json({ error: 'Phone number already registered' });
+        return res.status(400).json({ error: 'Phone number already registered with this country code' });
       }
 
       // Hash password
@@ -848,16 +850,16 @@ router.post('/auth/register', (req, res) => {
 
       const [result] = await db.query(
         `INSERT INTO partners (
-          name, email, mobile, city, state, locality, address, image,
+          name, email, mobile, countryCode, city, state, locality, address, image,
           status, isApproved, gender, experience, services,
           aadhaarNumber, panNumber, bankName, accountNumber, ifscCode, documents,
           walletBalance, totalEarnings, withdrawnAmount,
           totalBookings, completedBookings, cancelledBookings, pendingBookings,
           rating, totalReviews, createdAt, password, aadharFront, aadharBack,
           panImage, policeVerificationImage, hasVehicle, category, subCategory, accountHolder, isPaid
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, '0 Years', ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 0.00, 0, 0, 0, 0, 0.0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, '0 Years', ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 0.00, 0, 0, 0, 0, 0.0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [
-          nameVal, emailVal, phoneVal, cityVal, stateVal, localityVal, addressVal, profileImageUrl,
+          nameVal, emailVal, phoneVal, countryCodeVal, cityVal, stateVal, localityVal, addressVal, profileImageUrl,
           genderVal || 'Male', servicesVal || '', aadharVal, panVal,
           bankVal, accNumVal, ifscVal, docUrls, createdDate,
           hashedPassword, aadharFrontUrl, aadharBackUrl, panImageUrl, policeVerificationUrl,
@@ -898,31 +900,33 @@ router.post('/auth/register', (req, res) => {
 
 // POST /api/auth/login - Login partner
 router.post('/auth/login', async (req, res) => {
-  const { phone, password } = req.body;
+  const { phone, password, countryCode } = req.body;
   if (!phone || !password) {
     return res.status(400).json({ error: 'Please enter phone number and password' });
   }
 
+  const countryCodeVal = countryCode || '+91';
+
   try {
     if (phone === '7250642635') {
       const hashedPassword = await bcrypt.hash('secure123', 10);
-      const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', ['7250642635']);
+      const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ? AND countryCode = ?', ['7250642635', countryCodeVal]);
       if (existing.length === 0) {
         await db.query(
           `INSERT INTO partners (
-            name, email, mobile, password, city, state, locality, address, status, isApproved, isPaid, image, walletBalance, totalEarnings
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0, '', 0.00, 0.00)`,
+            name, email, mobile, countryCode, password, city, state, locality, address, status, isApproved, isPaid, image, walletBalance, totalEarnings
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0, '', 0.00, 0.00)`,
           [
-            'Active Partner', 'activepartner@gmail.com', '7250642635', hashedPassword,
+            'Active Partner', 'activepartner@gmail.com', '7250642635', countryCodeVal, hashedPassword,
             'Narnaul', 'Haryana', 'Nnl', 'Koriawas'
           ]
         );
       }
     }
 
-    const [rows] = await db.query('SELECT * FROM partners WHERE mobile = ?', [phone]);
+    const [rows] = await db.query('SELECT * FROM partners WHERE mobile = ? AND countryCode = ?', [phone, countryCodeVal]);
     if (rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
+      return res.status(401).json({ error: 'Invalid phone number, country code, or password' });
     }
 
     const partner = rows[0];
@@ -966,19 +970,21 @@ router.post('/auth/login', async (req, res) => {
 
 // POST /api/auth/forgot-password - Reset password
 router.post('/auth/forgot-password', async (req, res) => {
-  const { phone, newPassword } = req.body;
+  const { phone, newPassword, countryCode } = req.body;
   if (!phone || !newPassword) {
     return res.status(400).json({ error: 'Phone and new password are required' });
   }
 
+  const countryCodeVal = countryCode || '+91';
+
   try {
-    const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ?', [phone]);
+    const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ? AND countryCode = ?', [phone, countryCodeVal]);
     if (existing.length === 0) {
-      return res.status(404).json({ error: 'Phone number not found' });
+      return res.status(404).json({ error: 'Phone number not found with this country code' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await db.query('UPDATE partners SET password = ? WHERE mobile = ?', [hashedPassword, phone]);
+    await db.query('UPDATE partners SET password = ? WHERE mobile = ? AND countryCode = ?', [hashedPassword, phone, countryCodeVal]);
 
     res.json({ success: true, message: 'Password reset successful!' });
   } catch (error) {

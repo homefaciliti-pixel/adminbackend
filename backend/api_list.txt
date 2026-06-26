@@ -190,9 +190,9 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 13. PARTNER MOBILE APP ENDPOINTS
 ----------------------------------------------------------------------
 - AUTHENTICATION:
-  * POST /api/auth/register - Register a partner (multipart/form-data). Mandatory files: profileImage, aadharFront, aadharBack, panImage, policeVerification. Returns: { token, amount: 500, partnerId, razorpayKeyId, razorpayOrderId, partner } (Note: Tokens are valid indefinitely / do not expire).
-  * POST /api/auth/login - Login partner using phone and password. Returns: { token, partnerId, razorpayKeyId, razorpayOrderId, partner } (Note: Tokens do not expire).
-  * POST /api/auth/forgot-password - Reset password for a mobile number.
+  * POST /api/auth/register - Register a partner (multipart/form-data). Body: { countryCode (optional) }. Mandatory files: profileImage, aadharFront, aadharBack, panImage, policeVerification. Returns: { token, amount: 500, partnerId, razorpayKeyId, razorpayOrderId, partner } (Note: Tokens are valid indefinitely / do not expire).
+  * POST /api/auth/login - Login partner using phone, countryCode (optional), and password. Returns: { token, partnerId, razorpayKeyId, razorpayOrderId, partner } (Note: Tokens do not expire).
+  * POST /api/auth/forgot-password - Reset password for a mobile number. Body: { phone, newPassword, countryCode (optional) }.
   * POST /api/auth/logout - End partner session.
   * POST /api/auth/send-otp - Request a 4-digit OTP code for a phone number.
   * POST /api/auth/verify-otp - Verify the requested OTP code for a phone number.
