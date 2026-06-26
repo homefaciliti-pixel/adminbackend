@@ -1912,13 +1912,13 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
 
     let final = [];
     if (filterStatus === 'upcoming') {
-      final = allFiltered.filter(b => b.status === 'accepted' || b.status === 'pending');
+      final = allFiltered.filter(b => b.status === 'pending');
+    } else if (filterStatus === 'in_progress') {
+      final = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress');
     } else if (filterStatus === 'completed') {
       final = allFiltered.filter(b => b.status === 'completed');
     } else if (filterStatus === 'cancel') {
       final = allFiltered.filter(b => b.status === 'cancel');
-    } else if (filterStatus === 'in_progress') {
-      final = allFiltered.filter(b => b.status === 'in_progress');
     } else {
       // All
       final = allFiltered;
@@ -1953,9 +1953,9 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
     const allFiltered = await getFilteredBookingsList(req.partner);
 
     const total = allFiltered.length;
-    const upcoming = allFiltered.filter(b => b.status === 'accepted').length;
+    const upcoming = allFiltered.filter(b => b.status === 'pending').length;
     const accepted = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
-    const inProgress = allFiltered.filter(b => b.status === 'in_progress').length;
+    const inProgress = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
     const completed = allFiltered.filter(b => b.status === 'completed').length;
     const cancel = allFiltered.filter(b => b.status === 'cancel').length;
 
@@ -3265,7 +3265,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     const totalBooking = allFiltered.length;
     const upcomingBooking = allFiltered.filter(b => b.status === 'pending').length;
     const acceptedBooking = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
-    const inProgressBooking = allFiltered.filter(b => b.status === 'in_progress').length;
+    const inProgressBooking = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
     const completedBooking = allFiltered.filter(b => b.status === 'completed').length;
     const cancelBooking = allFiltered.filter(b => b.status === 'cancel').length;
 
