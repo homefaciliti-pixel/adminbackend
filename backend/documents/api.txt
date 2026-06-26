@@ -462,7 +462,7 @@ Description: Uploaded image files are publicly available and can be served stati
 Endpoint: POST /api/auth/register
 Request Format: multipart/form-data
 Description: Registers a new partner. Uploads documents and hashes the password.
-Request Fields (Text): name, phone (mobile), countryCode (required), email, address, state, city, locality, password, gender, category, subCategory, hasVehicle, services, aadharNumber, panNumber, bankName, accountHolder, accountNumber, ifscCode.
+Request Fields (Text): name, phone (mobile), countryCode (optional), email, address, state, city, locality, password, gender, category, subCategory, hasVehicle, services, aadharNumber, panNumber, bankName, accountHolder, accountNumber, ifscCode.
 Request Fields (Files - MANDATORY): profileImage, aadharFront, aadharBack, panImage, policeVerification.
 Response: Returns partner profile information (including countryCode), token, and order/payment details.
 

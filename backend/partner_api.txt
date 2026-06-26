@@ -18,7 +18,7 @@ Request Fields:
 - Text Fields:
   * name (String, Required) - e.g., "Amit Kumar"
   * phone (String, Required) - e.g., "9911223344" (Saves to 'mobile' column in database)
-  * countryCode (String, Required) - e.g., "+91"
+  * countryCode (String, Optional, Defaults to "+91") - e.g., "+91"
   * email (String, Required) - e.g., "amit@gmail.com"
   * address (String, Required) - e.g., "Sector 15, Jaipur"
   * state (String, Required) - e.g., "Rajasthan"
