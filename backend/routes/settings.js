@@ -730,6 +730,41 @@ router.put('/commission', async (req, res) => {
   }
 });
 
+// ==========================================
+// 8. COUNTRIES LIST API
+// ==========================================
+
+// GET all countries (with optional name/code search)
+router.get('/countries', (req, res) => {
+  try {
+    const countries = require('../defaults/countries.json');
+    const { name, code } = req.query;
+    
+    let filtered = countries;
+    
+    if (name) {
+      const q = name.toLowerCase();
+      filtered = filtered.filter(c => c.name.toLowerCase().includes(q));
+    }
+    
+    if (code) {
+      const q = code.toUpperCase();
+      filtered = filtered.filter(c => c.code === q);
+    }
+    
+    res.json({
+      success: true,
+      data: filtered
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch countries', error: error.message });
+  }
+});
+
+
+
+
+
 
 
 // ==========================================
