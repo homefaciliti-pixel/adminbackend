@@ -632,22 +632,9 @@ function isDateBeforeToday(dateStr, timeSlotStr) {
     return true;
   }
 
-  if (bookingDate.getTime() === today.getTime() && timeSlotStr) {
-    const parts = timeSlotStr.split('-');
-    if (parts.length === 2) {
-      const endPart = parts[1].trim();
-      const endTime = parseTime(endPart);
-      if (endTime) {
-        const nowIST = getCurrentIST();
-        const currentHours = nowIST.getHours();
-        const currentMinutes = nowIST.getMinutes();
-        
-        if (currentHours > endTime.hours || (currentHours === endTime.hours && currentMinutes >= endTime.minutes)) {
-          return true;
-        }
-      }
-    }
-  }
+  // NOTE: Previously we filtered out today's bookings if the slot time had already passed.
+  // The user requested to show all orders of today ("Ajj ki date ki sari order dikhana cahiye").
+  // So we no longer filter out today's bookings based on time slots.
 
   return false;
 }
