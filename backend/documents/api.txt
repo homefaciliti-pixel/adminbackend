@@ -40,11 +40,11 @@ Query Parameters (Optional):
   - name: Filter by name (LIKE match)
   - email: Filter by email (LIKE match)
   - mobile: Filter by mobile number (LIKE match)
-Response Data: Array of User objects.
+Response Data: Array of User objects (includes countryCode).
 
 Endpoint: GET /api/users/:id
 Description: Fetch details of a single user by ID.
-Response Data: Single User object.
+Response Data: Single User object (includes countryCode).
 
 Endpoint: POST /api/users
 Description: Create a new user.
@@ -178,7 +178,7 @@ Query Parameters (Optional):
   - date: Filter by joining date (LIKE match)
   - status: Filter by status ('true'/'false' or '1'/'0')
   - isApproved: Filter by approval status ('true'/'false' or '1'/'0')
-Response Data: Array of Partner objects.
+Response Data: Array of Partner objects (includes countryCode).
 
 Endpoint: GET /api/partners/pending
 Description: Retrieve a list of partners pending approval (isApproved = 0). Supports the same query parameters as the GET /api/partners route.
@@ -186,7 +186,7 @@ Response Data: Array of Partner objects.
 
 Endpoint: GET /api/partners/:id
 Description: Get full details of a single partner by ID.
-Response Data: Single Partner object.
+Response Data: Single Partner object (includes countryCode).
 
 Endpoint: POST /api/partners
 Description: Register a new partner.
@@ -356,6 +356,7 @@ Response Data: { "success": true, "message": "Page deleted successfully" }
 
 - COUNTRIES:
   * GET /api/settings/countries: List countries with name, code, flag emoji, and flag SVG link. Optional query params "name" and "code" filter.
+
 
 
 - REVIEWS & RATINGS:

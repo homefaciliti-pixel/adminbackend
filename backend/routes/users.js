@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
     const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
     
     // 1. Fetch from node_users_v2
-    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender FROM node_users_v2");
+    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender, countryCode FROM node_users_v2");
     
     // 2. Fetch from node_users (translated to node_users by prefixQuery)
     const [nodeRows] = await db.query("SELECT id, name, email, mobile, address, createdAt as created_at FROM users");
@@ -32,7 +32,8 @@ router.get('/', async (req, res) => {
         address: r.address || '',
         gender: r.gender || '',
         created_at: null,
-        source: 'User App (MySQL v2)'
+        source: 'User App (MySQL v2)',
+        countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
       });
     });
 
@@ -46,7 +47,8 @@ router.get('/', async (req, res) => {
         address: r.address || '',
         gender: '',
         created_at: r.created_at,
-        source: 'Admin User (MySQL)'
+        source: 'Admin User (MySQL)',
+        countryCode: '+91'
       });
     });
 
@@ -60,7 +62,8 @@ router.get('/', async (req, res) => {
         address: r.address || '',
         gender: r.gender || '',
         created_at: r.created_at,
-        source: 'App User (Laravel)'
+        source: 'App User (Laravel)',
+        countryCode: '+91'
       });
     });
 
@@ -102,7 +105,7 @@ router.get('/search', async (req, res) => {
   try {
     const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
     
-    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender FROM node_users_v2");
+    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender, countryCode FROM node_users_v2");
     const [nodeRows] = await db.query("SELECT id, name, email, mobile, address, createdAt as created_at FROM users");
     const [laravelRows] = await db.query(`SELECT id, name, email, mobile_number as mobile, gender, address, created_at FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`);
     
@@ -119,7 +122,8 @@ router.get('/search', async (req, res) => {
         address: r.address || '',
         gender: r.gender || '',
         created_at: null,
-        source: 'User App (MySQL v2)'
+        source: 'User App (MySQL v2)',
+        countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
       });
     });
 
@@ -132,7 +136,8 @@ router.get('/search', async (req, res) => {
         address: r.address || '',
         gender: '',
         created_at: r.created_at,
-        source: 'Admin User (MySQL)'
+        source: 'Admin User (MySQL)',
+        countryCode: '+91'
       });
     });
 
@@ -145,7 +150,8 @@ router.get('/search', async (req, res) => {
         address: r.address || '',
         gender: r.gender || '',
         created_at: r.created_at,
-        source: 'App User (Laravel)'
+        source: 'App User (Laravel)',
+        countryCode: '+91'
       });
     });
 
@@ -223,7 +229,8 @@ router.get('/:id', async (req, res) => {
           mobile: r.phone,
           address: `${r.locality || ''} ${r.location || ''}`.trim(),
           gender: r.gender,
-          source: 'User App (MySQL v2)'
+          source: 'User App (MySQL v2)',
+          countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
         }
       });
     } else if (rawId >= 10000000) {
@@ -242,7 +249,8 @@ router.get('/:id', async (req, res) => {
           mobile: r.mobile_number,
           address: r.address,
           gender: r.gender,
-          source: 'App User (Laravel)'
+          source: 'App User (Laravel)',
+          countryCode: '+91'
         }
       });
     } else {
@@ -259,7 +267,8 @@ router.get('/:id', async (req, res) => {
           mobile: r.mobile,
           address: r.address,
           gender: '',
-          source: 'Admin User (MySQL)'
+          source: 'Admin User (MySQL)',
+          countryCode: '+91'
         }
       });
     }

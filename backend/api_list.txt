@@ -14,7 +14,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 2. USERS MANAGEMENT
 ----------------------------------------------------------------------
 * GET /api/users
-  - Fetch all users. Optional query params: 'query', 'name', 'email', 'mobile'.
+  - Fetch all users (includes 'countryCode' field). Optional query params: 'query', 'name', 'email', 'mobile'.
 * POST /api/users
   - Create a new user. Body: { "name": "...", "email": "...", "mobile": "...", "address": "..." }
 * PUT /api/users/:id
@@ -26,7 +26,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 3. PARTNERS (VENDORS) MANAGEMENT
 ----------------------------------------------------------------------
 * GET /api/partners
-  - Fetch all partners. Optional query params: 'name', 'mobile', 'city', 'state', 'status', 'isApproved'.
+  - Fetch all partners (includes 'countryCode' field). Optional query params: 'name', 'mobile', 'city', 'state', 'status', 'isApproved'.
 * GET /api/partners/pending
   - Fetch partners pending approval (isApproved = 0).
 * GET /api/partners/:id
@@ -176,6 +176,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 
 - COUNTRIES:
   * GET /api/settings/countries - List all countries with name, code, flag emoji, and flag SVG link. Optional query params 'name' (searches name case-insensitively) and 'code' (exact match country code, e.g. 'IN') filter the results.
+
 
 
 - REVIEWS & RATINGS:

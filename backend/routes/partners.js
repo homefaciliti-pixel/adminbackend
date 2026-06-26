@@ -146,6 +146,7 @@ function mapPartner(r, req) {
 
   return {
     ...r,
+    countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91',
     status: r.status === 1 || r.status === '1' || r.status === true,
     isApproved: r.isApproved === 1 || r.isApproved === '1' || r.isApproved === true,
     services: r.services ? (Array.isArray(r.services) ? r.services : r.services.split(',').map(s => s.trim()).filter(Boolean)) : [],
