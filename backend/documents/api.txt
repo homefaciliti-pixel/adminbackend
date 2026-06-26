@@ -464,6 +464,7 @@ Request Format: multipart/form-data
 Description: Registers a new partner. Uploads documents and hashes the password.
 Request Fields (Text): name, phone (mobile), countryCode (optional), email, address, state, city, locality, password, gender, category, subCategory, hasVehicle, services, aadharNumber, panNumber, bankName, accountHolder, accountNumber, ifscCode.
 Request Fields (Files - MANDATORY): profileImage, aadharFront, aadharBack, panImage, policeVerification.
+Response: Returns partner profile information (including countryCode), token, and order/payment details.
 
 13.2 LOGIN PARTNER
 -----------------
@@ -471,6 +472,7 @@ Endpoint: POST /api/auth/login
 Request Format: application/json
 Description: Logs in a partner using their phone number, country code, and password.
 Request Body: { "phone": "...", "countryCode": "...", "password": "..." }
+Response: Returns partner profile details (including countryCode) and auth token.
 
 13.2.1 FORGOT PASSWORD
 ----------------------
@@ -478,6 +480,7 @@ Endpoint: POST /api/auth/forgot-password
 Request Format: application/json
 Description: Resets the password for a registered mobile number.
 Request Body: { "phone": "...", "countryCode": "...", "newPassword": "..." }
+Response: { "success": true, "message": "...", "countryCode": "..." }
 
 13.3 UNIFIED PARTNER DASHBOARD
 ------------------------------

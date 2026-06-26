@@ -50,10 +50,12 @@ Response Example (Status 201 Created):
   "amount": 500,
   "partnerId": 3,
   "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
+  "countryCode": "+91",
   "partner": {
     "id": 3,
     "name": "Amit Kumar",
     "phone": "9911223344",
+    "countryCode": "+91",
     "email": "amit@gmail.com",
     "gender": "Male",
     "address": "Sector 15, Jaipur",
@@ -97,6 +99,7 @@ Response Example (Status 200 OK):
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "partnerId": 10,
   "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
+  "countryCode": "+91",
   "partner": { ...partnerDetails... }
 }
 
@@ -116,7 +119,8 @@ Request Body:
 Response Example (Status 200 OK):
 {
   "success": true,
-  "message": "Password reset successful!"
+  "message": "Password reset successful!",
+  "countryCode": "+91"
 }
 
 1.4 LOGOUT

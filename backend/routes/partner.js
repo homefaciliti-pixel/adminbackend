@@ -876,7 +876,8 @@ router.post('/auth/register', (req, res) => {
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
         paymentUrl: paymentUrl,
-        partner: mappedPartner
+        partner: mappedPartner,
+        countryCode: countryCodeVal
       });
     } catch (dbErr) {
       console.error('Error registering partner:', dbErr);
@@ -947,7 +948,8 @@ router.post('/auth/login', async (req, res) => {
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
       paymentUrl: paymentUrl,
-      partner: mappedPartner
+      partner: mappedPartner,
+      countryCode: countryCodeVal
     });
   } catch (error) {
     console.error('Error logging in partner:', error);
@@ -973,7 +975,7 @@ router.post('/auth/forgot-password', async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await db.query('UPDATE partners SET password = ? WHERE mobile = ? AND countryCode = ?', [hashedPassword, phone, countryCodeVal]);
 
-    res.json({ success: true, message: 'Password reset successful!' });
+    res.json({ success: true, message: 'Password reset successful!', countryCode: countryCodeVal });
   } catch (error) {
     console.error('Error resetting password:', error);
     res.status(500).json({ error: 'Failed to reset password: ' + error.message });
