@@ -739,7 +739,7 @@ router.post('/auth/register', (req, res) => {
 
     const nameVal = req.body.name || normalizedBody['name'] || '';
     const phoneVal = req.body.phone || req.body.mobile || normalizedBody['phone'] || normalizedBody['mobile'] || '';
-    const countryCodeVal = req.body.countryCode || req.body.countrycode || normalizedBody['countrycode'] || '+91';
+    const countryCodeVal = req.body.countryCode || req.body.countrycode || normalizedBody['countrycode'] || '';
     const emailVal = req.body.email || normalizedBody['email'] || '';
     const passwordVal = req.body.password || normalizedBody['password'] || '';
     const cityVal = req.body.city || normalizedBody['city'] || '';
@@ -760,8 +760,8 @@ router.post('/auth/register', (req, res) => {
     const accNumVal = req.body.accountNumber || normalizedBody['accountnumber'] || normalizedBody['accountno'] || normalizedBody['accnumber'] || normalizedBody['accno'] || '';
     const ifscVal = req.body.ifscCode || normalizedBody['ifsccode'] || normalizedBody['ifsc'] || '';
 
-    if (!nameVal || !phoneVal || !emailVal || !passwordVal || !cityVal || !stateVal || !localityVal || !addressVal) {
-      return res.status(400).json({ error: 'All primary fields (name, phone, email, password, location) are required' });
+    if (!nameVal || !phoneVal || !countryCodeVal || !emailVal || !passwordVal || !cityVal || !stateVal || !localityVal || !addressVal) {
+      return res.status(400).json({ error: 'All primary fields (name, phone, countryCode, email, password, location) are required' });
     }
 
     // Handle file locations and enforce mandatory requirements
@@ -889,11 +889,11 @@ router.post('/auth/register', (req, res) => {
 // POST /api/auth/login - Login partner
 router.post('/auth/login', async (req, res) => {
   const { phone, password, countryCode } = req.body;
-  if (!phone || !password) {
-    return res.status(400).json({ error: 'Please enter phone number and password' });
+  if (!phone || !password || !countryCode) {
+    return res.status(400).json({ error: 'Please enter phone number, country code, and password' });
   }
 
-  const countryCodeVal = countryCode || '+91';
+  const countryCodeVal = countryCode;
 
   try {
     if (phone === '7250642635') {
@@ -960,11 +960,11 @@ router.post('/auth/login', async (req, res) => {
 // POST /api/auth/forgot-password - Reset password
 router.post('/auth/forgot-password', async (req, res) => {
   const { phone, newPassword, countryCode } = req.body;
-  if (!phone || !newPassword) {
-    return res.status(400).json({ error: 'Phone and new password are required' });
+  if (!phone || !newPassword || !countryCode) {
+    return res.status(400).json({ error: 'Phone, country code, and new password are required' });
   }
 
-  const countryCodeVal = countryCode || '+91';
+  const countryCodeVal = countryCode;
 
   try {
     const [existing] = await db.query('SELECT id FROM partners WHERE mobile = ? AND countryCode = ?', [phone, countryCodeVal]);
