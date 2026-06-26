@@ -857,7 +857,7 @@ router.post('/auth/register', (req, res) => {
           totalBookings, completedBookings, cancelledBookings, pendingBookings,
           rating, totalReviews, createdAt, password, aadharFront, aadharBack,
           panImage, policeVerificationImage, hasVehicle, category, subCategory, accountHolder, isPaid
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, '0 Years', ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 0.00, 0, 0, 0, 0, 0.0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, '0 Years', ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 0.00, 0, 0, 0, 0, 0.0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [
           nameVal, emailVal, phoneVal, countryCodeVal, cityVal, stateVal, localityVal, addressVal, profileImageUrl,
           genderVal || 'Male', servicesVal || '', aadharVal, panVal,
