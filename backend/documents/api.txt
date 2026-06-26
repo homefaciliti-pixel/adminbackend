@@ -354,6 +354,10 @@ Response Data: { "success": true, "message": "Page deleted successfully" }
   * GET /api/settings/commission: Retrieve commission rate. Response: { "success": true, "commissionRate": 10.0 }
   * PUT /api/settings/commission: Update commission rate. Body: { "commissionRate": 15.0 }
 
+- COUNTRIES:
+  * GET /api/settings/countries: List countries with name, code, flag emoji, and flag SVG link. Optional query params "name" and "code" filter.
+
+
 - REVIEWS & RATINGS:
   * GET /api/settings/reviews: Retrieve reviews list.
   * POST /api/settings/reviews: Add review. Body: { "userName": "Rahul", "partnerName": "Govind", "serviceName": "AC Repair", "rating": 5.0, "reviewText": "Good" }
