@@ -153,6 +153,7 @@ const reportsRouter = require('./routes/reports');
 const supportRouter = require('./routes/support');
 const uploadRouter = require('./routes/upload');
 const partnerRouter = require('./routes/partner');
+const adminsRouter = require('./routes/admins');
 
 // Register API Routes
 server.use('/api/dashboard', dashboardRouter);
@@ -167,6 +168,7 @@ server.use('/api/settings', settingsRouter);
 server.use('/api/reports', reportsRouter);
 server.use('/api/support', supportRouter);
 server.use('/api/upload', uploadRouter);
+server.use('/api/admins', adminsRouter);
 server.use('/api', partnerRouter);
 
 // Page Not Found (404) Route

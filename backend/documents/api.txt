@@ -462,6 +462,27 @@ URL: http://localhost:3000/uploads/:filename
 Description: Uploaded image files are publicly available and can be served statically by appending the filename to the host's `/uploads` path.
 
 ----------------------------------------------------------------------
+12.5. DYNAMIC ADMIN ACCOUNTS (FOR NORMAL ADMINS)
+----------------------------------------------------------------------
+Endpoint: GET /api/admins
+Description: Fetch all registered normal admin accounts. Auto-rotates passwords if older than 24 hours. Returns list with time remaining.
+Response Data: { "success": true, "data": [ { "id": 1, "email": "admin@example.com", "username": "admin_username", "password": "current_password", "lastGeneratedAt": "...", "timeRemaining": "23h 59m" } ] }
+
+Endpoint: POST /api/admins
+Description: Register a new normal admin email. Generates initial admin username and password.
+Request Body (JSON): { "email": "admin@example.com" }
+Response Data: { "success": true, "message": "Admin account registered successfully", "data": { "email": "admin@example.com", "username": "admin_username", "password": "current_password" } }
+
+Endpoint: DELETE /api/admins/:id
+Description: Delete an admin account by ID.
+Response Data: { "success": true, "message": "Admin account deleted successfully" }
+
+Endpoint: POST /api/admins/login
+Description: Login normal admin. Validates credentials and checks if the daily password has expired.
+Request Body (JSON): { "username": "admin_username", "password": "current_password" }
+Response Data: { "success": true, "message": "Login successful", "data": { "id": 1, "email": "admin@example.com", "username": "admin_username", "role": "admin" } }
+
+----------------------------------------------------------------------
 13. PARTNER MOBILE APP ENDPOINTS
 ----------------------------------------------------------------------
 

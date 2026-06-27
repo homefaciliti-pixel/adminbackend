@@ -32,7 +32,7 @@ function prefixQuery(sql) {
     'users', 'categories', 'services', 'orders', 'orders_v2', 'pages', 'partners',
     'booking_earnings', 'subscription_earnings', 'banners', 'states',
     'cities', 'localities', 'notifications', 'reviews', 'settings_config',
-    'support_tickets', 'uploaded_files'
+    'support_tickets', 'uploaded_files', 'admin_accounts'
   ];
 
   const regex = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|DESCRIBE|TABLE)\\s+\`?(${tables.join('|')})\`?\\b`, 'gi');
@@ -82,6 +82,18 @@ pool.execute = function (sql, values) {
     await connection.query(createTableSql);
     console.log(`✅ Table "${tablePrefix}uploaded_files" verified/created successfully.`);
     
+    const createAdminsSql = `
+      CREATE TABLE IF NOT EXISTS \`${tablePrefix}admin_accounts\` (
+        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
+        \`email\` VARCHAR(255) NOT NULL UNIQUE,
+        \`username\` VARCHAR(100) NOT NULL UNIQUE,
+        \`password\` VARCHAR(255) NOT NULL,
+        \`lastGeneratedAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `;
+    await connection.query(createAdminsSql);
+    console.log(`✅ Table "${tablePrefix}admin_accounts" verified/created successfully.`);
+
     connection.release();
   } catch (error) {
     console.error('❌ Database connection/initialization failed on startup:');

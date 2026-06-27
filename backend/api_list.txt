@@ -196,6 +196,18 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * DELETE /api/settings/notifications/:id - Delete notification.
 
 ----------------------------------------------------------------------
+12.5. DYNAMIC ADMIN ACCOUNTS (FOR NORMAL ADMINS)
+----------------------------------------------------------------------
+* GET /api/admins
+  - Fetch all registered normal admin accounts. Auto-rotates passwords if older than 24 hours. Returns list with time remaining.
+* POST /api/admins
+  - Register a new normal admin email. Body: { "email": "admin@example.com" }. Generates initial admin username and password.
+* DELETE /api/admins/:id
+  - Delete an admin account by ID.
+* POST /api/admins/login
+  - Login normal admin. Body: { "username": "admin_username", "password": "current_password" }. Validates credentials and checks if expired.
+
+----------------------------------------------------------------------
 13. PARTNER MOBILE APP ENDPOINTS
 ----------------------------------------------------------------------
 - AUTHENTICATION:
