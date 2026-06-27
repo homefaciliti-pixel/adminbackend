@@ -1128,10 +1128,12 @@ function sendSMS(phone, otp) {
 
 // POST /api/auth/send-otp - Generate and send OTP (inserts into `otps` table)
 router.post('/auth/send-otp', async (req, res) => {
-  const { phone, type } = req.body;
+  const { phone, type, countryCode } = req.body;
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required' });
   }
+
+  const countryCodeVal = countryCode || '+91';
 
   try {
     // Generate a random 4-digit OTP (matching existing records structure)
@@ -1152,7 +1154,8 @@ router.post('/auth/send-otp', async (req, res) => {
     res.json({
       success: true,
       message: 'OTP sent successfully',
-      otp: otp // Returning OTP for easy mobile integration & testing
+      otp: otp, // Returning OTP for easy mobile integration & testing
+      countryCode: countryCodeVal
     });
   } catch (error) {
     console.error('Error in send-otp:', error);

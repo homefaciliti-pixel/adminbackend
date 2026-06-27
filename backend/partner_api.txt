@@ -170,13 +170,15 @@ Request Format: application/json
 Description: Generates a 4-digit OTP for partner phone verification.
 Request Body:
 {
-  "phone": "9911223344"
+  "phone": "9911223344",
+  "countryCode": "+91" (optional, defaults to "+91")
 }
 Response Example (Status 200 OK):
 {
   "success": true,
   "message": "OTP sent successfully",
-  "otp": "8676"
+  "otp": "8676",
+  "countryCode": "+91"
 }
 
 1.6 VERIFY OTP

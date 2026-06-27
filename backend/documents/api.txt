@@ -520,7 +520,7 @@ Response Example:
 13.6 PHONE OTP VERIFICATION
 ---------------------------
 * POST /api/auth/send-otp (PUBLIC)
-  - Request a 4-digit OTP code for a phone number. Body: { "phone": "..." }. Returns: { "success": true, "message": "...", "otp": "..." } (returned for debugging/testing).
+  - Request a 4-digit OTP code for a phone number. Body: { "phone": "...", "countryCode": "..." (optional, defaults to "+91") }. Returns: { "success": true, "message": "...", "otp": "...", "countryCode": "..." } (returned for debugging/testing).
 * POST /api/auth/verify-otp (PUBLIC)
   - Verify the requested OTP code for a phone number. Body: { "phone": "...", "otp": "...", "countryCode": "..." (optional, defaults to "+91") }. Returns: { "success": true, "message": "...", "countryCode": "..." }.
 * POST /api/partner/location (and alias POST /api/partner/update-location) (PROTECTED)

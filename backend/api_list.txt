@@ -200,7 +200,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * POST /api/auth/login - Login partner using phone, countryCode (optional), and password. Returns: { token, partnerId, razorpayKeyId, razorpayOrderId, partner, countryCode } (Note: Tokens do not expire).
   * POST /api/auth/forgot-password - Reset password for a mobile number. Body: { phone, newPassword, countryCode (optional) }. Returns: { success: true, message: 'Password reset successful!', countryCode }.
   * POST /api/auth/logout - End partner session.
-  * POST /api/auth/send-otp - Request a 4-digit OTP code for a phone number.
+  * POST /api/auth/send-otp - Request a 4-digit OTP code for a phone number. Body: { phone, countryCode (optional) }. Returns: { success: true, message: 'OTP sent successfully', otp, countryCode }.
   * POST /api/auth/verify-otp - Verify the requested OTP code for a phone number. Body: { phone, otp, countryCode (optional) }. Returns: { success: true, message: 'Phone number verified successfully', countryCode }.
 
 - PROFILE (PROTECTED):
