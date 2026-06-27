@@ -115,6 +115,8 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 ----------------------------------------------------------------------
 * GET /api/dashboard
   - Fetch admin panel summary dashboard statistics (counts and total earnings).
+* GET /api/dashboard/pending-partners
+  - Fetch list of pending approval partners to display on the dashboard.
 
 ----------------------------------------------------------------------
 10. REPORTS & EXPORTS

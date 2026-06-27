@@ -30,6 +30,10 @@ Response Example:
   ]
 }
 
+Endpoint: GET /api/dashboard/pending-partners
+Description: Fetch list of pending approval partners to display on the dashboard.
+Response Data: Array of Partner objects.
+
 ----------------------------------------------------------------------
 2. USERS MANAGEMENT
 ----------------------------------------------------------------------
