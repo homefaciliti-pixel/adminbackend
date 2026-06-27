@@ -553,6 +553,8 @@ Response Example:
   - Fetches active categories and nested subcategories with service title lists.
 * GET /api/countries (PUBLIC)
   - Returns a list of all countries with flags, calling codes, 2-letter ISO codes (isoCode), and flag image CDN URLs (flagUrl).
+* GET /api/settings/version (PUBLIC)
+  - Get app version configuration for Android and iOS. Returns: { "success": true, "android": { "latestVersion": "1.0.3", "minSupportedVersion": "1.0.2", "forceUpdate": false }, "ios": { "latestVersion": "1.0.4", "minSupportedVersion": "1.0.3", "forceUpdate": true } }.
 
 13.6 PHONE OTP VERIFICATION
 ---------------------------

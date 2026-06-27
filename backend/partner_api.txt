@@ -980,3 +980,26 @@ Response Example (Status 201 Created):
     "buttonText": "Watch Video"
   }
 }
+
+----------------------------------------------------------------------
+12. SETTINGS & APP VERSION (PUBLIC)
+----------------------------------------------------------------------
+12.1 GET APP VERSION
+--------------------
+Endpoint: GET /api/settings/version
+Description: Retrieves app version information and force update policies for Android and iOS.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "android": {
+    "latestVersion": "1.0.3",
+    "minSupportedVersion": "1.0.2",
+    "forceUpdate": false
+  },
+  "ios": {
+    "latestVersion": "1.0.4",
+    "minSupportedVersion": "1.0.3",
+    "forceUpdate": true
+  }
+}
+

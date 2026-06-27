@@ -3982,4 +3982,58 @@ router.get('/countries', (req, res) => {
   res.json({ success: true, countries: countriesEnriched });
 });
 
+// GET /api/settings/version - Get app version configuration for Android and iOS (PUBLIC)
+router.get('/settings/version', async (req, res) => {
+  try {
+    const defaults = {
+      'android_latest_version': '1.0.3',
+      'android_min_supported_version': '1.0.2',
+      'android_force_update': 'false',
+      'ios_latest_version': '1.0.4',
+      'ios_min_supported_version': '1.0.3',
+      'ios_force_update': 'true'
+    };
+
+    // Retrieve all settings keys
+    const [rows] = await db.query(
+      'SELECT `key`, `value` FROM settings_config WHERE `key` IN (?, ?, ?, ?, ?, ?)',
+      Object.keys(defaults)
+    );
+
+    const settingsMap = {};
+    rows.forEach(r => {
+      settingsMap[r.key] = r.value;
+    });
+
+    // Seed missing keys in the background or insert them
+    const missingKeys = Object.keys(defaults).filter(key => !(key in settingsMap));
+    for (const key of missingKeys) {
+      try {
+        await db.query('INSERT INTO settings_config (`key`, `value`) VALUES (?, ?)', [key, defaults[key]]);
+        settingsMap[key] = defaults[key];
+      } catch (insertErr) {
+        // If duplicate entry or conflict, use default
+        settingsMap[key] = defaults[key];
+      }
+    }
+
+    res.json({
+      success: true,
+      android: {
+        latestVersion: settingsMap['android_latest_version'],
+        minSupportedVersion: settingsMap['android_min_supported_version'],
+        forceUpdate: settingsMap['android_force_update'] === 'true' || settingsMap['android_force_update'] === '1'
+      },
+      ios: {
+        latestVersion: settingsMap['ios_latest_version'],
+        minSupportedVersion: settingsMap['ios_min_supported_version'],
+        forceUpdate: settingsMap['ios_force_update'] === 'true' || settingsMap['ios_force_update'] === '1'
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching version settings:', error);
+    res.status(500).json({ error: 'Failed to retrieve version settings: ' + error.message });
+  }
+});
+
 module.exports = router;
