@@ -356,6 +356,7 @@ Response Data: { "success": true, "message": "Page deleted successfully" }
 
 - COUNTRIES:
   * GET /api/settings/countries: List countries with name, code, flag emoji, and flag SVG link. Optional query params "name" and "code" filter.
+  * GET /api/settings/country-codes: List registered users and partners with their countryCode, mobile, role, and source database.
 
 
 

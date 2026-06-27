@@ -762,9 +762,71 @@ router.get('/countries', (req, res) => {
 });
 
 
+// GET country codes of all registered users and partners
+router.get('/country-codes', async (req, res) => {
+  try {
+    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+    const list = [];
 
+    // 1. Fetch from node_users_v2 (Flutter application users)
+    const [nodeV2Rows] = await db.query("SELECT name, phone as mobile, countryCode FROM node_users_v2");
+    nodeV2Rows.forEach(r => {
+      const code = r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91';
+      list.push({
+        name: r.name || 'Guest User',
+        mobile: r.mobile || '',
+        role: 'user',
+        countryCode: code,
+        source: 'User App (MySQL v2)'
+      });
+    });
 
+    // 2. Fetch from node_users (Admin users)
+    const [nodeRows] = await db.query("SELECT name, mobile FROM users");
+    nodeRows.forEach(r => {
+      list.push({
+        name: r.name || '',
+        mobile: r.mobile || '',
+        role: 'user',
+        countryCode: '+91',
+        source: 'Admin User (MySQL)'
+      });
+    });
 
+    // 3. Fetch from original Laravel users
+    const [laravelRows] = await db.query(`SELECT name, mobile_number as mobile, role_id FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`);
+    laravelRows.forEach(r => {
+      list.push({
+        name: r.name || '',
+        mobile: r.mobile || '',
+        role: r.role_id === 2 ? 'partner' : 'user',
+        countryCode: '+91',
+        source: r.role_id === 2 ? 'App Partner (Laravel)' : 'App User (Laravel)'
+      });
+    });
+
+    // 4. Fetch from node_partners (Admin Partner)
+    const [nodePartnerRows] = await db.query("SELECT name, mobile, countryCode FROM partners");
+    nodePartnerRows.forEach(r => {
+      const code = r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91';
+      list.push({
+        name: r.name || '',
+        mobile: r.mobile || '',
+        role: 'partner',
+        countryCode: code,
+        source: 'Admin Partner (MySQL)'
+      });
+    });
+
+    res.json({
+      success: true,
+      data: list
+    });
+  } catch (error) {
+    console.error('Error fetching country codes:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch country codes', error: error.message });
+  }
+});
 
 
 // ==========================================
