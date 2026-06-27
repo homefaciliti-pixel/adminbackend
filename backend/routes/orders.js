@@ -113,7 +113,7 @@ async function getAllOrders(req) {
 
     list.push({
       id: r.id + 2000000000, // Offset by 2 billion
-      serviceRequestNumber: r.razorpayOrderId || `REQ-V2-${r.id}`,
+      serviceRequestNumber: r.id.toString(),
       serviceName: r.serviceName || '',
       serviceAmount: parseFloat(r.price || 0),
       slotTime: r.timeSlot || '',
