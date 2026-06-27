@@ -43,6 +43,31 @@ async function resolveVendorName(vendorName, vendorPhone, phone, mobile) {
   return (lookupName === '' || lookupName === '-') ? null : lookupName;
 }
 
+// Helper: Sequentially lookup an order ID to find which table it belongs to
+async function findOrderSource(orderId) {
+  const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+  
+  // 1. Check node_orders_v2 (Flutter application bookings)
+  const [v2Rows] = await db.query('SELECT id FROM node_orders_v2 WHERE id = ?', [orderId]);
+  if (v2Rows.length > 0) {
+    return { source: 'v2', id: orderId };
+  }
+
+  // 2. Check orders (node_orders - Admin panel bookings)
+  const [nodeRows] = await db.query('SELECT id FROM orders WHERE id = ?', [orderId]);
+  if (nodeRows.length > 0) {
+    return { source: 'admin', id: orderId };
+  }
+
+  // 3. Check Laravel order_items
+  const [laravelRows] = await db.query(`SELECT id FROM \`${dbName}\`.\`order_items\` WHERE id = ?`, [orderId]);
+  if (laravelRows.length > 0) {
+    return { source: 'laravel', id: orderId };
+  }
+
+  return null;
+}
+
 // Helper: Get all orders from admin, v2 (live app), and Laravel tables
 async function getAllOrders(req) {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
@@ -65,13 +90,19 @@ async function getAllOrders(req) {
     laravelPartnerNameMap[p.id] = p.name;
   });
 
+  const list = [];
+
   // 1. Fetch from node_orders (Admin Panel manually created orders)
   const [nodeOrders] = await db.query('SELECT * FROM orders');
-  const list = [];
   nodeOrders.forEach(r => {
+    const yearMatch = String(r.createdAt).match(/\b(20\d{2})\b/);
+    const orderYear = yearMatch ? yearMatch[1] : new Date().getFullYear();
+    const paddedId = String(r.id).padStart(4, '0');
+    const reqNum = `#REQ ${orderYear}-${paddedId}`;
+
     list.push({
       id: r.id,
-      serviceRequestNumber: r.serviceRequestNumber || `REQ-${r.id}`,
+      serviceRequestNumber: reqNum,
       serviceName: r.serviceName || '',
       serviceAmount: parseFloat(r.serviceAmount || 0),
       slotTime: r.slotTime || '',
@@ -111,9 +142,13 @@ async function getAllOrders(req) {
       ? new Date(r.createdAt).toLocaleString('en-US') 
       : '';
 
+    const orderYear = r.createdAt ? new Date(r.createdAt).getFullYear() : new Date().getFullYear();
+    const paddedId = String(r.id).padStart(4, '0');
+    const reqNum = `#REQ ${orderYear}-${paddedId}`;
+
     list.push({
-      id: r.id + 2000000000, // Offset by 2 billion
-      serviceRequestNumber: r.id.toString(),
+      id: r.id, // Raw database ID directly
+      serviceRequestNumber: reqNum,
       serviceName: r.serviceName || '',
       serviceAmount: parseFloat(r.price || 0),
       slotTime: r.timeSlot || '',
@@ -153,13 +188,23 @@ async function getAllOrders(req) {
     const createdStr = r.created_at 
       ? new Date(r.created_at).toLocaleString('en-US') 
       : '';
-    const dateStr = r.service_date
-      ? new Date(r.service_date).toLocaleDateString('en-IN')
-      : '';
+    
+    let dateStr = '';
+    let orderYear = 2025;
+    if (r.service_date) {
+      const d = new Date(r.service_date);
+      dateStr = d.toLocaleDateString('en-IN');
+      orderYear = d.getFullYear();
+    } else if (r.created_at) {
+      orderYear = new Date(r.created_at).getFullYear();
+    }
+
+    const paddedId = String(r.id).padStart(4, '0');
+    const reqNum = `#REQ ${orderYear}-${paddedId}`;
 
     list.push({
-      id: r.id + 10000000, // Offset by 10 million
-      serviceRequestNumber: r.service_request_number || `REQ-LA-${r.id}`,
+      id: r.id, // Raw database ID directly
+      serviceRequestNumber: reqNum,
       serviceName: r.service_name || '',
       serviceAmount: parseFloat(r.total_amount || 0),
       slotTime: r.time_slot || '',
@@ -178,7 +223,7 @@ async function getAllOrders(req) {
     });
   });
 
-  // Sort by ID descending (which translates to sorting by booking timeline)
+  // Sort by ID descending
   list.sort((a, b) => b.id - a.id);
 
   return list;
@@ -207,8 +252,19 @@ router.get('/:id', async (req, res) => {
   }
 
   try {
+    const orderSource = await findOrderSource(rawId);
+    if (!orderSource) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
     const list = await getAllOrders(req);
-    const order = list.find(o => o.id === rawId);
+    const order = list.find(o => {
+      if (orderSource.source === 'v2') return o.source === 'User App (MySQL v2)' && o.id === rawId;
+      if (orderSource.source === 'admin') return o.source === 'Admin Panel (MySQL)' && o.id === rawId;
+      if (orderSource.source === 'laravel') return o.source === 'App User (Laravel)' && o.id === rawId;
+      return false;
+    });
+
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
@@ -232,6 +288,11 @@ router.put('/:id', async (req, res) => {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
   try {
+    const orderSource = await findOrderSource(rawId);
+    if (!orderSource) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
     let resolvedName = null;
     let resolvedMobile = null;
     const hasVendorUpdate = (vendorName !== undefined || req.body.vendorPhone !== undefined || req.body.phone !== undefined || req.body.mobile !== undefined);
@@ -250,9 +311,8 @@ router.put('/:id', async (req, res) => {
       }
     }
 
-    if (rawId >= 2000000000) {
+    if (orderSource.source === 'v2') {
       // It is a node_orders_v2 order
-      const originalId = rawId - 2000000000;
       const fields = [];
       const values = [];
 
@@ -278,15 +338,11 @@ router.put('/:id', async (req, res) => {
         return res.status(400).json({ success: false, message: 'No fields to update' });
       }
 
-      values.push(originalId);
-      const [result] = await db.query(`UPDATE node_orders_v2 SET ${fields.join(', ')} WHERE id = ?`, values);
-      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
+      values.push(rawId);
+      await db.query('UPDATE node_orders_v2 SET ' + fields.join(', ') + ' WHERE id = ?', values);
 
-    } else if (rawId >= 10000000) {
+    } else if (orderSource.source === 'laravel') {
       // It is a Laravel order (maps to order_items)
-      const originalId = rawId - 10000000;
-      
-      // Update order_items table
       const oiFields = [];
       const oiValues = [];
 
@@ -296,7 +352,6 @@ router.put('/:id', async (req, res) => {
       }
 
       if (hasVendorUpdate) {
-        // Resolve vendor_id in Laravel users table
         let laravelVendorId = null;
         if (resolvedName) {
           const [laravelRows] = await db.query(`SELECT id FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND name = ?`, [resolvedName]);
@@ -312,13 +367,12 @@ router.put('/:id', async (req, res) => {
       if (serviceDate !== undefined) { oiFields.push('`service_date` = ?'); oiValues.push(serviceDate); }
 
       if (oiFields.length > 0) {
-        oiValues.push(originalId);
+        oiValues.push(rawId);
         await db.query(`UPDATE \`${dbName}\`.\`order_items\` SET ${oiFields.join(', ')} WHERE id = ?`, oiValues);
       }
 
-      // Update orders address if updated
       if (address !== undefined) {
-        const [oiRows] = await db.query(`SELECT order_id FROM \`${dbName}\`.\`order_items\` WHERE id = ?`, [originalId]);
+        const [oiRows] = await db.query(`SELECT order_id FROM \`${dbName}\`.\`order_items\` WHERE id = ?`, [rawId]);
         if (oiRows.length > 0 && oiRows[0].order_id) {
           await db.query(`UPDATE \`${dbName}\`.\`orders\` SET address = ? WHERE id = ?`, [address, oiRows[0].order_id]);
         }
@@ -347,13 +401,17 @@ router.put('/:id', async (req, res) => {
       }
 
       values.push(rawId);
-      const [result] = await db.query(`UPDATE orders SET ${fields.join(', ')} WHERE id = ?`, values);
-      if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
+      await db.query('UPDATE orders SET ' + fields.join(', ') + ' WHERE id = ?', values);
     }
 
-    // Return the updated order details
     const list = await getAllOrders(req);
-    const updatedOrder = list.find(o => o.id === rawId);
+    const updatedOrder = list.find(o => {
+      if (orderSource.source === 'v2') return o.source === 'User App (MySQL v2)' && o.id === rawId;
+      if (orderSource.source === 'admin') return o.source === 'Admin Panel (MySQL)' && o.id === rawId;
+      if (orderSource.source === 'laravel') return o.source === 'App User (Laravel)' && o.id === rawId;
+      return false;
+    });
+
     res.json({
       success: true,
       message: 'Order updated successfully',
@@ -377,14 +435,17 @@ router.delete('/:id', async (req, res) => {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
   try {
+    const orderSource = await findOrderSource(rawId);
+    if (!orderSource) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
     let affected = 0;
-    if (rawId >= 2000000000) {
-      const originalId = rawId - 2000000000;
-      const [result] = await db.query('DELETE FROM node_orders_v2 WHERE id = ?', [originalId]);
+    if (orderSource.source === 'v2') {
+      const [result] = await db.query('DELETE FROM node_orders_v2 WHERE id = ?', [rawId]);
       affected = result.affectedRows;
-    } else if (rawId >= 10000000) {
-      const originalId = rawId - 10000000;
-      const [result] = await db.query(`DELETE FROM \`${dbName}\`.\`order_items\` WHERE id = ?`, [originalId]);
+    } else if (orderSource.source === 'laravel') {
+      const [result] = await db.query(`DELETE FROM \`${dbName}\`.\`order_items\` WHERE id = ?`, [rawId]);
       affected = result.affectedRows;
     } else {
       const [result] = await db.query('DELETE FROM orders WHERE id = ?', [rawId]);
@@ -414,6 +475,11 @@ router.put('/:id/assign', async (req, res) => {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
   try {
+    const orderSource = await findOrderSource(rawId);
+    if (!orderSource) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
     let resolvedName = null;
     try {
       resolvedName = await resolveVendorName(vendorName, vendorPhone, phone, mobile);
@@ -423,17 +489,15 @@ router.put('/:id/assign', async (req, res) => {
 
     const newStatus = resolvedName === null ? 'Pending' : 'Assigned';
 
-    if (rawId >= 2000000000) {
-      const originalId = rawId - 2000000000;
+    if (orderSource.source === 'v2') {
       const bStatus = newStatus === 'Pending' ? 'searching' : 'assigned';
       const [result] = await db.query(
         'UPDATE node_orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
-        [resolvedName, newStatus, bStatus, originalId]
+        [resolvedName, newStatus, bStatus, rawId]
       );
       if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
 
-    } else if (rawId >= 10000000) {
-      const originalId = rawId - 10000000;
+    } else if (orderSource.source === 'laravel') {
       let laravelVendorId = null;
       if (resolvedName) {
         const [laravelRows] = await db.query(`SELECT id FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND name = ?`, [resolvedName]);
@@ -443,7 +507,7 @@ router.put('/:id/assign', async (req, res) => {
       }
       const [result] = await db.query(
         `UPDATE \`${dbName}\`.\`order_items\` SET vendor_id = ?, status = ? WHERE id = ?`,
-        [laravelVendorId, newStatus, originalId]
+        [laravelVendorId, newStatus, rawId]
       );
       if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
 
@@ -463,7 +527,13 @@ router.put('/:id/assign', async (req, res) => {
     }
 
     const list = await getAllOrders(req);
-    const updatedOrder = list.find(o => o.id === rawId);
+    const updatedOrder = list.find(o => {
+      if (orderSource.source === 'v2') return o.source === 'User App (MySQL v2)' && o.id === rawId;
+      if (orderSource.source === 'admin') return o.source === 'Admin Panel (MySQL)' && o.id === rawId;
+      if (orderSource.source === 'laravel') return o.source === 'App User (Laravel)' && o.id === rawId;
+      return false;
+    });
+
     res.json({
       success: true,
       message: resolvedName === null ? 'Order unassigned successfully' : `Order assigned to ${resolvedName} successfully`,
@@ -516,7 +586,6 @@ router.post('/', async (req, res) => {
   const cTime = createdAt || new Date().toLocaleString();
 
   try {
-    // Auto-assign to nearest active, approved, paid partner within 5/10 km
     if (hasCoordinates && !dbVendorName) {
       const [partners] = await db.query(
         'SELECT id, name, mobile, services, category, latitude, longitude FROM partners WHERE status = 1 AND isApproved = 1 AND isPaid = 1'
