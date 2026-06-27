@@ -41,6 +41,9 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   - Disapprove partner. Sets isApproved = 0.
 * DELETE /api/partners/:id
   - Delete partner by ID.
+* PUT /api/partners/:id/password
+  - Change partner's password. Body: { "password": "..." } or { "newPassword": "..." }
+
 
 ----------------------------------------------------------------------
 4. CATEGORIES MANAGEMENT

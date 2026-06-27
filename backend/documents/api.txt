@@ -228,6 +228,12 @@ Endpoint: DELETE /api/partners/:id
 Description: Delete partner by ID.
 Response Data: { "success": true, "message": "Partner deleted successfully" }
 
+Endpoint: PUT /api/partners/:id/password
+Description: Change partner's password. Hashes the new password with bcryptjs and updates it in the database.
+Request Body: { "password": "..." } or { "newPassword": "..." }
+Response Data: { "success": true, "message": "Partner password changed successfully" }
+
+
 ----------------------------------------------------------------------
 7. EARNINGS
 ----------------------------------------------------------------------

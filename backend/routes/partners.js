@@ -1122,4 +1122,54 @@ async function toggleStatus(req, res) {
 router.put('/:id/status', toggleStatus);
 router.patch('/:id/status', toggleStatus);
 
+// PUT /api/partners/:id/password - Change partner password
+router.put('/:id/password', async (req, res) => {
+  const rawId = parseInt(req.params.id);
+  const password = req.body.password || req.body.newPassword;
+  
+  if (isNaN(rawId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Partner ID format' });
+  }
+  if (!password || String(password).trim() === '') {
+    return res.status(400).json({ success: false, message: 'Password is required' });
+  }
+
+  const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+  const bcrypt = require('bcryptjs');
+
+  try {
+    const hashedPassword = await bcrypt.hash(String(password).trim(), 10);
+
+    if (rawId >= 10000000) {
+      // Laravel partner
+      const originalId = rawId - 10000000;
+      const [result] = await db.query(
+        `UPDATE \`${dbName}\`.\`users\` SET password = ? WHERE id = ? AND role_id = 2`,
+        [hashedPassword, originalId]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Partner not found in Laravel database' });
+      }
+    } else {
+      // Node partners
+      const [result] = await db.query(
+        'UPDATE partners SET password = ? WHERE id = ?',
+        [hashedPassword, rawId]
+      );
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, message: 'Partner not found in node database' });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Partner password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('Error changing partner password:', error);
+    res.status(500).json({ success: false, message: 'Failed to change partner password', error: error.message });
+  }
+});
+
 module.exports = router;
