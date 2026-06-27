@@ -1162,10 +1162,12 @@ router.post('/auth/send-otp', async (req, res) => {
 
 // POST /api/auth/verify-otp - Verify OTP from `otps` table
 router.post('/auth/verify-otp', async (req, res) => {
-  const { phone, otp } = req.body;
+  const { phone, otp, countryCode } = req.body;
   if (!phone || !otp) {
     return res.status(400).json({ error: 'Phone number and OTP are required' });
   }
+
+  const countryCodeVal = countryCode || '+91';
 
   try {
     // Retrieve the most recent OTP record for the phone number
@@ -1199,7 +1201,8 @@ router.post('/auth/verify-otp', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Phone number verified successfully'
+      message: 'Phone number verified successfully',
+      countryCode: countryCodeVal
     });
   } catch (error) {
     console.error('Error in verify-otp:', error);

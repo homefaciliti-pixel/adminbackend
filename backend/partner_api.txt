@@ -187,12 +187,14 @@ Description: Verifies the 4-digit OTP code sent to the phone number.
 Request Body:
 {
   "phone": "9911223344",
-  "otp": "8676"
+  "otp": "8676",
+  "countryCode": "+91" (optional, defaults to "+91")
 }
 Response Example (Status 200 OK):
 {
   "success": true,
-  "message": "Phone number verified successfully"
+  "message": "Phone number verified successfully",
+  "countryCode": "+91"
 }
 
 
