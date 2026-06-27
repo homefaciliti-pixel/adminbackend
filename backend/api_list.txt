@@ -208,6 +208,16 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   - Login normal admin. Body: { "username": "admin_username", "password": "current_password" }. Validates credentials and checks if expired.
 
 ----------------------------------------------------------------------
+12.8. STATIC SUPER ADMIN ACCOUNTS (LOCAL/CLIENT-SIDE BYPASS)
+----------------------------------------------------------------------
+The following accounts bypass backend authentication and always retain "super_admin" access (static forever):
+* jitendar@gmail.com (or username "jitendar") - Password: Jitendar1184@*
+* neha@gmail.com (or username "neha") - Password: Neha1184@*
+* nirav@gmail.com (or username "nirav") - Password: Nirav1184@*
+* swayam@gmail.com (or username "swayam") - Password: Swayam1184@*
+* superadmin@gmail.com - Password: Home1184@*
+
+----------------------------------------------------------------------
 13. PARTNER MOBILE APP ENDPOINTS
 ----------------------------------------------------------------------
 - AUTHENTICATION:
