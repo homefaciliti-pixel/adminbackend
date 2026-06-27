@@ -361,7 +361,7 @@ Response Data: { "success": true, "message": "Page deleted successfully" }
   * PUT /api/settings/commission: Update commission rate. Body: { "commissionRate": 15.0 }
 
 - COUNTRIES:
-  * GET /api/settings/countries: List countries with name, code, flag emoji, and flag SVG link. Optional query params "name" and "code" filter.
+  * GET /api/settings/countries: List countries with name, code, dialCode, flag emoji, and flag SVG link. Returns raw JSON array. Optional query params "name" and "code" filter.
   * GET /api/settings/country-codes: List registered users and partners with their countryCode, mobile, role, and source database.
 
 

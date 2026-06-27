@@ -178,7 +178,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   * PUT /api/settings/commission - Update commission rate. Body: { "commissionRate": 15.0 }
 
 - COUNTRIES:
-  * GET /api/settings/countries - List all countries with name, code, flag emoji, and flag SVG link. Optional query params 'name' (searches name case-insensitively) and 'code' (exact match country code, e.g. 'IN') filter the results.
+  * GET /api/settings/countries - List all countries with name, code, dialCode, flag emoji, and flag SVG link. Returns raw JSON array of country objects. Optional query params 'name' (searches name case-insensitively) and 'code' (exact match country code, e.g. 'IN') filter the results.
   * GET /api/settings/country-codes - Retrieve the list of all registered users and partners alongside their countryCode, mobile number, role, and source database.
 
 
