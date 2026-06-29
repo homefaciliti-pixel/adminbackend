@@ -253,7 +253,7 @@ The following accounts bypass backend authentication and always retain "super_ad
   * GET /api/bookings/pending-popup - Fetch next available pending order for popup alerts.
 
 - PARTNER SERVICES & METADATA (PUBLIC):
-  * GET /api/countries - Fetch list of all countries with names, country calling codes, flag emojis, 2-letter ISO codes (isoCode), and flag image CDN links (flagUrl).
+  * GET /api/countries - Fetch list of all countries with names, country calling codes, flag emojis, 2-letter ISO codes (isoCode), flag image CDN links (flagUrl), minLength, and maxLength properties for phone validation.
   * GET /api/metadata/locations - Fetch nested State -> City -> Locality dropdown hierarchy.
   * GET /api/metadata/categories - Fetch nested Category -> Subcategory -> Services dropdown hierarchy.
   * GET /api/locations/states - List active states names array.

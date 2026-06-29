@@ -564,9 +564,9 @@ Response Example (Status 200 OK):
 {
   "success": true,
   "countries": [
-    { "name": "India", "code": "+91", "flag": "🇮🇳", "isoCode": "IN", "flagUrl": "https://flagcdn.com/w80/in.png" },
-    { "name": "United States", "code": "+1", "flag": "🇺🇸", "isoCode": "US", "flagUrl": "https://flagcdn.com/w80/us.png" },
-    { "name": "United Kingdom", "code": "+44", "flag": "🇬🇧", "isoCode": "GB", "flagUrl": "https://flagcdn.com/w80/gb.png" }
+    { "name": "India", "code": "+91", "flag": "🇮🇳", "isoCode": "IN", "flagUrl": "https://flagcdn.com/w80/in.png", "minLength": 10, "maxLength": 10 },
+    { "name": "United States", "code": "+1", "flag": "🇺🇸", "isoCode": "US", "flagUrl": "https://flagcdn.com/w80/us.png", "minLength": 10, "maxLength": 10 },
+    { "name": "United Kingdom", "code": "+44", "flag": "🇬🇧", "isoCode": "GB", "flagUrl": "https://flagcdn.com/w80/gb.png", "minLength": 10, "maxLength": 10 }
   ]
 }
 

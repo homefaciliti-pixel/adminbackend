@@ -3961,6 +3961,64 @@ router.get('/countries', (req, res) => {
     { name: "Zambia", code: "+260", flag: "🇿🇲" },
     { name: "Zimbabwe", code: "+263", flag: "🇿🇼" }
   ];
+  const getPhoneLength = (iso) => {
+    const map = {
+      'IN': { min: 10, max: 10 },
+      'US': { min: 10, max: 10 },
+      'CA': { min: 10, max: 10 },
+      'GB': { min: 10, max: 10 },
+      'AU': { min: 9, max: 9 },
+      'AE': { min: 9, max: 9 },
+      'SG': { min: 8, max: 8 },
+      'BD': { min: 10, max: 10 },
+      'PK': { min: 10, max: 10 },
+      'NP': { min: 10, max: 10 },
+      'LK': { min: 9, max: 9 },
+      'DE': { min: 10, max: 11 },
+      'FR': { min: 9, max: 9 },
+      'NZ': { min: 8, max: 10 },
+      'ZA': { min: 9, max: 9 },
+      'RU': { min: 10, max: 10 },
+      'BR': { min: 11, max: 11 },
+      'MY': { min: 9, max: 10 },
+      'ID': { min: 9, max: 12 },
+      'PH': { min: 10, max: 10 },
+      'TH': { min: 9, max: 9 },
+      'VN': { min: 9, max: 9 },
+      'CN': { min: 11, max: 11 },
+      'JP': { min: 10, max: 10 },
+      'KR': { min: 9, max: 10 },
+      'SA': { min: 9, max: 9 },
+      'QA': { min: 8, max: 8 },
+      'KW': { min: 8, max: 8 },
+      'OM': { min: 8, max: 8 },
+      'BH': { min: 8, max: 8 },
+      'EG': { min: 10, max: 10 },
+      'TR': { min: 10, max: 10 },
+      'UA': { min: 9, max: 9 },
+      'PL': { min: 9, max: 9 },
+      'IT': { min: 10, max: 10 },
+      'ES': { min: 9, max: 9 },
+      'NL': { min: 9, max: 9 },
+      'CH': { min: 9, max: 9 },
+      'SE': { min: 7, max: 9 },
+      'NO': { min: 8, max: 8 },
+      'DK': { min: 8, max: 8 },
+      'FI': { min: 5, max: 10 },
+      'IE': { min: 7, max: 9 },
+      'MX': { min: 10, max: 10 },
+      'AR': { min: 10, max: 10 },
+      'CO': { min: 10, max: 10 },
+      'PE': { min: 9, max: 9 },
+      'CL': { min: 9, max: 9 },
+      'VE': { min: 10, max: 10 },
+      'KE': { min: 9, max: 9 },
+      'NG': { min: 10, max: 10 },
+      'GH': { min: 9, max: 9 }
+    };
+    return map[iso] || { min: 8, max: 12 };
+  };
+
   const countriesEnriched = countries.map(c => {
     let isoCode = "";
     if (c.flag) {
@@ -3971,12 +4029,15 @@ router.get('/countries', (req, res) => {
         isoCode = (letter1 + letter2).toUpperCase();
       }
     }
+    const lengthRule = getPhoneLength(isoCode);
     return {
       name: c.name,
       code: c.code,
       flag: c.flag,
       isoCode: isoCode,
-      flagUrl: isoCode ? `https://flagcdn.com/w80/${isoCode.toLowerCase()}.png` : ""
+      flagUrl: isoCode ? `https://flagcdn.com/w80/${isoCode.toLowerCase()}.png` : "",
+      minLength: lengthRule.min,
+      maxLength: lengthRule.max
     };
   });
   res.json({ success: true, countries: countriesEnriched });
