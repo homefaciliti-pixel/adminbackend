@@ -134,8 +134,19 @@ server.get('/', async (req, res) => {
   try {
     const [[partnersRow]] = await db.query('SELECT COUNT(*) AS count FROM partners');
     const [[bookingsRow]] = await db.query('SELECT COUNT(*) AS count FROM orders_v2');
+    const [[completedRow]] = await db.query("SELECT COUNT(*) AS count FROM orders_v2 WHERE status = 'completed'");
+    const [[earningsRow]] = await db.query("SELECT SUM(totalEarnings) AS total FROM partners");
+    const [[withdrawalsRow]] = await db.query("SELECT SUM(withdrawnAmount) AS total FROM partners");
+
     const partnersCount = partnersRow ? partnersRow.count : 0;
     const bookingsCount = bookingsRow ? bookingsRow.count : 0;
+    const completedCount = completedRow ? completedRow.count : 0;
+    const totalEarnings = earningsRow ? (earningsRow.total || 0) : 0;
+    const totalWithdrawals = withdrawalsRow ? (withdrawalsRow.total || 0) : 0;
+
+    const formatCurrency = (val) => {
+      return '₹' + Math.round(Number(val || 0)).toLocaleString('en-IN');
+    };
 
     res.send(`
 <!DOCTYPE html>
@@ -155,6 +166,8 @@ server.get('/', async (req, res) => {
       display: flex;
       align-items: center;
       justify-content: center;
+      box-sizing: border-box;
+      padding: 20px;
     }
     .card {
       background: #ffffff;
@@ -162,9 +175,10 @@ server.get('/', async (req, res) => {
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
       border-top: 4px solid #10B981;
       padding: 40px;
-      max-width: 600px;
-      width: 90%;
+      max-width: 850px;
+      width: 100%;
       text-align: left;
+      box-sizing: border-box;
     }
     .badge {
       display: inline-flex;
@@ -204,25 +218,25 @@ server.get('/', async (req, res) => {
     }
     .stats-container {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
       margin-bottom: 32px;
     }
     .stat-card {
       background: #F8FAFC;
       border: 1px solid #E2E8F0;
       border-radius: 12px;
-      padding: 24px;
+      padding: 20px;
       text-align: center;
     }
     .stat-number {
-      font-size: 36px;
+      font-size: 32px;
       font-weight: 700;
       color: #10B981;
       margin-bottom: 8px;
     }
     .stat-label {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       color: #64748B;
       text-transform: uppercase;
@@ -263,6 +277,18 @@ server.get('/', async (req, res) => {
       <div class="stat-card">
         <div class="stat-number">${bookingsCount}</div>
         <div class="stat-label">Total Bookings</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">${completedCount}</div>
+        <div class="stat-label">Completed Bookings</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">${formatCurrency(totalEarnings)}</div>
+        <div class="stat-label">Total Earnings</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">${formatCurrency(totalWithdrawals)}</div>
+        <div class="stat-label">Total Settlements</div>
       </div>
     </div>
     
