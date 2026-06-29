@@ -129,14 +129,156 @@ server.use('/uploads', async (req, res, next) => {
   }
 });
 
-// Root Route / Health Check
-server.get('/', (req, res) => {
-  res.json({
-    status: 'Healthy',
-    name: 'Home Faciliti Admin Panel Backend API Server',
-    version: '1.0.1-verify',
-    timestamp: new Date().toISOString()
-  });
+// Root Route / Health Check - Serving a premium dashboard landing page with database stats
+server.get('/', async (req, res) => {
+  try {
+    const [[partnersRow]] = await db.query('SELECT COUNT(*) AS count FROM partners');
+    const [[bookingsRow]] = await db.query('SELECT COUNT(*) AS count FROM orders_v2');
+    const partnersCount = partnersRow ? partnersRow.count : 0;
+    const bookingsCount = bookingsRow ? bookingsRow.count : 0;
+
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home Services Partner API Backend</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+      border-top: 4px solid #10B981;
+      padding: 40px;
+      max-width: 600px;
+      width: 90%;
+      text-align: left;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      background-color: #D1FAE5;
+      color: #059669;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 6px 16px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10B981;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    h1 {
+      font-size: 32px;
+      color: #1E293B;
+      margin: 0 0 16px 0;
+      font-weight: 700;
+    }
+    p {
+      color: #64748B;
+      font-size: 16px;
+      line-height: 1.6;
+      margin: 0 0 32px 0;
+    }
+    .stats-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 36px;
+      font-weight: 700;
+      color: #10B981;
+      margin-bottom: 8px;
+    }
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748B;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .footnote {
+      color: #64748B;
+      font-size: 14px;
+      line-height: 1.5;
+      border-top: 1px solid #F1F5F9;
+      padding-top: 24px;
+      margin: 0;
+    }
+    .code {
+      background-color: #F1F5F9;
+      color: #EF4444;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">
+      <span class="badge-dot"></span>
+      Server Online
+    </div>
+    <h1>Home Services Partner API Backend</h1>
+    <p>The backend server for your Home Services Partner Flutter application is running successfully and connected to <strong>MySQL Database (homefaciliti.com)</strong>.</p>
+    
+    <div class="stats-container">
+      <div class="stat-card">
+        <div class="stat-number">${partnersCount}</div>
+        <div class="stat-label">Registered Partners</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">${bookingsCount}</div>
+        <div class="stat-label">Total Bookings</div>
+      </div>
+    </div>
+    
+    <p class="footnote">Please refer to the <span class="code">api_list.txt</span> document in your project folder for a complete list of endpoints and request body schemas.</p>
+  </div>
+</body>
+</html>
+    `);
+  } catch (error) {
+    console.error('Error rendering root dashboard:', error);
+    res.status(500).json({
+      status: 'Error',
+      message: 'Failed to retrieve database stats',
+      error: error.message
+    });
+  }
 });
 
 // Import Router Modules
