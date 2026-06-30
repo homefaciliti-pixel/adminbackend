@@ -869,6 +869,62 @@ router.post('/auth/register', (req, res) => {
         paymentUrl = `${req.protocol}://${req.get('host')}/api/partner/pay-redirect?partnerId=${mappedPartner.id}`;
       }
 
+      // ===  REFER & EARN: Process referral code if provided ===
+      const referralCodeInput = req.body.referralCode || req.body.referral_code || normalizedBody['referralcode'] || '';
+      if (referralCodeInput) {
+        const refCode = referralCodeInput.trim().toUpperCase();
+        // Prevent self-referral
+        const newPartnerId = result.insertId;
+        const newPartnerCode = 'HF' + String(newPartnerId).padStart(6, '0');
+        if (refCode !== newPartnerCode) {
+          try {
+            // Find referrer by code (must be approved)
+            const [refRows] = await db.query(
+              'SELECT id FROM node_partners WHERE referral_code = ? AND isApproved = 1 LIMIT 1',
+              [refCode]
+            );
+            if (refRows.length) {
+              const referrerId = refRows[0].id;
+              // Deadline: 5 days from now
+              const deadline = new Date();
+              deadline.setDate(deadline.getDate() + 5);
+
+              // Insert referral row
+              await db.query(
+                `INSERT IGNORE INTO node_referrals
+                  (referrer_id, referred_id, referral_code, status, locked_reward, orders_done, unlock_deadline)
+                  VALUES (?, ?, ?, 'pending', 500.00, 0, ?)`,
+                [referrerId, newPartnerId, refCode, deadline]
+              );
+
+              // Update referred partner's referredBy field
+              await db.query('UPDATE node_partners SET referredBy = ? WHERE id = ?', [referrerId, newPartnerId]);
+
+              // Log locked ₹500 earning for referrer
+              const [refInsert] = await db.query(
+                'SELECT id FROM node_referrals WHERE referrer_id = ? AND referred_id = ? LIMIT 1',
+                [referrerId, newPartnerId]
+              );
+              if (refInsert.length) {
+                await db.query(
+                  `INSERT INTO node_referral_earnings
+                    (partner_id, from_partner_id, type, amount, status, referral_id, level)
+                    VALUES (?, ?, 'referral_bonus', 500.00, 'locked', ?, 1)`,
+                  [referrerId, newPartnerId, refInsert[0].id]
+                );
+                await db.query(
+                  'UPDATE node_partners SET lockedWallet = lockedWallet + 500.00 WHERE id = ?',
+                  [referrerId]
+                );
+              }
+              console.log(`[REFERRAL] Partner ${newPartnerId} registered via code ${refCode} (referrer: ${referrerId}) — ₹500 locked`);
+            }
+          } catch (refErr) {
+            console.error('[REFERRAL] Error processing referral on register:', refErr.message);
+          }
+        }
+      }
+
       res.status(201).json({
         token,
         amount: 500,
@@ -885,6 +941,7 @@ router.post('/auth/register', (req, res) => {
     }
   });
 });
+
 
 // POST /api/auth/login - Login partner
 router.post('/auth/login', async (req, res) => {
@@ -3179,6 +3236,12 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
 
     await db.query('COMMIT');
 
+    // === REFER & EARN: Credit order bonus to this partner's referrer (if any) ===
+    // Fire-and-forget: don't block the response
+    creditReferralOrderBonus(partnerId, String(id), isV2 ? 'app' : 'admin').catch(e =>
+      console.error('[REFERRAL] background bonus error:', e.message)
+    );
+
     res.json({ 
       success: true, 
       message: 'Work completed successfully and earnings updated!', 
@@ -4097,4 +4160,331 @@ router.get('/settings/version', async (req, res) => {
   }
 });
 
-module.exports = router;
+// ================================================================
+// REFER & EARN APIs
+// ================================================================
+
+// Constants
+const REFERRAL_REWARD   = 500;  // ₹500 locked bonus for referrer when referred registers & is approved
+const ORDER_BONUS       = 50;   // ₹50 per completed order by referred partner (level 1, directly withdrawable)
+const ORDER_BONUS_L2    = 20;   // ₹20 per order for level 2 (indirect referral)
+const UNLOCK_ORDERS     = 5;    // Referred partner must complete 5 orders...
+const UNLOCK_DAYS       = 5;    // ...within 5 days of registration to unlock ₹500
+
+// Helper: credit referral order bonus when a referred partner completes an order
+async function creditReferralOrderBonus(referredPartnerId, bookingId, bookingSource) {
+  try {
+    // Level 1: find direct referrer
+    const [refs] = await db.query(
+      'SELECT * FROM node_referrals WHERE referred_id = ? ORDER BY created_at DESC LIMIT 1',
+      [referredPartnerId]
+    );
+    if (!refs.length) return;  // This partner was not referred
+
+    const ref = refs[0];
+    const referrerId = ref.referrer_id;
+
+    // Credit ₹50 order bonus to Level 1 referrer (directly available)
+    await db.query(
+      'INSERT INTO node_referral_earnings (partner_id, from_partner_id, type, amount, status, booking_id, booking_source, referral_id, level) VALUES (?,?,\'order_bonus\',?,\'available\',?,?,?,1)',
+      [referrerId, referredPartnerId, ORDER_BONUS, bookingId, bookingSource, ref.id]
+    );
+    await db.query(
+      'UPDATE node_partners SET availableWallet = availableWallet + ? WHERE id = ?',
+      [ORDER_BONUS, referrerId]
+    );
+
+    // Level 2: find referrer's referrer (if any)
+    const [refs2] = await db.query(
+      'SELECT * FROM node_referrals WHERE referred_id = ? ORDER BY created_at DESC LIMIT 1',
+      [referrerId]
+    );
+    if (refs2.length) {
+      const ref2 = refs2[0];
+      const referrer2Id = ref2.referrer_id;
+      await db.query(
+        'INSERT INTO node_referral_earnings (partner_id, from_partner_id, type, amount, status, booking_id, booking_source, referral_id, level) VALUES (?,?,\'order_bonus\',?,\'available\',?,?,?,2)',
+        [referrer2Id, referredPartnerId, ORDER_BONUS_L2, bookingId, bookingSource, ref2.id]
+      );
+      await db.query(
+        'UPDATE node_partners SET availableWallet = availableWallet + ? WHERE id = ?',
+        [ORDER_BONUS_L2, referrer2Id]
+      );
+    }
+
+    // Track progress: increment orders_done on referral row
+    await db.query(
+      'UPDATE node_referrals SET orders_done = orders_done + 1 WHERE id = ?',
+      [ref.id]
+    );
+
+    // Reload referral after increment
+    const [updatedRef] = await db.query('SELECT * FROM node_referrals WHERE id = ?', [ref.id]);
+    const r = updatedRef[0];
+
+    // Check if unlock conditions are met (5 orders within 5 days AND still within deadline)
+    const now = new Date();
+    if (r.status === 'pending' && r.orders_done >= UNLOCK_ORDERS) {
+      const deadline = new Date(r.unlock_deadline);
+      if (now <= deadline) {
+        // UNLOCK: move locked ₹500 to available wallet
+        await db.query(
+          'UPDATE node_referrals SET status = \'unlocked\', unlocked_at = NOW() WHERE id = ?',
+          [r.id]
+        );
+        await db.query(
+          'UPDATE node_referral_earnings SET status = \'available\' WHERE referral_id = ? AND type = \'referral_bonus\' AND status = \'locked\'',
+          [r.id]
+        );
+        await db.query(
+          'UPDATE node_partners SET lockedWallet = GREATEST(lockedWallet - ?, 0), availableWallet = availableWallet + ? WHERE id = ?',
+          [REFERRAL_REWARD, REFERRAL_REWARD, referrerId]
+        );
+        console.log(`[REFERRAL] ₹${REFERRAL_REWARD} UNLOCKED for partner ${referrerId} — referred partner ${referredPartnerId} completed ${UNLOCK_ORDERS} orders!`);
+      } else {
+        // Deadline passed — expire the locked reward
+        await db.query(
+          'UPDATE node_referrals SET status = \'expired\', expired_at = NOW() WHERE id = ? AND status = \'pending\'',
+          [r.id]
+        );
+        await db.query(
+          'UPDATE node_referral_earnings SET status = \'withdrawn\' WHERE referral_id = ? AND type = \'referral_bonus\' AND status = \'locked\'',
+          [r.id]
+        );
+        await db.query(
+          'UPDATE node_partners SET lockedWallet = GREATEST(lockedWallet - ?, 0) WHERE id = ?',
+          [REFERRAL_REWARD, referrerId]
+        );
+        console.log(`[REFERRAL] ₹${REFERRAL_REWARD} EXPIRED for partner ${referrerId} — deadline missed`);
+      }
+    } else if (r.status === 'pending') {
+      // Check if deadline has passed even before 5 orders
+      const deadline = new Date(r.unlock_deadline);
+      if (now > deadline) {
+        await db.query(
+          'UPDATE node_referrals SET status = \'expired\', expired_at = NOW() WHERE id = ? AND status = \'pending\'',
+          [r.id]
+        );
+        await db.query(
+          'UPDATE node_referral_earnings SET status = \'withdrawn\' WHERE referral_id = ? AND type = \'referral_bonus\' AND status = \'locked\'',
+          [r.id]
+        );
+        await db.query(
+          'UPDATE node_partners SET lockedWallet = GREATEST(lockedWallet - ?, 0) WHERE id = ?',
+          [REFERRAL_REWARD, referrerId]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('[REFERRAL] Error crediting order bonus:', err.message);
+  }
+}
+
+// ----------------------------------------------------------------
+// GET /api/referral/code — Get my referral code + share link
+// ----------------------------------------------------------------
+router.get('/referral/code', authenticatePartner, async (req, res) => {
+  try {
+    const partnerId = req.partner.id;
+    const [rows] = await db.query('SELECT id, name, referral_code FROM node_partners WHERE id = ?', [partnerId]);
+    if (!rows.length) return res.status(404).json({ error: 'Partner not found' });
+
+    const partner = rows[0];
+
+    // Ensure code exists (generate if missing for old accounts)
+    let code = partner.referral_code;
+    if (!code) {
+      code = 'HF' + String(partnerId).padStart(6, '0');
+      await db.query('UPDATE node_partners SET referral_code = ? WHERE id = ?', [code, partnerId]);
+    }
+
+    const shareLink = `https://homefaciliti.com/partner/join?ref=${code}`;
+    const shareMessage = `Join me on Home Faciliti as a service partner and earn money! Use my referral code *${code}* while registering to get started. Sign up here: ${shareLink}`;
+
+    res.json({
+      success: true,
+      referralCode: code,
+      shareLink,
+      shareMessage,
+      rewards: {
+        referralBonus: `₹${REFERRAL_REWARD} (locked — unlocks after referred partner completes ${UNLOCK_ORDERS} orders in ${UNLOCK_DAYS} days)`,
+        orderBonus: `₹${ORDER_BONUS} per order completed by referred partner (directly withdrawable)`,
+        orderBonusL2: `₹${ORDER_BONUS_L2} per order for level 2 referrals`
+      }
+    });
+  } catch (err) {
+    console.error('[REFERRAL] /referral/code error:', err.message);
+    res.status(500).json({ error: 'Failed to get referral code' });
+  }
+});
+
+// ----------------------------------------------------------------
+// POST /api/referral/validate — Validate a referral code (call before/during registration)
+// Body: { referralCode: "HF000001" }
+// ----------------------------------------------------------------
+router.post('/referral/validate', async (req, res) => {
+  const { referralCode } = req.body;
+  if (!referralCode || !referralCode.trim()) {
+    return res.status(400).json({ valid: false, error: 'Referral code is required' });
+  }
+
+  try {
+    const code = referralCode.trim().toUpperCase();
+    const [rows] = await db.query(
+      'SELECT id, name, referral_code FROM node_partners WHERE referral_code = ? AND isApproved = 1',
+      [code]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ valid: false, error: 'Invalid referral code. No approved partner found with this code.' });
+    }
+
+    const referrer = rows[0];
+    res.json({
+      valid: true,
+      referralCode: code,
+      referrerName: referrer.name,
+      message: `Valid referral code by ${referrer.name}. You will both earn rewards after you complete ${UNLOCK_ORDERS} orders!`
+    });
+  } catch (err) {
+    console.error('[REFERRAL] /referral/validate error:', err.message);
+    res.status(500).json({ valid: false, error: 'Failed to validate referral code' });
+  }
+});
+
+// ----------------------------------------------------------------
+// GET /api/referral/stats — Get my complete referral stats & earnings
+// ----------------------------------------------------------------
+router.get('/referral/stats', authenticatePartner, async (req, res) => {
+  try {
+    const partnerId = req.partner.id;
+
+    // Referrals I made (people I referred)
+    const [myReferrals] = await db.query(
+      `SELECT r.*, p.name AS referred_name, p.mobile AS referred_phone, p.isApproved
+       FROM node_referrals r
+       JOIN node_partners p ON p.id = r.referred_id
+       WHERE r.referrer_id = ?
+       ORDER BY r.created_at DESC`,
+      [partnerId]
+    );
+
+    // My earnings breakdown
+    const [earnings] = await db.query(
+      `SELECT type, status, SUM(amount) AS total, COUNT(*) AS count
+       FROM node_referral_earnings
+       WHERE partner_id = ?
+       GROUP BY type, status`,
+      [partnerId]
+    );
+
+    // My wallet balances
+    const [wallet] = await db.query(
+      'SELECT referral_code, availableWallet, lockedWallet FROM node_partners WHERE id = ?',
+      [partnerId]
+    );
+
+    // My referral code
+    const myCode = wallet[0]?.referral_code || ('HF' + String(partnerId).padStart(6, '0'));
+
+    // Build summary
+    let totalOrderBonus = 0;
+    let totalReferralBonus = 0;
+    let lockedAmount = 0;
+
+    earnings.forEach(e => {
+      if (e.type === 'order_bonus' && e.status === 'available') totalOrderBonus += parseFloat(e.total);
+      if (e.type === 'referral_bonus' && e.status === 'available') totalReferralBonus += parseFloat(e.total);
+      if (e.status === 'locked') lockedAmount += parseFloat(e.total);
+    });
+
+    const referralList = myReferrals.map(r => ({
+      referralId: r.id,
+      partnerName: r.referred_name,
+      phone: r.referred_phone,
+      isApproved: r.isApproved === 1,
+      status: r.status,           // pending | unlocked | expired
+      ordersCompleted: r.orders_done,
+      ordersNeeded: UNLOCK_ORDERS,
+      unlockDeadline: r.unlock_deadline,
+      lockedReward: parseFloat(r.locked_reward),
+      createdAt: r.created_at,
+      unlockedAt: r.unlocked_at,
+      expiredAt: r.expired_at
+    }));
+
+    res.json({
+      success: true,
+      referralCode: myCode,
+      shareLink: `https://homefaciliti.com/partner/join?ref=${myCode}`,
+      wallet: {
+        available: parseFloat(wallet[0]?.availableWallet || 0),
+        locked: parseFloat(wallet[0]?.lockedWallet || 0),
+        total: parseFloat(wallet[0]?.availableWallet || 0) + parseFloat(wallet[0]?.lockedWallet || 0)
+      },
+      earnings: {
+        orderBonus: totalOrderBonus,
+        referralBonus: totalReferralBonus,
+        locked: lockedAmount,
+        total: totalOrderBonus + totalReferralBonus
+      },
+      referralCount: myReferrals.length,
+      referrals: referralList
+    });
+  } catch (err) {
+    console.error('[REFERRAL] /referral/stats error:', err.message);
+    res.status(500).json({ error: 'Failed to get referral stats' });
+  }
+});
+
+// ----------------------------------------------------------------
+// GET /api/referral/history — Full earnings transaction history
+// ----------------------------------------------------------------
+router.get('/referral/history', authenticatePartner, async (req, res) => {
+  try {
+    const partnerId = req.partner.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const [rows] = await db.query(
+      `SELECT re.*, p.name AS from_partner_name
+       FROM node_referral_earnings re
+       JOIN node_partners p ON p.id = re.from_partner_id
+       WHERE re.partner_id = ?
+       ORDER BY re.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [partnerId, limit, offset]
+    );
+
+    const [countRows] = await db.query(
+      'SELECT COUNT(*) AS total FROM node_referral_earnings WHERE partner_id = ?',
+      [partnerId]
+    );
+
+    res.json({
+      success: true,
+      page,
+      limit,
+      total: countRows[0].total,
+      history: rows.map(r => ({
+        id: r.id,
+        type: r.type,
+        amount: parseFloat(r.amount),
+        status: r.status,
+        level: r.level,
+        bookingId: r.booking_id,
+        fromPartner: r.from_partner_name,
+        createdAt: r.created_at,
+        description: r.type === 'referral_bonus'
+          ? `₹${r.amount} referral bonus (${r.status})`
+          : `₹${r.amount} order bonus from ${r.from_partner_name} (Level ${r.level})`
+      }))
+    });
+  } catch (err) {
+    console.error('[REFERRAL] /referral/history error:', err.message);
+    res.status(500).json({ error: 'Failed to get referral history' });
+  }
+});
+
+module.exports = router;

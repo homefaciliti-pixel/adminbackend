@@ -574,4 +574,196 @@ Response Example:
   - Update partner status (online/offline) and coordinates. Body: { "status": true/false/1/0, "lat": "...", "lon": "...", "time": "..." }.
 
 
+======================================================================
+REFER & EARN API DOCUMENTATION
+======================================================================
+Added: 2026-06-30
+Base URL: https://partner-backend-2.onrender.com/api
+
+BUSINESS RULES:
+  - Partner A refers Partner B using their unique referral code (e.g., HF000001)
+  - Partner B registers using that code → ₹500 added as LOCKED to Partner A's wallet
+  - Partner B must complete 5 orders within 5 days of registration to UNLOCK the ₹500
+  - Every order Partner B completes → ₹50 credited DIRECTLY to Partner A (available)
+  - Level 2: if Partner A was also referred by someone, that referrer gets ₹20/order
+  - If 5 orders not completed within 5 days → ₹500 EXPIRES (not paid out)
+  - Self-referral is NOT allowed
+
+DATABASE TABLES ADDED:
+  - node_referrals: tracks referral relationships (who referred whom, deadline, progress)
+  - node_referral_earnings: logs every earning event (referral_bonus or order_bonus)
+  - node_partners: 4 new columns: referral_code, referredBy, availableWallet, lockedWallet
+
+REFERRAL CODES:
+  - Format: HF + partner_id padded to 6 digits (e.g., HF000001, HF000042, HF000100)
+  - Auto-generated for all existing partners on migration
+
+----------------------------------------------------------------------
+R1. GET /api/referral/code  (PROTECTED — Bearer token required)
+----------------------------------------------------------------------
+Description: Get my referral code, shareable link and share message.
+Response: 200 OK
+{
+  "success": true,
+  "referralCode": "HF000042",
+  "shareLink": "https://homefaciliti.com/partner/join?ref=HF000042",
+  "shareMessage": "Join me on Home Faciliti as a service partner and earn money! Use my referral code *HF000042* while registering to get started. Sign up here: https://...",
+  "rewards": {
+    "referralBonus": "₹500 (locked — unlocks after referred partner completes 5 orders in 5 days)",
+    "orderBonus": "₹50 per order completed by referred partner (directly withdrawable)",
+    "orderBonusL2": "₹20 per order for level 2 referrals"
+  }
+}
+
+----------------------------------------------------------------------
+R2. POST /api/referral/validate  (PUBLIC — no auth required)
+----------------------------------------------------------------------
+Description: Validate a referral code before/during registration.
+             Call this when user enters referral code in register form.
+Request Body: { "referralCode": "HF000001" }
+Response: 200 OK — valid code
+{
+  "valid": true,
+  "referralCode": "HF000001",
+  "referrerName": "Govind",
+  "message": "Valid referral code by Govind. You will both earn rewards after you complete 5 orders!"
+}
+Response: 404 — invalid code
+{
+  "valid": false,
+  "error": "Invalid referral code. No approved partner found with this code."
+}
+
+----------------------------------------------------------------------
+R3. POST /api/auth/register  (Updated — now accepts referralCode)
+----------------------------------------------------------------------
+Description: Registration endpoint now accepts optional referralCode field.
+             On successful registration, if valid code provided:
+             - ₹500 locked bonus is credited to referrer's lockedWallet
+             - referral row is created with 5-day deadline
+Request Body (unchanged fields + new optional field):
+{
+  ... (all existing registration fields) ...
+  "referralCode": "HF000001"   // OPTIONAL — referral code of the referring partner
+}
+Response: Same as before (201 Created)
+Note: Self-referral is silently ignored (no error returned)
+
+----------------------------------------------------------------------
+R4. GET /api/referral/stats  (PROTECTED — Bearer token required)
+----------------------------------------------------------------------
+Description: Get complete referral stats, wallet balances, and list of people I referred.
+Response: 200 OK
+{
+  "success": true,
+  "referralCode": "HF000042",
+  "shareLink": "https://homefaciliti.com/partner/join?ref=HF000042",
+  "wallet": {
+    "available": 150.00,    // directly withdrawable
+    "locked": 500.00,       // locked (waiting for 5-order unlock condition)
+    "total": 650.00
+  },
+  "earnings": {
+    "orderBonus": 150.00,   // sum of all ₹50 order bonuses earned
+    "referralBonus": 0.00,  // sum of ₹500 bonuses that have been unlocked
+    "locked": 500.00,       // total amount still locked
+    "total": 150.00         // total available earnings
+  },
+  "referralCount": 2,
+  "referrals": [
+    {
+      "referralId": 1,
+      "partnerName": "Rahul Sharma",
+      "phone": "9876543210",
+      "isApproved": true,
+      "status": "pending",           // pending | unlocked | expired
+      "ordersCompleted": 3,
+      "ordersNeeded": 5,
+      "unlockDeadline": "2026-07-05T00:00:00.000Z",
+      "lockedReward": 500.00,
+      "createdAt": "2026-06-30T10:00:00.000Z",
+      "unlockedAt": null,
+      "expiredAt": null
+    },
+    {
+      "referralId": 2,
+      "partnerName": "Priya Singh",
+      "phone": "8765432109",
+      "isApproved": true,
+      "status": "unlocked",
+      "ordersCompleted": 5,
+      "ordersNeeded": 5,
+      "unlockDeadline": "2026-07-03T00:00:00.000Z",
+      "lockedReward": 500.00,
+      "createdAt": "2026-06-28T10:00:00.000Z",
+      "unlockedAt": "2026-06-30T08:45:00.000Z",
+      "expiredAt": null
+    }
+  ]
+}
+
+----------------------------------------------------------------------
+R5. GET /api/referral/history  (PROTECTED — Bearer token required)
+----------------------------------------------------------------------
+Description: Full paginated earnings transaction history (order bonuses + referral bonuses).
+Query Params:
+  - page  (optional, default: 1)
+  - limit (optional, default: 20)
+Response: 200 OK
+{
+  "success": true,
+  "page": 1,
+  "limit": 20,
+  "total": 5,
+  "history": [
+    {
+      "id": 1,
+      "type": "order_bonus",           // order_bonus | referral_bonus
+      "amount": 50.00,
+      "status": "available",           // available | locked | withdrawn
+      "level": 1,                      // 1=direct, 2=indirect
+      "bookingId": "123",
+      "fromPartner": "Rahul Sharma",   // the referred partner who triggered this
+      "createdAt": "2026-06-30T10:00:00.000Z",
+      "description": "₹50 order bonus from Rahul Sharma (Level 1)"
+    },
+    {
+      "id": 2,
+      "type": "referral_bonus",
+      "amount": 500.00,
+      "status": "locked",
+      "level": 1,
+      "bookingId": null,
+      "fromPartner": "Rahul Sharma",
+      "createdAt": "2026-06-30T09:00:00.000Z",
+      "description": "₹500 referral bonus (locked)"
+    }
+  ]
+}
+
+----------------------------------------------------------------------
+AUTOMATIC TRIGGERS (Internal — happen in background)
+----------------------------------------------------------------------
+1. On POST /bookings/:id/complete:
+   - creditReferralOrderBonus() is called automatically
+   - ₹50 credited to Level 1 referrer's availableWallet
+   - ₹20 credited to Level 2 referrer's availableWallet (if applicable)
+   - orders_done counter incremented on the referral row
+   - If orders_done >= 5 AND within deadline: ₹500 UNLOCKED (moved from lockedWallet to availableWallet)
+   - If deadline passed: referral EXPIRED (₹500 removed from lockedWallet)
+
+2. On POST /auth/register (with referralCode in body):
+   - Referral row created with 5-day unlock_deadline
+   - ₹500 logged as locked earning for referrer
+   - referrer's lockedWallet += 500
+   - Partner's referredBy field updated
+
+WALLET FIELDS ON PARTNER:
+  - availableWallet: sum of all directly withdrawable earnings (order bonuses + unlocked referral bonuses)
+  - lockedWallet:    sum of ₹500 referral bonuses waiting for the 5-order unlock condition
+  - (total referral wallet = availableWallet + lockedWallet)
+
+NOTE: The availableWallet and lockedWallet are SEPARATE from the main walletBalance field
+      which tracks booking service earnings. The referral wallet is purely for referral rewards.
+
 
