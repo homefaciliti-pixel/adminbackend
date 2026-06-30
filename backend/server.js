@@ -129,6 +129,161 @@ server.use('/uploads', async (req, res, next) => {
   }
 });
 
+// Smart redirect route for Refer & Earn links
+server.get('/partner/join', (req, res) => {
+  const ref = req.query.ref || '';
+  
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Home Faciliti Partner Join</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 20px;
+      color: #F8FAFC;
+    }
+    .card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 40px 30px;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+    .logo-container {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      border-radius: 20px;
+      margin: 0 auto 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2);
+    }
+    .logo-icon {
+      font-size: 40px;
+      font-weight: bold;
+      color: white;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0 0 8px 0;
+      color: #FFFFFF;
+    }
+    p {
+      color: #94A3B8;
+      font-size: 15px;
+      line-height: 1.5;
+      margin: 0 0 32px 0;
+    }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      padding: 14px 20px;
+      border-radius: 12px;
+      box-sizing: border-box;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      margin-bottom: 12px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #E2E8F0;
+      box-shadow: none;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+      box-shadow: none;
+    }
+    .loader {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top: 3px solid #10B981;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto 0;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+  <script>
+    window.onload = function() {
+      var ref = "${ref}";
+      var appSchemeUrl = "hfpartner://join?ref=" + ref;
+      var playStoreUrl = "https://play.google.com/store/apps/details?id=com.homefaciliti.partner"; 
+      var appStoreUrl = "https://apps.apple.com/app/homefaciliti-partner"; 
+      
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      
+      // Try to launch the app instantly using custom protocol scheme
+      var start = Date.now();
+      window.location.href = appSchemeUrl;
+      
+      // Fallback redirection logic
+      setTimeout(function() {
+        if (Date.now() - start < 1800) {
+          if (isAndroid) {
+            window.location.href = playStoreUrl;
+          } else if (isIOS) {
+            window.location.href = appStoreUrl;
+          } else {
+            window.location.href = playStoreUrl;
+          }
+        }
+      }, 1500);
+    };
+  </script>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-container">
+      <span class="logo-icon">HF</span>
+    </div>
+    <h1>Home Faciliti Partner</h1>
+    <p>Opening the partner application on your device...<br>Please wait.</p>
+    
+    <a href="hfpartner://join?ref=\${ref}" class="btn">Open App Directly</a>
+    <a href="https://play.google.com/store/apps/details?id=com.homefaciliti.partner" class="btn btn-secondary">Install from Play Store</a>
+    
+    <div class="loader"></div>
+  </div>
+</body>
+</html>
+  `);
+});
+
 // Root Route / Health Check - Serving a premium dashboard landing page with database stats
 server.get('/', async (req, res) => {
   try {

@@ -4298,7 +4298,8 @@ router.get('/referral/code', authenticatePartner, async (req, res) => {
       await db.query('UPDATE node_partners SET referral_code = ? WHERE id = ?', [code, partnerId]);
     }
 
-    const shareLink = `https://homefaciliti.com/partner/join?ref=${code}`;
+    const host = req.protocol + '://' + req.get('host');
+    const shareLink = `${host}/partner/join?ref=${code}`;
     const shareMessage = `Join me on Home Faciliti as a service partner and earn money! Use my referral code *${code}* while registering to get started. Sign up here: ${shareLink}`;
 
     res.json({
@@ -4413,10 +4414,11 @@ router.get('/referral/stats', authenticatePartner, async (req, res) => {
       expiredAt: r.expired_at
     }));
 
+    const host = req.protocol + '://' + req.get('host');
     res.json({
       success: true,
       referralCode: myCode,
-      shareLink: `https://homefaciliti.com/partner/join?ref=${myCode}`,
+      shareLink: `${host}/partner/join?ref=${myCode}`,
       wallet: {
         available: parseFloat(wallet[0]?.availableWallet || 0),
         locked: parseFloat(wallet[0]?.lockedWallet || 0),
