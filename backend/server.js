@@ -242,7 +242,7 @@ server.get('/partner/join', (req, res) => {
       var ref = "${ref}";
       var appSchemeUrl = "hfpartner://join?ref=" + ref;
       var playStoreUrl = "https://play.google.com/store/apps/details?id=com.homefaciliti.partner"; 
-      var appStoreUrl = "https://apps.apple.com/app/homefaciliti-partner"; 
+      var appStoreUrl = "https://apps.apple.com/in/app/homeficiliti-partner-app/id6780466527"; 
       
       var isAndroid = /Android/i.test(navigator.userAgent);
       var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
