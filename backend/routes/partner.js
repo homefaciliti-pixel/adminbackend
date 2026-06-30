@@ -4222,58 +4222,22 @@ async function creditReferralOrderBonus(referredPartnerId, bookingId, bookingSou
     const [updatedRef] = await db.query('SELECT * FROM node_referrals WHERE id = ?', [ref.id]);
     const r = updatedRef[0];
 
-    // Check if unlock conditions are met (5 orders within 5 days AND still within deadline)
-    const now = new Date();
+    // Check if unlock conditions are met (5 orders completed)
     if (r.status === 'pending' && r.orders_done >= UNLOCK_ORDERS) {
-      const deadline = new Date(r.unlock_deadline);
-      if (now <= deadline) {
-        // UNLOCK: move locked ₹500 to available wallet
-        await db.query(
-          'UPDATE node_referrals SET status = \'unlocked\', unlocked_at = NOW() WHERE id = ?',
-          [r.id]
-        );
-        await db.query(
-          'UPDATE node_referral_earnings SET status = \'available\' WHERE referral_id = ? AND type = \'referral_bonus\' AND status = \'locked\'',
-          [r.id]
-        );
-        await db.query(
-          'UPDATE node_partners SET lockedWallet = GREATEST(lockedWallet - ?, 0), availableWallet = availableWallet + ? WHERE id = ?',
-          [REFERRAL_REWARD, REFERRAL_REWARD, referrerId]
-        );
-        console.log(`[REFERRAL] ₹${REFERRAL_REWARD} UNLOCKED for partner ${referrerId} — referred partner ${referredPartnerId} completed ${UNLOCK_ORDERS} orders!`);
-      } else {
-        // Deadline passed — expire the locked reward
-        await db.query(
-          'UPDATE node_referrals SET status = \'expired\', expired_at = NOW() WHERE id = ? AND status = \'pending\'',
-          [r.id]
-        );
-        await db.query(
-          'UPDATE node_referral_earnings SET status = \'withdrawn\' WHERE referral_id = ? AND type = \'referral_bonus\' AND status = \'locked\'',
-          [r.id]
-        );
-        await db.query(
-          'UPDATE node_partners SET lockedWallet = GREATEST(lockedWallet - ?, 0) WHERE id = ?',
-          [REFERRAL_REWARD, referrerId]
-        );
-        console.log(`[REFERRAL] ₹${REFERRAL_REWARD} EXPIRED for partner ${referrerId} — deadline missed`);
-      }
-    } else if (r.status === 'pending') {
-      // Check if deadline has passed even before 5 orders
-      const deadline = new Date(r.unlock_deadline);
-      if (now > deadline) {
-        await db.query(
-          'UPDATE node_referrals SET status = \'expired\', expired_at = NOW() WHERE id = ? AND status = \'pending\'',
-          [r.id]
-        );
-        await db.query(
-          'UPDATE node_referral_earnings SET status = \'withdrawn\' WHERE referral_id = ? AND type = \'referral_bonus\' AND status = \'locked\'',
-          [r.id]
-        );
-        await db.query(
-          'UPDATE node_partners SET lockedWallet = GREATEST(lockedWallet - ?, 0) WHERE id = ?',
-          [REFERRAL_REWARD, referrerId]
-        );
-      }
+      // UNLOCK: move locked ₹500 to available wallet
+      await db.query(
+        'UPDATE node_referrals SET status = \'unlocked\', unlocked_at = NOW() WHERE id = ?',
+        [r.id]
+      );
+      await db.query(
+        'UPDATE node_referral_earnings SET status = \'available\' WHERE referral_id = ? AND type = \'referral_bonus\' AND status = \'locked\'',
+        [r.id]
+      );
+      await db.query(
+        'UPDATE node_partners SET lockedWallet = GREATEST(lockedWallet - ?, 0), availableWallet = availableWallet + ? WHERE id = ?',
+        [REFERRAL_REWARD, REFERRAL_REWARD, referrerId]
+      );
+      console.log(`[REFERRAL] ₹${REFERRAL_REWARD} UNLOCKED for partner ${referrerId} — referred partner ${referredPartnerId} completed ${UNLOCK_ORDERS} orders!`);
     }
   } catch (err) {
     console.error('[REFERRAL] Error crediting order bonus:', err.message);
@@ -4308,7 +4272,7 @@ router.get('/referral/code', authenticatePartner, async (req, res) => {
       shareLink,
       shareMessage,
       rewards: {
-        referralBonus: `₹${REFERRAL_REWARD} (locked — unlocks after referred partner completes ${UNLOCK_ORDERS} orders in ${UNLOCK_DAYS} days)`,
+        referralBonus: `₹${REFERRAL_REWARD} (locked — unlocks after referred partner completes ${UNLOCK_ORDERS} orders)`,
         orderBonus: `₹${ORDER_BONUS} per order completed by referred partner (directly withdrawable)`,
         orderBonusL2: `₹${ORDER_BONUS_L2} per order for level 2 referrals`
       }
