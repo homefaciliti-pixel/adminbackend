@@ -760,8 +760,8 @@ router.post('/auth/register', (req, res) => {
     const accNumVal = req.body.accountNumber || normalizedBody['accountnumber'] || normalizedBody['accountno'] || normalizedBody['accnumber'] || normalizedBody['accno'] || '';
     const ifscVal = req.body.ifscCode || normalizedBody['ifsccode'] || normalizedBody['ifsc'] || '';
 
-    if (!nameVal || !phoneVal || !emailVal || !passwordVal || !cityVal || !stateVal || !localityVal || !addressVal) {
-      return res.status(400).json({ error: 'All primary fields (name, phone, email, password, location) are required' });
+    if (!nameVal || !phoneVal || !emailVal || !passwordVal || !cityVal || !stateVal) {
+      return res.status(400).json({ error: 'All primary fields (name, phone, email, password, city, state) are required' });
     }
 
     // Handle file locations and enforce mandatory requirements
