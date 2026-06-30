@@ -885,9 +885,8 @@ router.post('/auth/register', (req, res) => {
             );
             if (refRows.length) {
               const referrerId = refRows[0].id;
-              // Deadline: 5 days from now
-              const deadline = new Date();
-              deadline.setDate(deadline.getDate() + 5);
+              // Deadline: no limit (set to far-future date to satisfy DB NOT NULL constraint)
+              const deadline = new Date('9999-12-31T23:59:59Z');
 
               // Insert referral row
               await db.query(
