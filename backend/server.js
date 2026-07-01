@@ -247,11 +247,17 @@ server.get('/partner/join', (req, res) => {
       var isAndroid = /Android/i.test(navigator.userAgent);
       var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
-      // Try to launch the app instantly using custom protocol scheme
       var start = Date.now();
-      window.location.href = appSchemeUrl;
       
-      // Fallback redirection logic
+      if (isAndroid) {
+        // Use Intent URL for Android Chrome to bypass browser redirect blocks and pass query parameter
+        var intentUrl = "intent://join?ref=" + ref + "#Intent;scheme=hfpartner;package=com.homefaciliti.partner;S.browser_fallback_url=" + encodeURIComponent(playStoreUrl) + ";end";
+        window.location.href = intentUrl;
+      } else {
+        window.location.href = appSchemeUrl;
+      }
+      
+      // Fallback redirection logic for non-intent situations or iOS
       setTimeout(function() {
         if (Date.now() - start < 1800) {
           if (isAndroid) {
@@ -274,11 +280,21 @@ server.get('/partner/join', (req, res) => {
     <h1>Home Faciliti Partner</h1>
     <p>Opening the partner application on your device...<br>Please wait.</p>
     
-    <a href="hfpartner://join?ref=\${ref}" class="btn">Open App Directly</a>
+    <a href="hfpartner://join?ref=${ref}" id="openAppBtn" class="btn">Open App Directly</a>
     <a href="https://play.google.com/store/apps/details?id=com.homefaciliti.partner" class="btn btn-secondary">Install from Play Store</a>
     
     <div class="loader"></div>
   </div>
+  <script>
+    // Ensure button href is dynamically set in case user clicks it manually on Android
+    var refVal = "${ref}";
+    var isAndroid = /Android/i.test(navigator.userAgent);
+    if (isAndroid) {
+      document.getElementById("openAppBtn").href = "intent://join?ref=" + refVal + "#Intent;scheme=hfpartner;package=com.homefaciliti.partner;end";
+    } else {
+      document.getElementById("openAppBtn").href = "hfpartner://join?ref=" + refVal;
+    }
+  </script>
 </body>
 </html>
   `);
