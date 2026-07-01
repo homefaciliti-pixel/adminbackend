@@ -250,8 +250,9 @@ server.get('/partner/join', (req, res) => {
       var start = Date.now();
       
       if (isAndroid) {
-        // Use Intent URL for Android Chrome to bypass browser redirect blocks and pass query parameter
-        var intentUrl = "intent://join?ref=" + ref + "#Intent;scheme=hfpartner;package=com.homefaciliti.partner;S.browser_fallback_url=" + encodeURIComponent(playStoreUrl) + ";end";
+        // Use Intent URL for Android Chrome to bypass browser redirect blocks and pass query parameter.
+        // We omit package restriction so it can open debug/development builds (com.example.hf_partner) as well as production builds (com.homefaciliti.partner).
+        var intentUrl = "intent://join?ref=" + ref + "#Intent;scheme=hfpartner;S.browser_fallback_url=" + encodeURIComponent(playStoreUrl) + ";end";
         window.location.href = intentUrl;
       } else {
         window.location.href = appSchemeUrl;
@@ -290,7 +291,7 @@ server.get('/partner/join', (req, res) => {
     var refVal = "${ref}";
     var isAndroid = /Android/i.test(navigator.userAgent);
     if (isAndroid) {
-      document.getElementById("openAppBtn").href = "intent://join?ref=" + refVal + "#Intent;scheme=hfpartner;package=com.homefaciliti.partner;end";
+      document.getElementById("openAppBtn").href = "intent://join?ref=" + refVal + "#Intent;scheme=hfpartner;end";
     } else {
       document.getElementById("openAppBtn").href = "hfpartner://join?ref=" + refVal;
     }
