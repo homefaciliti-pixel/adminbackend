@@ -132,7 +132,6 @@ const getServiceMap = async () => {
   return map;
 };
 
-// Helper to check if a booking matches partner's selected category and services
 const partnerMatchesBooking = (partner, booking, serviceMap) => {
   const bookingServiceLower = (booking.serviceName || booking.service || '').trim().toLowerCase();
   if (!bookingServiceLower) return false;
@@ -155,20 +154,23 @@ const partnerMatchesBooking = (partner, booking, serviceMap) => {
     return false;
   }
 
-  // 1. Check if matches partner's category
+  // If partner has selected specific services, only show bookings matching those services
+  if (pServices.length > 0) {
+    for (const ps of pServices) {
+      if (bService === ps || bService.includes(ps) || ps.includes(bService)) return true;
+    }
+    return false;
+  }
+
+  // Otherwise, match by category if no specific services are selected
   if (pCategory) {
     if (bCategory === pCategory) return true;
     if (bCategory.includes(pCategory) || pCategory.includes(bCategory)) return true;
   }
 
-  // 2. Check if matches any of the partner's selected services
-  for (const ps of pServices) {
-    if (bService === ps || bService.includes(ps) || ps.includes(bService)) return true;
-    if (bCategory === ps || bCategory.includes(ps) || ps.includes(bCategory)) return true;
-  }
-
   return false;
 };
+
 
 // Helper to retrieve the unified, fully filtered list of bookings for a partner
 const getFilteredBookingsList = async (partner) => {
@@ -1417,6 +1419,7 @@ const handleVerify = async (req, res) => {
   let partnerId = params.partnerId;
   const crypto = require('crypto');
   const secret = process.env.RAZORPAY_KEY_SECRET;
+  const keyId = getRazorpayKeyId();
 
   // Render helper for HTML responses
   const renderHtmlResponse = (isSuccess, title, message) => {
