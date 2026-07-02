@@ -38,7 +38,7 @@ const createRazorpayOrder = async (partnerId) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        amount: 50000, // ₹500 in paise
+        amount: 100, // ₹1 in paise
         currency: 'INR',
         receipt: `receipt_partner_${partnerId}_${Date.now()}`,
         notes: {
@@ -928,7 +928,7 @@ router.post('/auth/register', (req, res) => {
 
       res.status(201).json({
         token,
-        amount: 500,
+        amount: 1,
         partnerId: mappedPartner.id,
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
@@ -1372,7 +1372,7 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
       // 2. Log subscription payment inside subscription_earnings
       await db.query(
         `INSERT INTO subscription_earnings (partnerName, amount, paymentMethod, purchaseDate, status) 
-         VALUES (?, 500.00, ?, ?, 'Paid')`,
+         VALUES (?, 1.00, ?, ?, 'Paid')`,
         [partnerName, paymentMethod, todayStr]
       );
 
@@ -1381,8 +1381,8 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
 
       res.json({
         success: true,
-        message: '₹500 registration payment received successfully! You can access the dashboard once approved by the admin.',
-        amount: 500,
+        message: '₹1 registration payment received successfully! You can access the dashboard once approved by the admin.',
+        amount: 1,
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
         paymentUrl: null,
@@ -1393,7 +1393,7 @@ router.post('/partner/pay-registration', authenticatePartner, async (req, res) =
       res.json({
         success: true,
         message: 'Registration fee checkout initiated successfully.',
-        amount: 500,
+        amount: 1,
         razorpayKeyId: getRazorpayKeyId(),
         razorpayOrderId: razorpayOrderId,
         paymentUrl: paymentUrl,
@@ -1680,7 +1680,7 @@ const handleVerify = async (req, res) => {
     // 2. Log subscription payment inside subscription_earnings
     await db.query(
       `INSERT INTO subscription_earnings (partnerName, amount, paymentMethod, purchaseDate, status) 
-       VALUES (?, 500.00, 'Razorpay', ?, 'Paid')`,
+       VALUES (?, 1.00, 'Razorpay', ?, 'Paid')`,
       [partnerName, todayStr]
     );
 
@@ -1688,7 +1688,7 @@ const handleVerify = async (req, res) => {
     const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [resolvedPartnerId]);
 
     if (req.method === 'GET') {
-      return renderHtmlResponse(true, 'Payment Successful!', 'Your registration fee of ₹500 has been successfully received. You can now close this browser and return to the Superhome Partner app.');
+      return renderHtmlResponse(true, 'Payment Successful!', 'Your registration fee of ₹1 has been successfully received. You can now close this browser and return to the Superhome Partner app.');
     }
 
     // Generate dynamic Razorpay Order ID for response consistency
@@ -1697,7 +1697,7 @@ const handleVerify = async (req, res) => {
     res.json({
       success: true,
       message: 'Razorpay payment verified and partner account activated successfully!',
-      amount: 500,
+      amount: 1,
       razorpayKeyId: getRazorpayKeyId(),
       razorpayOrderId: razorpayOrderId,
       partner: mapPartnerForApp(rows[0], req)
@@ -1854,7 +1854,7 @@ router.get('/partner/pay-redirect', async (req, res) => {
     <div class="spinner" id="spinner"></div>
     <h1 id="status-title">Preparing Checkout</h1>
     <p id="status-desc">Please wait while we connect to the secure payment gateway...</p>
-    <button id="pay-btn" class="btn" style="display: none;">Pay ₹500 Now</button>
+    <button id="pay-btn" class="btn" style="display: none;">Pay ₹1 Now</button>
   </div>
 
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
@@ -1895,7 +1895,7 @@ router.get('/partner/pay-redirect', async (req, res) => {
     } else {
       const options = {
         key: "${keyId}",
-        amount: 50000,
+        amount: 100,
         currency: "INR",
         name: "Superhome",
         description: "Partner Registration Fee",
