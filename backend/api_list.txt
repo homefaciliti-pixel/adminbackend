@@ -88,13 +88,13 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 7. EARNINGS MANAGEMENT
 ----------------------------------------------------------------------
 * GET /api/earnings/bookings
-  - Fetch history of all booking earnings and aggregates. Optional query: 'query', 'transactionId', 'paymentMethod', 'orderDate'.
+  - Fetch history of all booking earnings and aggregates. Optional query: 'query', 'transactionId', 'paymentMethod', 'orderDate', 'userId'.
 * POST /api/earnings/bookings
-  - Save booking earning transaction. Body: { "transactionId": "...", "serviceAmount": 499.0, "paymentMethod": "...", "extraServiceAmount": 0.0, "extraServicePaymentMethod": "...", "totalAmount": 499.0, "orderDate": "..." }
+  - Save booking earning transaction. Body: { "userId": 5, "transactionId": "...", "serviceAmount": 499.0, "paymentMethod": "...", "extraServiceAmount": 0.0, "extraServicePaymentMethod": "...", "totalAmount": 499.0, "orderDate": "..." }
 * GET /api/earnings/subscriptions
-  - Fetch history of all partner subscriptions and aggregates. Optional query: 'query', 'partnerName', 'paymentMethod', 'status', 'purchaseDate'.
+  - Fetch history of all partner subscriptions and aggregates. Optional query: 'query', 'partnerName', 'paymentMethod', 'status', 'purchaseDate', 'partnerId'.
 * POST /api/earnings/subscriptions
-  - Save partner subscription transaction. Body: { "partnerName": "...", "amount": 999.0, "paymentMethod": "...", "purchaseDate": "...", "status": "Paid" }
+  - Save partner subscription transaction. Body: { "partnerId": 12, "partnerName": "...", "amount": 999.0, "paymentMethod": "...", "purchaseDate": "...", "status": "Paid" }
 
 ----------------------------------------------------------------------
 8. CONTENT PAGES

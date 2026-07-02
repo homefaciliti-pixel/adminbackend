@@ -5,7 +5,7 @@ const db = require('../db');
 // GET all booking earnings (with search & aggregates)
 router.get('/bookings', async (req, res) => {
   try {
-    const { query: searchQuery, transactionId, paymentMethod, orderDate } = req.query;
+    const { query: searchQuery, transactionId, paymentMethod, orderDate, userId } = req.query;
 
     // 1. Overall stats
     const [overallRes] = await db.query('SELECT SUM(totalAmount) as totalAmount, COUNT(*) as totalCount FROM booking_earnings');
@@ -32,6 +32,10 @@ router.get('/bookings', async (req, res) => {
       queryStr += ' AND orderDate LIKE ?';
       params.push(`%${orderDate}%`);
     }
+    if (userId) {
+      queryStr += ' AND userId = ?';
+      params.push(parseInt(userId));
+    }
 
     queryStr += ' ORDER BY id DESC';
     const [rows] = await db.query(queryStr, params);
@@ -39,6 +43,7 @@ router.get('/bookings', async (req, res) => {
     // Mapped results
     const mapped = rows.map(r => ({
       ...r,
+      userId: r.userId ? parseInt(r.userId) : null,
       serviceAmount: parseFloat(r.serviceAmount),
       extraServiceAmount: parseFloat(r.extraServiceAmount),
       totalAmount: parseFloat(r.totalAmount)
@@ -64,7 +69,7 @@ router.get('/bookings', async (req, res) => {
 
 // POST add booking earning
 router.post('/bookings', async (req, res) => {
-  const { transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate } = req.body;
+  const { userId, transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate } = req.body;
   
   if (!transactionId || serviceAmount === undefined || !paymentMethod || totalAmount === undefined || !orderDate) {
     return res.status(400).json({ success: false, message: 'Missing transaction details' });
@@ -74,13 +79,14 @@ router.post('/bookings', async (req, res) => {
   const eAmt = parseFloat(extraServiceAmount || 0);
   const tAmt = parseFloat(totalAmount);
   const ePayMethod = extraServicePaymentMethod || '-';
+  const uId = userId ? parseInt(userId) : null;
 
   try {
     const [result] = await db.query(
       `INSERT INTO booking_earnings 
-      (transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [transactionId, sAmt, paymentMethod, eAmt, ePayMethod, tAmt, orderDate]
+      (userId, transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uId, transactionId, sAmt, paymentMethod, eAmt, ePayMethod, tAmt, orderDate]
     );
 
     res.status(201).json({
@@ -88,6 +94,7 @@ router.post('/bookings', async (req, res) => {
       message: 'Booking transaction logged successfully',
       data: {
         id: result.insertId,
+        userId: uId,
         transactionId,
         serviceAmount: sAmt,
         paymentMethod,
@@ -106,7 +113,7 @@ router.post('/bookings', async (req, res) => {
 // GET all subscription earnings (with search & aggregates)
 router.get('/subscriptions', async (req, res) => {
   try {
-    const { query: searchQuery, partnerName, paymentMethod, status, purchaseDate } = req.query;
+    const { query: searchQuery, partnerName, paymentMethod, status, purchaseDate, partnerId } = req.query;
 
     // 1. Overall stats
     const [overallRes] = await db.query('SELECT SUM(amount) as totalAmount, COUNT(*) as totalCount FROM subscription_earnings');
@@ -137,6 +144,10 @@ router.get('/subscriptions', async (req, res) => {
       queryStr += ' AND purchaseDate LIKE ?';
       params.push(`%${purchaseDate}%`);
     }
+    if (partnerId) {
+      queryStr += ' AND partnerId = ?';
+      params.push(parseInt(partnerId));
+    }
 
     queryStr += ' ORDER BY id DESC';
     const [rows] = await db.query(queryStr, params);
@@ -144,6 +155,7 @@ router.get('/subscriptions', async (req, res) => {
     // Mapped results
     const mapped = rows.map(r => ({
       ...r,
+      partnerId: r.partnerId ? parseInt(r.partnerId) : null,
       amount: parseFloat(r.amount)
     }));
 
@@ -167,20 +179,21 @@ router.get('/subscriptions', async (req, res) => {
 
 // POST add subscription earning
 router.post('/subscriptions', async (req, res) => {
-  const { partnerName, amount, paymentMethod, purchaseDate, status } = req.body;
+  const { partnerId, partnerName, amount, paymentMethod, purchaseDate, status } = req.body;
   
   if (!partnerName || amount === undefined || !paymentMethod || !purchaseDate || !status) {
     return res.status(400).json({ success: false, message: 'Missing subscription details' });
   }
 
   const amt = parseFloat(amount);
+  const pId = partnerId ? parseInt(partnerId) : null;
 
   try {
     const [result] = await db.query(
       `INSERT INTO subscription_earnings 
-      (partnerName, amount, paymentMethod, purchaseDate, status) 
-      VALUES (?, ?, ?, ?, ?)`,
-      [partnerName, amt, paymentMethod, purchaseDate, status]
+      (partnerId, partnerName, amount, paymentMethod, purchaseDate, status) 
+      VALUES (?, ?, ?, ?, ?, ?)`,
+      [pId, partnerName, amt, paymentMethod, purchaseDate, status]
     );
 
     res.status(201).json({
@@ -188,6 +201,7 @@ router.post('/subscriptions', async (req, res) => {
       message: 'Subscription purchase logged successfully',
       data: {
         id: result.insertId,
+        partnerId: pId,
         partnerName,
         amount: amt,
         paymentMethod,
