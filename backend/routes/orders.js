@@ -293,6 +293,22 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    let oldStatus = null;
+    let currentOrder = null;
+    if (orderSource.source === 'v2') {
+      const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE id = ?', [rawId]);
+      if (rows.length > 0) {
+        currentOrder = rows[0];
+        oldStatus = currentOrder.status;
+      }
+    } else if (orderSource.source === 'admin') {
+      const [rows] = await db.query('SELECT * FROM orders WHERE id = ?', [rawId]);
+      if (rows.length > 0) {
+        currentOrder = rows[0];
+        oldStatus = currentOrder.status;
+      }
+    }
+
     let resolvedName = null;
     let resolvedMobile = null;
     const hasVendorUpdate = (vendorName !== undefined || req.body.vendorPhone !== undefined || req.body.phone !== undefined || req.body.mobile !== undefined);
@@ -402,6 +418,57 @@ router.put('/:id', async (req, res) => {
 
       values.push(rawId);
       await db.query('UPDATE orders SET ' + fields.join(', ') + ' WHERE id = ?', values);
+    }
+
+    // If status updated to Completed, credit the partner's wallet/earnings dynamically
+    if (status !== undefined && status === 'Completed' && oldStatus !== 'Completed') {
+      const assignedName = resolvedName || (orderSource.source === 'v2' ? currentOrder.partnerName : currentOrder.vendorName);
+      if (assignedName) {
+        const [partners] = await db.query('SELECT * FROM partners WHERE name = ?', [assignedName]);
+        if (partners.length > 0) {
+          const partner = partners[0];
+          const serviceAmount = parseFloat((orderSource.source === 'v2' ? currentOrder.price : currentOrder.serviceAmount) || 0);
+          const commissionRate = 25;
+          const commissionAmount = (serviceAmount * commissionRate) / 100;
+          const partnerShare = serviceAmount - commissionAmount;
+
+          let isCash = false;
+          if (orderSource.source === 'v2') {
+            try {
+              const payObj = typeof currentOrder.payment === 'string' ? JSON.parse(currentOrder.payment) : (currentOrder.payment || {});
+              isCash = (payObj.paymentMethod || '').toLowerCase() === 'cash';
+            } catch (e) {}
+          } else {
+            isCash = (currentOrder.paymentMethod || '').toLowerCase() === 'cash';
+          }
+
+          const walletIncrement = isCash ? 0.00 : partnerShare;
+          const payToCompanyIncrement = isCash ? commissionAmount : 0.00;
+
+          // Update partner
+          await db.query(
+            `UPDATE partners 
+             SET completedBookings = completedBookings + 1,
+                 totalBookings = totalBookings + 1,
+                 totalEarnings = totalEarnings + ?,
+                 walletBalance = walletBalance + ?,
+                 payToCompany = payToCompany + ?
+             WHERE id = ?`,
+            [partnerShare, walletIncrement, payToCompanyIncrement, partner.id]
+          );
+
+          // Log transaction in booking_earnings
+          const transactionId = 'TXN-' + Date.now();
+          const todayStr = new Date().toLocaleDateString('en-IN');
+          const paymentMethodStr = isCash ? 'Cash' : 'Online';
+          await db.query(
+            `INSERT INTO booking_earnings (transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
+             VALUES (?, ?, ?, 0.00, '-', ?, ?)`,
+            [transactionId, serviceAmount, paymentMethodStr, serviceAmount, todayStr]
+          );
+          console.log(`[Admin Update] Successfully credited earnings to partner ${partner.name} for completed order ${rawId}`);
+        }
+      }
     }
 
     const list = await getAllOrders(req);

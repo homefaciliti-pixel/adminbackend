@@ -2489,7 +2489,23 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
 
     // Handle completed transition
     if (dbStatus === 'Completed' && oldStatus !== 'Completed') {
-      const amount = parseFloat(order.serviceAmount || 0);
+      const serviceAmount = parseFloat((isV2 ? order.price : order.serviceAmount) || 0);
+      const commissionRate = 25;
+      const commissionAmount = (serviceAmount * commissionRate) / 100;
+      const partnerShare = serviceAmount - commissionAmount;
+
+      let isCash = false;
+      if (isV2) {
+        try {
+          const payObj = typeof order.payment === 'string' ? JSON.parse(order.payment) : (order.payment || {});
+          isCash = (payObj.paymentMethod || '').toLowerCase() === 'cash';
+        } catch (e) {}
+      } else {
+        isCash = (order.paymentMethod || '').toLowerCase() === 'cash';
+      }
+
+      const walletIncrement = isCash ? 0.00 : partnerShare;
+      const payToCompanyIncrement = isCash ? commissionAmount : 0.00;
 
       // Increment completed count and add to earnings dynamically
       await db.query(
@@ -2497,18 +2513,20 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
          SET completedBookings = completedBookings + 1,
              totalBookings = totalBookings + 1,
              totalEarnings = totalEarnings + ?,
-             walletBalance = walletBalance + ?
+             walletBalance = walletBalance + ?,
+             payToCompany = payToCompany + ?
          WHERE id = ?`,
-        [amount, amount, partnerId]
+        [partnerShare, walletIncrement, payToCompanyIncrement, partnerId]
       );
 
       // Log transaction in booking_earnings
       const transactionId = 'TXN-' + Date.now();
       const todayStr = new Date().toLocaleDateString('en-IN');
+      const paymentMethodStr = isCash ? 'Cash' : 'Online';
       await db.query(
         `INSERT INTO booking_earnings (transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
-         VALUES (?, ?, 'Online', 0.00, '-', ?, ?)`,
-        [transactionId, amount, amount, todayStr]
+         VALUES (?, ?, ?, 0.00, '-', ?, ?)`,
+        [transactionId, serviceAmount, paymentMethodStr, serviceAmount, todayStr]
       );
     } 
     // Handle cancel transition
