@@ -4112,7 +4112,7 @@ router.get('/countries', (req, res) => {
 router.get('/settings/version', async (req, res) => {
   try {
     const defaults = {
-      'android_latest_version': '1.0.3',
+      'android_latest_version': '1.0.4',
       'android_min_supported_version': '1.0.2',
       'android_force_update': 'false',
       'ios_latest_version': '1.0.4',
