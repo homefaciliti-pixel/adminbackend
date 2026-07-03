@@ -3247,11 +3247,20 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
     // Log the transaction in booking_earnings
     const txnId = 'TXN_BOOKING_' + Date.now();
     const todayStr = new Date().toLocaleDateString('en-IN');
+    
+    let resolvedUserId = null;
+    if (isV2 && order.userPhone) {
+      const parsed = parseInt(order.userPhone);
+      if (!isNaN(parsed)) {
+        resolvedUserId = parsed;
+      }
+    }
+
     await db.query(
       `INSERT INTO booking_earnings 
-       (transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
-       VALUES (?, ?, ?, 0.00, '-', ?, ?)`,
-      [txnId, serviceAmount, finalPaymentMethod, serviceAmount, todayStr]
+       (userId, transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
+       VALUES (?, ?, ?, ?, 0.00, '-', ?, ?)`,
+      [resolvedUserId, txnId, serviceAmount, finalPaymentMethod, serviceAmount, todayStr]
     );
 
     await db.query('COMMIT');

@@ -2,6 +2,28 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+function parseDateString(str) {
+  if (!str) return null;
+  const parts = str.split(/[\/\-]/);
+  if (parts.length < 3) return null;
+  const day = parseInt(parts[0]);
+  const month = parseInt(parts[1]);
+  const year = parseInt(parts[2]);
+  return `${day}-${month}-${year}`;
+}
+
+function formatDateToCompare(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]);
+    const d = parseInt(parts[2]);
+    return `${d}-${m}-${y}`;
+  }
+  return parseDateString(dateStr);
+}
+
 async function getUsersMap() {
   try {
     const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
@@ -107,12 +129,40 @@ router.get('/bookings', async (req, res) => {
     queryStr += ' ORDER BY id DESC';
     const [rows] = await db.query(queryStr, params);
 
+    // Fetch completed V2 orders to build a fallback matching map
+    const [v2Orders] = await db.query("SELECT id, userPhone, price, date FROM node_orders_v2 WHERE status = 'Completed'");
+    const ordersMap = new Map();
+    v2Orders.forEach(o => {
+      const formattedDate = formatDateToCompare(o.date);
+      if (formattedDate) {
+        const key = `${formattedDate}_${parseFloat(o.price)}`;
+        if (!ordersMap.has(key)) {
+          ordersMap.set(key, []);
+        }
+        ordersMap.get(key).push(o);
+      }
+    });
+
     // Fetch user details map
     const usersMap = await getUsersMap();
 
     // Mapped results
     const mapped = rows.map(r => {
-      const uId = r.userId ? parseInt(r.userId) : null;
+      let uId = r.userId ? parseInt(r.userId) : null;
+      
+      // Fallback: If userId is null, try to match by date and amount with completed orders
+      if (!uId && r.orderDate) {
+        const formattedEarningDate = formatDateToCompare(r.orderDate);
+        const key = `${formattedEarningDate}_${parseFloat(r.totalAmount)}`;
+        const matches = ordersMap.get(key) || [];
+        if (matches.length > 0 && matches[0].userPhone) {
+          const parsed = parseInt(matches[0].userPhone);
+          if (!isNaN(parsed)) {
+            uId = parsed;
+          }
+        }
+      }
+
       return {
         ...r,
         userId: uId,
