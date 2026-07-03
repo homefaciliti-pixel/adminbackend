@@ -192,7 +192,7 @@ router.get('/pending-partners', async (req, res) => {
         category: catMap[p.category_id] || p.category || '',
         subCategory: catMap[p.sub_category_id] || p.subCategory || '',
         accountHolder: p.accountHolder || '',
-        isPaid: p.isPaid === 1 || p.isPaid === '1' || p.isPaid === 'Paid' ? 'Paid' : 'Unpaid',
+        isPaid: (p.isPaid === 1 || p.isPaid === '1' || p.isPaid === true || p.isPaid === 'Paid') ? 'Paid' : 'Unpaid',
         source: source === 'laravel' ? 'App Partner (Laravel)' : 'Admin Partner (MySQL)'
       };
     };

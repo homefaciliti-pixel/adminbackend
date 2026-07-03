@@ -165,7 +165,8 @@ function mapPartner(r, req) {
     aadharFront: resolvedAadharFront,
     aadharBack: resolvedAadharBack,
     panImage: resolvedPanImage,
-    image: resolvedImage
+    image: resolvedImage,
+    isPaid: (r.isPaid === 1 || r.isPaid === '1' || r.isPaid === true || r.isPaid === 'Paid') ? 'Paid' : 'Unpaid'
   };
 }
 

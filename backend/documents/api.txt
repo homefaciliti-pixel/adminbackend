@@ -185,7 +185,7 @@ Query Parameters (Optional):
 Response Data: Array of Partner objects (includes countryCode).
 
 Endpoint: GET /api/partners/pending
-Description: Retrieve a list of partners pending approval (isApproved = 0). Supports the same query parameters as the GET /api/partners route.
+Description: Retrieve a list of partners pending approval (isApproved = 0). Supports the same query parameters as the GET /api/partners route. Includes 'isPaid' status ('Paid' or 'Unpaid').
 Response Data: Array of Partner objects.
 
 Endpoint: GET /api/partners/:id

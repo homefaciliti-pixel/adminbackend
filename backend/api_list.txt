@@ -28,7 +28,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 * GET /api/partners
   - Fetch all partners (includes 'countryCode' field). Optional query params: 'name', 'mobile', 'city', 'state', 'status', 'isApproved'.
 * GET /api/partners/pending
-  - Fetch partners pending approval (isApproved = 0).
+  - Fetch partners pending approval (isApproved = 0). Includes 'isPaid' status ('Paid' or 'Unpaid').
 * GET /api/partners/:id
   - Fetch details of a single partner by ID.
 * POST /api/partners
