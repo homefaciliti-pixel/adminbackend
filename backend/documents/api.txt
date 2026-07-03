@@ -273,13 +273,14 @@ Request Body (JSON):
 Response Data: Created Transaction object.
 
 Endpoint: GET /api/earnings/subscriptions
-Description: Fetch subscription purchases and aggregates.
+Description: Fetch subscription purchases and aggregates. Each item in the data array includes a 'partnerDetails' object.
 Query Parameters (Optional):
   - query: Search partnerName, paymentMethod, status, or purchaseDate (LIKE match)
   - partnerName: Filter by partner name (LIKE match)
   - paymentMethod: Filter by payment method (LIKE match)
   - status: Filter by status
   - purchaseDate: Filter by purchase date (LIKE match)
+  - partnerId: Filter by partner ID
 Response Data Schema:
 {
   "success": true,
@@ -287,13 +288,37 @@ Response Data Schema:
   "totalPlans": 2,
   "filteredSubscriptionsEarnings": 200.00,
   "filteredPlans": 2,
-  "data": [ ... ]
+  "data": [
+    {
+      "id": 1,
+      "partnerId": 10000032,
+      "partnerName": "Govind",
+      "amount": 100.00,
+      "paymentMethod": "UPI",
+      "purchaseDate": "16-05-2026",
+      "status": "Paid",
+      "partnerDetails": {
+        "id": 10000032,
+        "name": "Govind",
+        "email": "govindanuragi53@gmail.com",
+        "mobile": "8009073091",
+        "city": "Jaipur",
+        "state": "Rajasthan",
+        "category": "Plumber",
+        "image": "http://localhost:3000/uploads/govind.png",
+        "status": true,
+        "isApproved": true,
+        "source": "App Partner (Laravel)"
+      }
+    }
+  ]
 }
 
 Endpoint: POST /api/earnings/subscriptions
 Description: Add a subscription transaction record.
 Request Body (JSON):
 {
+  "partnerId": 10000032,
   "partnerName": "Govind",
   "amount": 100.00,
   "paymentMethod": "UPI",

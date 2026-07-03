@@ -110,6 +110,82 @@ router.post('/bookings', async (req, res) => {
   }
 });
 
+async function getPartnersMap(req) {
+  try {
+    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    // 1. Fetch Node partners
+    const [nodeRows] = await db.query('SELECT id, name, email, mobile, city, state, image, status, isApproved FROM partners');
+    
+    // 2. Fetch Laravel partners
+    const [laravelRows] = await db.query(`
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.mobile_number AS mobile, 
+        s.name AS state, 
+        c.name AS city, 
+        u.image, 
+        u.status, 
+        u.is_approval AS isApproved,
+        u.category_id
+      FROM \`${dbName}\`.\`users\` u
+      LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
+      LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
+      WHERE u.role_id = 2
+    `);
+
+    // Fetch categories for title mapping
+    const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
+    const catMap = {};
+    catRows.forEach(row => {
+      catMap[row.id] = row.title;
+    });
+
+    const partnerMap = new Map();
+
+    nodeRows.forEach(r => {
+      partnerMap.set(r.id, {
+        id: r.id,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        city: r.city || '',
+        state: r.state || '',
+        category: '',
+        image: r.image ? (r.image.startsWith('http') ? r.image : `${baseUrl}/uploads/${r.image}`) : '',
+        status: r.status === 1 || r.status === true,
+        isApproved: r.isApproved === 1 || r.isApproved === true,
+        source: 'Admin Partner (MySQL)'
+      });
+    });
+
+    laravelRows.forEach(r => {
+      const lId = r.id + 10000000;
+      partnerMap.set(lId, {
+        id: lId,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        city: r.city || '',
+        state: r.state || '',
+        category: catMap[r.category_id] || '',
+        image: r.image ? (r.image.startsWith('http') ? r.image : `${baseUrl}/uploads/${r.image}`) : '',
+        status: r.status === 1 || r.status === true,
+        isApproved: r.isApproved === 1 || r.isApproved === true,
+        source: 'App Partner (Laravel)'
+      });
+    });
+
+    return partnerMap;
+  } catch (error) {
+    console.error('Error in getPartnersMap:', error);
+    return new Map();
+  }
+}
+
 // GET all subscription earnings (with search & aggregates)
 router.get('/subscriptions', async (req, res) => {
   try {
@@ -152,12 +228,19 @@ router.get('/subscriptions', async (req, res) => {
     queryStr += ' ORDER BY id DESC';
     const [rows] = await db.query(queryStr, params);
 
+    // Fetch partner details map
+    const partnerMap = await getPartnersMap(req);
+
     // Mapped results
-    const mapped = rows.map(r => ({
-      ...r,
-      partnerId: r.partnerId ? parseInt(r.partnerId) : null,
-      amount: parseFloat(r.amount)
-    }));
+    const mapped = rows.map(r => {
+      const pId = r.partnerId ? parseInt(r.partnerId) : null;
+      return {
+        ...r,
+        partnerId: pId,
+        amount: parseFloat(r.amount),
+        partnerDetails: pId ? (partnerMap.get(pId) || null) : null
+      };
+    });
 
     // Filtered stats
     const filteredSubscriptionsEarnings = mapped.reduce((sum, r) => sum + r.amount, 0);

@@ -92,7 +92,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 * POST /api/earnings/bookings
   - Save booking earning transaction. Body: { "userId": 5, "transactionId": "...", "serviceAmount": 499.0, "paymentMethod": "...", "extraServiceAmount": 0.0, "extraServicePaymentMethod": "...", "totalAmount": 499.0, "orderDate": "..." }
 * GET /api/earnings/subscriptions
-  - Fetch history of all partner subscriptions and aggregates. Optional query: 'query', 'partnerName', 'paymentMethod', 'status', 'purchaseDate', 'partnerId'.
+  - Fetch history of all partner subscriptions and aggregates. Each item includes 'partnerDetails' object. Optional query: 'query', 'partnerName', 'paymentMethod', 'status', 'purchaseDate', 'partnerId'.
 * POST /api/earnings/subscriptions
   - Save partner subscription transaction. Body: { "partnerId": 12, "partnerName": "...", "amount": 999.0, "paymentMethod": "...", "purchaseDate": "...", "status": "Paid" }
 
