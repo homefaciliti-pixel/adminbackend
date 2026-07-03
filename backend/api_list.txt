@@ -73,7 +73,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 6. ORDERS / BOOKINGS MANAGEMENT
 ----------------------------------------------------------------------
 * GET /api/orders
-  - Fetch list of all bookings.
+  - Fetch list of all bookings. Returns customerName and customerMobile fields.
 * POST /api/orders
   - Create a new booking/order. Body: { "serviceRequestNumber": "...", "serviceName": "...", "serviceAmount": 299.0, "slotTime": "...", "serviceDate": "...", "city": "...", "locality": "...", "status": "...", "vendorName": "...", "address": "...", "latitude": "26.8258", "longitude": "75.7429" }
   - Note: If latitude and longitude are provided and no vendorName is specified, the system automatically assigns the order to the closest active, paid, and approved partner matching the service within a 5 km (or 10 km fallback) radius.

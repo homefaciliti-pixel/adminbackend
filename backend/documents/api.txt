@@ -135,7 +135,7 @@ Response Data: { "success": true, "message": "Service deleted successfully" }
 5. ORDERS (SERVICE REQUESTS)
 ----------------------------------------------------------------------
 Endpoint: GET /api/orders
-Description: Retrieve a list of all service requests/orders.
+Description: Retrieve a list of all service requests/orders. Includes customerName and customerMobile fields.
 Response Data: Array of Order objects. Assigned vendor name 'None' or no vendor maps to database NULL (returns '-' in response).
 
 Endpoint: POST /api/orders

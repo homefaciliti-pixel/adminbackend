@@ -90,6 +90,13 @@ async function getAllOrders(req) {
     laravelPartnerNameMap[p.id] = p.name;
   });
 
+  // Fetch V2 Users map for resolving customer names from phone numbers
+  const [v2Users] = await db.query("SELECT phone, name FROM node_users_v2 WHERE phone IS NOT NULL AND phone != ''");
+  const v2UsersMap = {};
+  v2Users.forEach(u => {
+    v2UsersMap[u.phone] = u.name;
+  });
+
   const list = [];
 
   // 1. Fetch from node_orders (Admin Panel manually created orders)
@@ -117,7 +124,9 @@ async function getAllOrders(req) {
       paymentMethod: r.paymentMethod || 'COD',
       latitude: r.latitude,
       longitude: r.longitude,
-      source: 'Admin Panel (MySQL)'
+      source: 'Admin Panel (MySQL)',
+      customerName: '-',
+      customerMobile: '-'
     });
   });
 
@@ -146,6 +155,17 @@ async function getAllOrders(req) {
     const paddedId = String(r.id).padStart(4, '0');
     const reqNum = `#REQ ${orderYear}-${paddedId}`;
 
+    // Resolve customerName and customerMobile
+    let customerName = addrObj.name || '';
+    if (!customerName && r.userPhone) {
+      customerName = v2UsersMap[r.userPhone] || '';
+    }
+    if (!customerName) {
+      customerName = 'Guest User';
+    }
+
+    const customerMobile = addrObj.userPhone || r.userPhone || '-';
+
     list.push({
       id: r.id, // Raw database ID directly
       serviceRequestNumber: reqNum,
@@ -163,7 +183,9 @@ async function getAllOrders(req) {
       paymentMethod: payObj.paymentMethod || 'COD',
       latitude: addrObj.latitude ? parseFloat(addrObj.latitude) : null,
       longitude: addrObj.longitude ? parseFloat(addrObj.longitude) : null,
-      source: 'User App (MySQL v2)'
+      source: 'User App (MySQL v2)',
+      customerName,
+      customerMobile
     });
   });
 
@@ -180,9 +202,12 @@ async function getAllOrders(req) {
       oi.vendor_id, 
       oi.created_at, 
       o.address,
-      o.payment_method
+      o.payment_method,
+      u.name AS customer_name,
+      u.mobile_number AS customer_mobile
     FROM \`${dbName}\`.\`order_items\` oi
     LEFT JOIN \`${dbName}\`.\`orders\` o ON oi.order_id = o.id
+    LEFT JOIN \`${dbName}\`.\`users\` u ON o.user_id = u.id
   `);
   laravelOrders.forEach(r => {
     const createdStr = r.created_at 
@@ -219,7 +244,9 @@ async function getAllOrders(req) {
       paymentMethod: r.payment_method || 'COD',
       latitude: null,
       longitude: null,
-      source: 'App User (Laravel)'
+      source: 'App User (Laravel)',
+      customerName: r.customer_name || '-',
+      customerMobile: r.customer_mobile || '-'
     });
   });
 
