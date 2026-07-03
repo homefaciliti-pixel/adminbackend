@@ -145,9 +145,18 @@ async function getPartnersMap(req) {
     });
 
     const partnerMap = new Map();
+    const partnerByNameMap = new Map();
+
+    const addPartnerToMaps = (id, partnerDetails) => {
+      partnerMap.set(id, partnerDetails);
+      const nameKey = (partnerDetails.name || '').toLowerCase().trim();
+      if (nameKey) {
+        partnerByNameMap.set(nameKey, partnerDetails);
+      }
+    };
 
     nodeRows.forEach(r => {
-      partnerMap.set(r.id, {
+      addPartnerToMaps(r.id, {
         id: r.id,
         name: r.name || '',
         email: r.email || '',
@@ -164,7 +173,7 @@ async function getPartnersMap(req) {
 
     laravelRows.forEach(r => {
       const lId = r.id + 10000000;
-      partnerMap.set(lId, {
+      addPartnerToMaps(lId, {
         id: lId,
         name: r.name || '',
         email: r.email || '',
@@ -179,10 +188,10 @@ async function getPartnersMap(req) {
       });
     });
 
-    return partnerMap;
+    return { partnerMap, partnerByNameMap };
   } catch (error) {
     console.error('Error in getPartnersMap:', error);
-    return new Map();
+    return { partnerMap: new Map(), partnerByNameMap: new Map() };
   }
 }
 
@@ -229,16 +238,27 @@ router.get('/subscriptions', async (req, res) => {
     const [rows] = await db.query(queryStr, params);
 
     // Fetch partner details map
-    const partnerMap = await getPartnersMap(req);
+    const { partnerMap, partnerByNameMap } = await getPartnersMap(req);
 
     // Mapped results
     const mapped = rows.map(r => {
-      const pId = r.partnerId ? parseInt(r.partnerId) : null;
+      let pId = r.partnerId ? parseInt(r.partnerId) : null;
+      let partnerDetails = pId ? (partnerMap.get(pId) || null) : null;
+      
+      // Fallback: If partnerId is null or not found, try to look up by name
+      if (!partnerDetails && r.partnerName) {
+        const nameKey = r.partnerName.toLowerCase().trim();
+        partnerDetails = partnerByNameMap.get(nameKey) || null;
+        if (partnerDetails) {
+          pId = partnerDetails.id;
+        }
+      }
+
       return {
         ...r,
         partnerId: pId,
         amount: parseFloat(r.amount),
-        partnerDetails: pId ? (partnerMap.get(pId) || null) : null
+        partnerDetails
       };
     });
 
