@@ -2,6 +2,73 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+async function getUsersMap() {
+  try {
+    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+
+    // 1. Fetch from node_users_v2
+    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender, countryCode FROM node_users_v2");
+    
+    // 2. Fetch from node_users (translated to node_users by prefixQuery)
+    const [nodeRows] = await db.query("SELECT id, name, email, mobile, address FROM users");
+    
+    // 3. Fetch from original users
+    const [laravelRows] = await db.query(`SELECT id, name, email, mobile_number as mobile, gender, address FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`);
+
+    const usersMap = new Map();
+
+    // Map node_users_v2
+    nodeV2Rows.forEach((r, idx) => {
+      const numericPhone = parseInt(r.mobile);
+      const finalId = isNaN(numericPhone) ? (2000000000 + idx) : numericPhone;
+      usersMap.set(finalId, {
+        id: finalId,
+        name: r.name || 'Guest User',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        address: r.address || '',
+        gender: r.gender || '',
+        source: 'User App (MySQL v2)',
+        countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
+      });
+    });
+
+    // Map node_users
+    nodeRows.forEach(r => {
+      usersMap.set(r.id, {
+        id: r.id,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        address: r.address || '',
+        gender: '',
+        source: 'Admin User (MySQL)',
+        countryCode: '+91'
+      });
+    });
+
+    // Map laravel users
+    laravelRows.forEach(r => {
+      const lId = r.id + 10000000;
+      usersMap.set(lId, {
+        id: lId,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        address: r.address || '',
+        gender: r.gender || '',
+        source: 'App User (Laravel)',
+        countryCode: '+91'
+      });
+    });
+
+    return usersMap;
+  } catch (error) {
+    console.error('Error in getUsersMap:', error);
+    return new Map();
+  }
+}
+
 // GET all booking earnings (with search & aggregates)
 router.get('/bookings', async (req, res) => {
   try {
@@ -40,14 +107,21 @@ router.get('/bookings', async (req, res) => {
     queryStr += ' ORDER BY id DESC';
     const [rows] = await db.query(queryStr, params);
 
+    // Fetch user details map
+    const usersMap = await getUsersMap();
+
     // Mapped results
-    const mapped = rows.map(r => ({
-      ...r,
-      userId: r.userId ? parseInt(r.userId) : null,
-      serviceAmount: parseFloat(r.serviceAmount),
-      extraServiceAmount: parseFloat(r.extraServiceAmount),
-      totalAmount: parseFloat(r.totalAmount)
-    }));
+    const mapped = rows.map(r => {
+      const uId = r.userId ? parseInt(r.userId) : null;
+      return {
+        ...r,
+        userId: uId,
+        serviceAmount: parseFloat(r.serviceAmount),
+        extraServiceAmount: parseFloat(r.extraServiceAmount),
+        totalAmount: parseFloat(r.totalAmount),
+        userDetails: uId ? (usersMap.get(uId) || null) : null
+      };
+    });
 
     // Filtered stats
     const filteredBookingEarnings = mapped.reduce((sum, r) => sum + r.totalAmount, 0);

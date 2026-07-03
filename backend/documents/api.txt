@@ -242,12 +242,13 @@ Response Data: { "success": true, "message": "Partner password changed successfu
 7. EARNINGS
 ----------------------------------------------------------------------
 Endpoint: GET /api/earnings/bookings
-Description: Fetch booking transactions and total aggregates.
+Description: Fetch booking transactions and total aggregates. Each item in the data array includes a 'userDetails' object.
 Query Parameters (Optional):
   - query: Search transactionId, paymentMethod, extraServicePaymentMethod, or orderDate (LIKE match)
   - transactionId: Filter by transactionId (LIKE match)
   - paymentMethod: Filter by paymentMethod (LIKE match)
   - orderDate: Filter by orderDate (LIKE match)
+  - userId: Filter by user ID
 Response Data Schema:
 {
   "success": true,
@@ -255,7 +256,29 @@ Response Data Schema:
   "totalTransactions": 3,
   "filteredBookingEarnings": 2800.00,
   "filteredTransactions": 3,
-  "data": [ ... ]
+  "data": [
+    {
+      "id": 1,
+      "userId": 10000281,
+      "transactionId": "TXN1004",
+      "serviceAmount": 500.00,
+      "paymentMethod": "UPI",
+      "extraServiceAmount": 50.00,
+      "extraServicePaymentMethod": "Cash",
+      "totalAmount": 550.00,
+      "orderDate": "15-05-2026",
+      "userDetails": {
+        "id": 10000281,
+        "name": "Amit Sharma",
+        "email": "amit@gmail.com",
+        "mobile": "9988776655",
+        "address": "Mansarovar, Jaipur",
+        "gender": "Male",
+        "source": "App User (Laravel)",
+        "countryCode": "+91"
+      }
+    }
+  ]
 }
 
 Endpoint: POST /api/earnings/bookings

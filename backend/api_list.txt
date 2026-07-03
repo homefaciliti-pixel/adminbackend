@@ -88,7 +88,7 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
 7. EARNINGS MANAGEMENT
 ----------------------------------------------------------------------
 * GET /api/earnings/bookings
-  - Fetch history of all booking earnings and aggregates. Optional query: 'query', 'transactionId', 'paymentMethod', 'orderDate', 'userId'.
+  - Fetch history of all booking earnings and aggregates. Each item includes 'userDetails' object. Optional query: 'query', 'transactionId', 'paymentMethod', 'orderDate', 'userId'.
 * POST /api/earnings/bookings
   - Save booking earning transaction. Body: { "userId": 5, "transactionId": "...", "serviceAmount": 499.0, "paymentMethod": "...", "extraServiceAmount": 0.0, "extraServicePaymentMethod": "...", "totalAmount": 499.0, "orderDate": "..." }
 * GET /api/earnings/subscriptions
