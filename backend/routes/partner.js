@@ -4399,10 +4399,12 @@ router.get('/referral/stats', authenticatePartner, async (req, res) => {
     }));
 
     const host = req.protocol + '://' + req.get('host');
+    const shareLink = `${host}/partner/join?ref=${myCode}`;
     res.json({
       success: true,
       referralCode: myCode,
-      shareLink: `${host}/partner/join?ref=${myCode}`,
+      shareLink: shareLink,
+      shareMessage: `Join Home Faciliti Partner! Register using my referral link: ${shareLink} or use referral code: ${myCode}`,
       wallet: {
         available: parseFloat(wallet[0]?.availableWallet || 0),
         locked: parseFloat(wallet[0]?.lockedWallet || 0),
