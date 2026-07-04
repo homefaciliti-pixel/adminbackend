@@ -974,7 +974,12 @@ router.post('/auth/login', async (req, res) => {
     if (rows.length === 0) {
       // 1. Try to find partner in legacy users table (role_id = 2 is partner)
       const dbName = db.config?.connectionConfig?.database || 'homef4fw_homefaci';
-      const [legacyUsers] = await db.query(`SELECT * FROM \`${dbName}\`.\`users\` WHERE mobile_number = ? AND role_id = 2`, [phone]);
+      const [legacyUsers] = await db.query(
+        `SELECT * FROM \`${dbName}\`.\`users\` 
+         WHERE (mobile_number = ? OR mobile_number = ? OR mobile_number = ? OR RIGHT(mobile_number, 10) = RIGHT(?, 10)) 
+           AND role_id = 2`,
+        [phone, `+91${phone}`, phone.replace(/^\+91/, ''), phone]
+      );
       if (legacyUsers.length > 0) {
         const user = legacyUsers[0];
         
@@ -1028,7 +1033,7 @@ router.post('/auth/login', async (req, res) => {
             [
               user.name,
               user.email || '',
-              user.mobile_number,
+              user.mobile_number ? user.mobile_number.replace(/\D/g, '').slice(-10) : '',
               countryCodeVal,
               user.password, // Preserve password hash
               cityName,
