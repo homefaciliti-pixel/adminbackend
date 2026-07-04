@@ -970,7 +970,102 @@ router.post('/auth/login', async (req, res) => {
       }
     }
 
-    const [rows] = await db.query('SELECT * FROM partners WHERE mobile = ? AND countryCode = ?', [phone, countryCodeVal]);
+    let [rows] = await db.query('SELECT * FROM partners WHERE mobile = ? AND countryCode = ?', [phone, countryCodeVal]);
+    if (rows.length === 0) {
+      // 1. Try to find partner in legacy users table (role_id = 2 is partner)
+      const dbName = db.config?.connectionConfig?.database || 'homef4fw_homefaci';
+      const [legacyUsers] = await db.query(`SELECT * FROM \`${dbName}\`.\`users\` WHERE mobile_number = ? AND role_id = 2`, [phone]);
+      if (legacyUsers.length > 0) {
+        const user = legacyUsers[0];
+        
+        // 2. Validate password first before migrating to avoid migrating fake logins
+        let isPasswordValid = false;
+        if (user.password && user.password.startsWith('$2')) {
+          isPasswordValid = await bcrypt.compare(password, user.password);
+        } else {
+          isPasswordValid = (password === user.password || user.password === '');
+        }
+
+        if (isPasswordValid) {
+          // 3. Resolve category names, state names, city names, etc.
+          let cityName = 'Narnaul';
+          let stateName = 'Haryana';
+          let localityName = '';
+          
+          if (user.city_id) {
+            const [cityRows] = await db.query(`SELECT name FROM \`${dbName}\`.\`cities\` WHERE id = ?`, [user.city_id]);
+            if (cityRows.length > 0) cityName = cityRows[0].name;
+          }
+          if (user.state_id) {
+            const [stateRows] = await db.query(`SELECT name FROM \`${dbName}\`.\`states\` WHERE id = ?`, [user.state_id]);
+            if (stateRows.length > 0) stateName = stateRows[0].name;
+          }
+          if (user.locality_id) {
+            const [locRows] = await db.query(`SELECT name FROM \`${dbName}\`.\`localities\` WHERE id = ?`, [user.locality_id]);
+            if (locRows.length > 0) localityName = locRows[0].name;
+          }
+          
+          let categoryName = '';
+          let subCategoryName = '';
+          if (user.category_id) {
+            const [catRows] = await db.query(`SELECT title FROM \`${dbName}\`.\`categories\` WHERE id = ?`, [user.category_id]);
+            if (catRows.length > 0) categoryName = catRows[0].title;
+          }
+          if (user.sub_category_id) {
+            const [subCatRows] = await db.query(`SELECT title FROM \`${dbName}\`.\`categories\` WHERE id = ?`, [user.sub_category_id]);
+            if (subCatRows.length > 0) subCategoryName = subCatRows[0].title;
+          }
+
+          // 4. Insert into partners table preserving their encrypted password
+          await db.query(
+            `INSERT INTO partners (
+              name, email, mobile, countryCode, password, city, state, locality, address,
+              image, status, isApproved, isPaid, gender, experience, services,
+              aadhaarNumber, aadharFront, aadharBack, panNumber, panImage,
+              bankName, accountNumber, ifscCode, accountHolder, hasVehicle,
+              walletBalance, totalEarnings, withdrawnAmount, createdAt, category, subCategory
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0.00, 0.00, 0.00, NOW(), ?, ?)`,
+            [
+              user.name,
+              user.email || '',
+              user.mobile_number,
+              countryCodeVal,
+              user.password, // Preserve password hash
+              cityName,
+              stateName,
+              localityName,
+              user.address || '',
+              user.image || '',
+              user.status !== undefined ? user.status : 1,
+              user.is_approval === '1' || user.is_approval === 1 ? 1 : 0,
+              user.payment_status === 1 || user.payment_status === '1' ? 1 : 0,
+              user.gender || 'Male',
+              user.experience ? user.experience.toString() : '0',
+              user.service_id || '',
+              user.aadhaar_number || '',
+              user.aadhaar_front_image || '',
+              user.aadhaar_back_image || '',
+              user.pan_number || '',
+              user.pan_image || '',
+              user.bank_name || '',
+              user.account_number || '',
+              user.ifsc_code || '',
+              user.account_holder_name || '',
+              user.do_you_have_vehicle === 1 ? 'Yes' : 'No',
+              categoryName,
+              subCategoryName
+            ]
+          );
+          
+          console.log(`[Migration] Dynamically migrated legacy partner ${phone} to partners table.`);
+          
+          // Re-fetch from partners
+          const [newRows] = await db.query('SELECT * FROM partners WHERE mobile = ? AND countryCode = ?', [phone, countryCodeVal]);
+          rows = newRows;
+        }
+      }
+    }
+
     if (rows.length === 0) {
       return res.status(401).json({ error: 'Invalid phone number, country code, or password' });
     }
