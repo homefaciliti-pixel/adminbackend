@@ -147,7 +147,8 @@ router.put('/:id', async (req, res) => {
     }
 
     if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: 'No fields to update' });
+      const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+      return res.json({ success: true, message: 'Update successful (no changes made)', data: rows[0] });
     }
 
     values.push(numericId);

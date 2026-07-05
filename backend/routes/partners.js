@@ -837,7 +837,89 @@ router.put('/:id', async (req, res) => {
       }
 
       if (fields.length === 0) {
-        return res.status(400).json({ success: false, message: 'No fields to update' });
+        const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
+        const catMap = {};
+        catRows.forEach(row => { catMap[row.id] = row.title; });
+
+        const [serviceRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`services\``);
+        const serviceMap = {};
+        serviceRows.forEach(row => { serviceMap[row.id] = row.title; });
+
+        const [rows] = await db.query(`
+          SELECT 
+            u.id, 
+            u.name, 
+            u.email, 
+            u.mobile_number AS mobile, 
+            s.name AS state, 
+            c.name AS city, 
+            l.name AS locality,
+            u.address, 
+            u.image, 
+            u.status, 
+            u.is_approval AS isApproved, 
+            u.gender, 
+            u.experience, 
+            u.service_id AS services, 
+            u.aadhaar_number AS aadhaarNumber, 
+            u.aadhaar_front_image AS aadharFront, 
+            u.aadhaar_back_image AS aadharBack, 
+            u.pan_number AS panNumber, 
+            u.pan_image AS panImage, 
+            u.bank_name AS bankName, 
+            u.account_number AS accountNumber, 
+            u.ifsc_code AS ifscCode, 
+            u.created_at AS createdAt,
+            u.do_you_have_vehicle AS hasVehicle,
+            u.category_id,
+            u.sub_category_id,
+            u.account_holder_name AS accountHolder,
+            u.payment_status AS isPaid
+          FROM \`${dbName}\`.\`users\` u
+          LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
+          LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
+          LEFT JOIN \`${dbName}\`.\`localities\` l ON u.locality_id = l.id
+          WHERE u.id = ?
+        `, [originalId]);
+
+        if (rows.length === 0) {
+          return res.status(404).json({ success: false, message: 'Partner not found' });
+        }
+
+        const r = rows[0];
+        let mappedServices = '';
+        if (r.services) {
+          mappedServices = r.services
+            .split(',')
+            .map(id => serviceMap[id.trim()])
+            .filter(Boolean)
+            .join(',');
+        }
+        const updatedPartner = {
+          ...r,
+          id: rawId,
+          policeVerificationImage: '',
+          aadhaarImage: r.aadharFront || '',
+          panImage: r.panImage || '',
+          password: '',
+          aadharFront: r.aadharFront || '',
+          aadharBack: r.aadharBack || '',
+          hasVehicle: (r.hasVehicle === 1 || r.hasVehicle === '1') ? 'Yes' : 'No',
+          category: catMap[r.category_id] || '',
+          subCategory: catMap[r.sub_category_id] || '',
+          accountHolder: r.accountHolder || '',
+          isPaid: (r.isPaid === 1 || r.isPaid === '1') ? 1 : 0,
+          createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : '',
+          services: mappedServices,
+          documents: [r.aadharFront, r.aadharBack, r.panImage].filter(Boolean).join(','),
+          source: 'App Partner (Laravel)'
+        };
+
+        return res.json({
+          success: true,
+          message: 'Partner updated successfully (no changes made)',
+          data: mapPartner(updatedPartner, req)
+        });
       }
 
       values.push(originalId);
@@ -863,7 +945,15 @@ router.put('/:id', async (req, res) => {
       });
 
       if (fields.length === 0) {
-        return res.status(400).json({ success: false, message: 'No fields to update' });
+        const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [originalId]);
+        if (rows.length === 0) {
+          return res.status(404).json({ success: false, message: 'Partner not found' });
+        }
+        return res.json({
+          success: true,
+          message: 'Partner updated successfully (no changes made)',
+          data: mapPartner(rows[0], req)
+        });
       }
 
       values.push(originalId);
