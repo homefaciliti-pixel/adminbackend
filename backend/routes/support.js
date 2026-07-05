@@ -246,7 +246,19 @@ router.put('/:id', async (req, res) => {
     if (partnerId !== undefined) { fields.push('`partnerId` = ?'); values.push(partnerId); }
 
     if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: 'No fields to update' });
+      const [rows] = await db.query('SELECT * FROM support_tickets WHERE id = ?', [id]);
+      const ticket = rows[0];
+      const partner = await findPartnerByMobile(ticket.mobile);
+      const mappedPartner = mapPartnerDetails(partner, req);
+      return res.json({
+        success: true,
+        message: 'Update successful (no changes made)',
+        data: {
+          ...ticket,
+          partnerDocuments: mappedPartner ? mappedPartner.documents : '',
+          partnerDetails: mappedPartner
+        }
+      });
     }
 
     values.push(id);

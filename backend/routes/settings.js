@@ -169,7 +169,8 @@ router.put('/banners/:id', uploadBanner.single('image'), async (req, res) => {
     }
 
     if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: 'No fields to update. Please provide at least one field.' });
+      const [rows] = await db.query('SELECT * FROM banners WHERE id = ?', [id]);
+      return res.json({ success: true, data: { ...rows[0], status: rows[0].status === 1 } });
     }
 
     values.push(id);
@@ -199,7 +200,8 @@ router.patch('/banners/:id', async (req, res) => {
     if (buttonText !== undefined) { fields.push('`buttonText` = ?'); values.push(buttonText); }
 
     if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: 'No fields to update' });
+      const [rows] = await db.query('SELECT * FROM banners WHERE id = ?', [id]);
+      return res.json({ success: true, data: { ...rows[0], status: rows[0].status === 1 } });
     }
 
     values.push(id);
@@ -277,7 +279,10 @@ router.put('/states/:id', async (req, res) => {
     if (name !== undefined) { fields.push('`name` = ?'); values.push(name); }
     if (status !== undefined) { fields.push('`status` = ?'); values.push(status === true || status === 1 || status === 'true' ? 1 : 0); }
     
-    if (fields.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
+    if (fields.length === 0) {
+      const [rows] = await db.query('SELECT * FROM states WHERE id = ?', [id]);
+      return res.json({ success: true, data: { ...rows[0], status: rows[0].status === 1 } });
+    }
     values.push(id);
     
     const [result] = await db.query(`UPDATE states SET ${fields.join(', ')} WHERE id = ?`, values);
@@ -374,7 +379,10 @@ router.put('/cities/:id', async (req, res) => {
     if (stateName !== undefined) { fields.push('`stateName` = ?'); values.push(stateName); }
     if (status !== undefined) { fields.push('`status` = ?'); values.push(status === true || status === 1 || status === 'true' ? 1 : 0); }
     
-    if (fields.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
+    if (fields.length === 0) {
+      const [rows] = await db.query('SELECT * FROM cities WHERE id = ?', [id]);
+      return res.json({ success: true, data: { ...rows[0], status: rows[0].status === 1 } });
+    }
     values.push(id);
     
     const [result] = await db.query(`UPDATE cities SET ${fields.join(', ')} WHERE id = ?`, values);
@@ -475,7 +483,10 @@ router.put('/localities/:id', async (req, res) => {
     if (stateName !== undefined) { fields.push('`stateName` = ?'); values.push(stateName); }
     if (status !== undefined) { fields.push('`status` = ?'); values.push(status === true || status === 1 || status === 'true' ? 1 : 0); }
     
-    if (fields.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
+    if (fields.length === 0) {
+      const [rows] = await db.query('SELECT * FROM localities WHERE id = ?', [id]);
+      return res.json({ success: true, data: { ...rows[0], status: rows[0].status === 1 } });
+    }
     values.push(id);
     
     const [result] = await db.query(`UPDATE localities SET ${fields.join(', ')} WHERE id = ?`, values);
@@ -657,7 +668,17 @@ router.put('/notifications/:id', async (req, res) => {
       }
     }
     
-    if (fields.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
+    if (fields.length === 0) {
+      const [rows] = await db.query('SELECT * FROM notifications WHERE id = ?', [id]);
+      return res.json({
+        success: true,
+        data: {
+          ...rows[0],
+          status: rows[0].status === 1,
+          isSent: rows[0].isSent === 1
+        }
+      });
+    }
     values.push(id);
     
     const [result] = await db.query(`UPDATE notifications SET ${fields.join(', ')} WHERE id = ?`, values);

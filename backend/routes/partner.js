@@ -1416,7 +1416,10 @@ router.put('/partner/profile', authenticatePartner, (req, res) => {
       }
 
       if (fields.length === 0) {
-        return res.status(400).json({ error: 'No fields to update' });
+        const [updatedRows] = await db.query('SELECT * FROM partners WHERE id = ?', [partnerId]);
+        return res.json({
+          partner: mapPartnerForApp(updatedRows[0], req)
+        });
       }
 
       values.push(partnerId);

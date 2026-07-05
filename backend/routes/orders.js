@@ -378,7 +378,18 @@ router.put('/:id', async (req, res) => {
       if (address !== undefined) { fields.push('`address` = ?'); values.push(address); }
 
       if (fields.length === 0) {
-        return res.status(400).json({ success: false, message: 'No fields to update' });
+        const list = await getAllOrders(req);
+        const updatedOrder = list.find(o => {
+          if (orderSource.source === 'v2') return o.source === 'User App (MySQL v2)' && o.id === rawId;
+          if (orderSource.source === 'admin') return o.source === 'Admin Panel (MySQL)' && o.id === rawId;
+          if (orderSource.source === 'laravel') return o.source === 'App User (Laravel)' && o.id === rawId;
+          return false;
+        });
+        return res.json({
+          success: true,
+          message: 'Order updated successfully (no changes made)',
+          data: updatedOrder
+        });
       }
 
       values.push(rawId);
@@ -440,7 +451,18 @@ router.put('/:id', async (req, res) => {
       if (address !== undefined) { fields.push('`address` = ?'); values.push(address); }
 
       if (fields.length === 0) {
-        return res.status(400).json({ success: false, message: 'No fields to update' });
+        const list = await getAllOrders(req);
+        const updatedOrder = list.find(o => {
+          if (orderSource.source === 'v2') return o.source === 'User App (MySQL v2)' && o.id === rawId;
+          if (orderSource.source === 'admin') return o.source === 'Admin Panel (MySQL)' && o.id === rawId;
+          if (orderSource.source === 'laravel') return o.source === 'App User (Laravel)' && o.id === rawId;
+          return false;
+        });
+        return res.json({
+          success: true,
+          message: 'Order updated successfully (no changes made)',
+          data: updatedOrder
+        });
       }
 
       values.push(rawId);
