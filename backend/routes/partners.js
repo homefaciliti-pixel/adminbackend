@@ -736,6 +736,7 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid Partner ID format' });
   }
   const body = req.body;
+  console.log(`[Diagnostic] PUT /api/partners/${rawId} - body keys:`, Object.keys(body || {}), 'body:', body);
 
   try {
     const isLaravel = rawId >= 10000000;
