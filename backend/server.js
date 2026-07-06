@@ -511,6 +511,32 @@ server.use('/api/upload', uploadRouter);
 server.use('/api/admins', adminsRouter);
 server.use('/api', partnerRouter);
 
+// Android App Links / assetlinks.json route
+server.get('/.well-known/assetlinks.json', (req, res) => {
+  const package_name = process.env.APP_PACKAGE_NAME || 'com.homefaciliti.partner';
+  const fingerprints = process.env.SHA256_FINGERPRINTS 
+    ? process.env.SHA256_FINGERPRINTS.split(',').map(f => f.trim())
+    : [
+        'FA:C6:17:45:DC:09:03:78:E0:47:E9:9D:69:B3:36:20:97:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2' // default fallback placeholder
+      ];
+
+  const assetlinks = [
+    {
+      relation: [
+        'delegate_permission/common.handle_all_urls'
+      ],
+      target: {
+        namespace: 'android_app',
+        package_name: package_name,
+        sha256_cert_fingerprints: fingerprints
+      }
+    }
+  ];
+
+  res.setHeader('Content-Type', 'application/json');
+  res.json(assetlinks);
+});
+
 // Page Not Found (404) Route
 server.use((req, res) => {
   res.status(404).json({
