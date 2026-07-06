@@ -736,7 +736,15 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid Partner ID format' });
   }
   const body = req.body;
-  console.log(`[Diagnostic] PUT /api/partners/${rawId} - body keys:`, Object.keys(body || {}), 'body:', body);
+  
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const logMsg = `[${new Date().toISOString()}] PUT /api/partners/${rawId} - headers: ${JSON.stringify(req.headers)} - body keys: ${Object.keys(body || {})} - body: ${JSON.stringify(body)}\n`;
+    fs.appendFileSync(path.join(__dirname, '..', 'diagnostics.log'), logMsg);
+  } catch (err) {
+    console.error('Failed to write diagnostics log:', err);
+  }
 
   try {
     const isLaravel = rawId >= 10000000;
@@ -1261,6 +1269,17 @@ router.put('/:id/password', async (req, res) => {
   } catch (error) {
     console.error('Error changing partner password:', error);
     res.status(500).json({ success: false, message: 'Failed to change partner password', error: error.message });
+  }
+});
+
+router.get('/diagnostics-log/view', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const logPath = path.join(__dirname, '..', 'diagnostics.log');
+  if (fs.existsSync(logPath)) {
+    res.type('text/plain').send(fs.readFileSync(logPath, 'utf8'));
+  } else {
+    res.send('No diagnostics log found yet.');
   }
 });
 
