@@ -517,7 +517,7 @@ server.get('/.well-known/assetlinks.json', (req, res) => {
   const fingerprints = process.env.SHA256_FINGERPRINTS 
     ? process.env.SHA256_FINGERPRINTS.split(',').map(f => f.trim())
     : [
-        'FA:C6:17:45:DC:09:03:78:E0:47:E9:9D:69:B3:36:20:97:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2:F2' // default fallback placeholder
+        '41:79:BC:A0:E1:AF:0F:38:19:E1:6D:00:CC:A1:3E:EA:79:A3:EB:F0:3D:CF:E7:F0:44:68:19:D4:3D:D8:A9:FD' // production release key
       ];
 
   const assetlinks = [
