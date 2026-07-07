@@ -130,8 +130,23 @@ server.use('/uploads', async (req, res, next) => {
 });
 
 // Smart redirect route for Refer & Earn links
-server.get('/partner/join', (req, res) => {
+server.get('/partner/join', async (req, res) => {
   const ref = req.query.ref || '';
+
+  // Proactively save IP-based referral clicks for deferred deep linking
+  if (ref) {
+    try {
+      const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const ip = clientIp.split(',')[0].trim();
+      await db.query(
+        'INSERT INTO node_referrer_clicks (ip_address, referral_code) VALUES (?, ?)',
+        [ip, ref.trim().toUpperCase()]
+      );
+      console.log(`[REFERRAL CLICK] Logged click from IP ${ip} with code ${ref}`);
+    } catch (err) {
+      console.error('[REFERRAL CLICK] Error logging click:', err.message);
+    }
+  }
   
   res.send(`
 <!DOCTYPE html>

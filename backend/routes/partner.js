@@ -881,7 +881,26 @@ router.post('/auth/register', (req, res) => {
         console.error('[REFERRAL] Failed to set referral code for new partner:', err.message);
       }
 
-      const referralCodeInput = req.body.referralCode || req.body.referral_code || normalizedBody['referralcode'] || '';
+      let referralCodeInput = req.body.referralCode || req.body.referral_code || normalizedBody['referralcode'] || '';
+      if (!referralCodeInput || !referralCodeInput.trim()) {
+        try {
+          const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+          const ip = clientIp.split(',')[0].trim();
+          const [ipMatches] = await db.query(
+            `SELECT referral_code FROM node_referrer_clicks 
+             WHERE ip_address = ? AND created_at >= NOW() - INTERVAL 2 HOUR 
+             ORDER BY created_at DESC LIMIT 1`,
+            [ip]
+          );
+          if (ipMatches.length > 0) {
+            referralCodeInput = ipMatches[0].referral_code;
+            console.log(`[REFERRAL AUTO-DETECT] Matched IP ${ip} to referrer code ${referralCodeInput}`);
+          }
+        } catch (ipErr) {
+          console.error('[REFERRAL AUTO-DETECT] IP lookup failed:', ipErr.message);
+        }
+      }
+
       if (referralCodeInput) {
         const refCode = referralCodeInput.trim().toUpperCase();
         // Prevent self-referral
@@ -4458,6 +4477,42 @@ router.post('/referral/validate', async (req, res) => {
   } catch (err) {
     console.error('[REFERRAL] /referral/validate error:', err.message);
     res.status(500).json({ valid: false, error: 'Failed to validate referral code' });
+  }
+});
+
+// GET /api/referral/detect — Auto-detect referral code from IP address
+router.get('/referral/detect', async (req, res) => {
+  try {
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const ip = clientIp.split(',')[0].trim();
+    const [rows] = await db.query(
+      `SELECT referral_code FROM node_referrer_clicks 
+       WHERE ip_address = ? AND created_at >= NOW() - INTERVAL 2 HOUR 
+       ORDER BY created_at DESC LIMIT 1`,
+      [ip]
+    );
+
+    if (rows.length > 0) {
+      const code = rows[0].referral_code;
+      // Get referrer name
+      const [refRows] = await db.query(
+        `SELECT name FROM node_partners 
+         WHERE (referral_code = ? OR CONCAT('HF', LPAD(id, 6, '0')) = ?) 
+           AND isApproved = 1 
+         LIMIT 1`,
+        [code, code]
+      );
+      return res.json({
+        success: true,
+        referralCode: code,
+        referrerName: refRows.length > 0 ? refRows[0].name : 'Approved Partner'
+      });
+    }
+
+    res.json({ success: false, message: 'No referral code detected for this IP address' });
+  } catch (err) {
+    console.error('[REFERRAL] /referral/detect error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to detect referral' });
   }
 });
 
