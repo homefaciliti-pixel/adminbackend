@@ -872,18 +872,28 @@ router.post('/auth/register', (req, res) => {
       }
 
       // ===  REFER & EARN: Process referral code if provided ===
+      const newPartnerId = result.insertId;
+      const newPartnerCode = 'HF' + String(newPartnerId).padStart(6, '0');
+      // Populate new partner's referral code in the database
+      try {
+        await db.query('UPDATE node_partners SET referral_code = ? WHERE id = ?', [newPartnerCode, newPartnerId]);
+      } catch (err) {
+        console.error('[REFERRAL] Failed to set referral code for new partner:', err.message);
+      }
+
       const referralCodeInput = req.body.referralCode || req.body.referral_code || normalizedBody['referralcode'] || '';
       if (referralCodeInput) {
         const refCode = referralCodeInput.trim().toUpperCase();
         // Prevent self-referral
-        const newPartnerId = result.insertId;
-        const newPartnerCode = 'HF' + String(newPartnerId).padStart(6, '0');
         if (refCode !== newPartnerCode) {
           try {
             // Find referrer by code (must be approved)
             const [refRows] = await db.query(
-              'SELECT id FROM node_partners WHERE referral_code = ? AND isApproved = 1 LIMIT 1',
-              [refCode]
+              `SELECT id FROM node_partners 
+               WHERE (referral_code = ? OR CONCAT('HF', LPAD(id, 6, '0')) = ?) 
+                 AND isApproved = 1 
+               LIMIT 1`,
+              [refCode, refCode]
             );
             if (refRows.length) {
               const referrerId = refRows[0].id;
@@ -4428,8 +4438,10 @@ router.post('/referral/validate', async (req, res) => {
   try {
     const code = referralCode.trim().toUpperCase();
     const [rows] = await db.query(
-      'SELECT id, name, referral_code FROM node_partners WHERE referral_code = ? AND isApproved = 1',
-      [code]
+      `SELECT id, name, referral_code FROM node_partners 
+       WHERE (referral_code = ? OR CONCAT('HF', LPAD(id, 6, '0')) = ?) 
+         AND isApproved = 1`,
+      [code, code]
     );
 
     if (!rows.length) {
