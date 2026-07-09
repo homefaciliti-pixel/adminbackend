@@ -4274,7 +4274,7 @@ router.get('/settings/version', async (req, res) => {
       'android_latest_version': '1.0.4',
       'android_min_supported_version': '1.0.2',
       'android_force_update': 'true',
-      'ios_latest_version': '1.0.4',
+      'ios_latest_version': '1.0.6',
       'ios_min_supported_version': '1.0.3',
       'ios_force_update': 'true'
     };
