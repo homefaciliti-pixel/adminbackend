@@ -785,9 +785,9 @@ router.post('/auth/register', (req, res) => {
     if (!panImageName) {
       return res.status(400).json({ error: 'PAN Card image is required' });
     }
-    if (!policeVerificationName) {
-      return res.status(400).json({ error: 'Police Verification image is required' });
-    }
+    // if (!policeVerificationName) {
+    //   return res.status(400).json({ error: 'Police Verification image is required' });
+    // }
 
     try {
       // Save uploaded KYC and profile images to Database for persistence
