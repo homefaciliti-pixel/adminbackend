@@ -3326,30 +3326,28 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
 
     // OTP Verification for Booking Completion
     const targetPhone = customerPhone || '9876543210';
-    const isBypass = (otp === '1234');
-    
-    if (!isBypass) {
-      if (!otp) {
-        return res.status(400).json({ error: 'OTP is required to complete this booking. Please enter the OTP sent to the customer.' });
-      }
 
-      const [otpRows] = await db.query(
-        "SELECT * FROM otps WHERE mobile_number = ? AND type = 'booking_complete' ORDER BY id DESC LIMIT 1",
-        [targetPhone]
-      );
-
-      if (otpRows.length === 0) {
-        return res.status(400).json({ error: `No verification OTP was sent to customer phone ${targetPhone} for this booking.` });
-      }
-
-      const otpRecord = otpRows[0];
-      if (otpRecord.otp !== otp) {
-        return res.status(400).json({ error: 'Invalid OTP. Please enter the correct OTP sent to the customer.' });
-      }
-
-      // Mark OTP as verified in the database
-      await db.query('UPDATE otps SET status = 1, updated_at = NOW() WHERE id = ?', [otpRecord.id]);
+    if (!otp) {
+      return res.status(400).json({ error: 'OTP is required to complete this booking. Please enter the OTP sent to the customer.' });
     }
+
+    const [otpRows] = await db.query(
+      "SELECT * FROM otps WHERE mobile_number = ? AND type = 'booking_complete' ORDER BY id DESC LIMIT 1",
+      [targetPhone]
+    );
+
+    if (otpRows.length === 0) {
+      return res.status(400).json({ error: `No verification OTP was sent to customer phone ${targetPhone} for this booking.` });
+    }
+
+    const otpRecord = otpRows[0];
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({ error: 'Invalid OTP. Please enter the correct OTP sent to the customer.' });
+    }
+
+    // Mark OTP as verified in the database
+    await db.query('UPDATE otps SET status = 1, updated_at = NOW() WHERE id = ?', [otpRecord.id]);
+
 
     // Get payment method from request body, default to UPI
     const finalPaymentMethod = paymentMethod || 'UPI';
