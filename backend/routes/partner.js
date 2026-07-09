@@ -9,6 +9,23 @@ const https = require('https');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'home_faciliti_partner_secret_key_2026';
 
+// Helper to get IP subnet prefix (Class C for IPv4, /64 equivalent for IPv6) to allow robust matching
+const getIPSubnetPrefix = (ip) => {
+  if (!ip) return '';
+  if (ip.includes('.')) {
+    const parts = ip.split('.');
+    if (parts.length >= 3) {
+      return `${parts[0]}.${parts[1]}.${parts[2]}.%`;
+    }
+  } else if (ip.includes(':')) {
+    const parts = ip.split(':');
+    if (parts.length >= 4) {
+      return `${parts[0]}:${parts[1]}:${parts[2]}:${parts[3]}:%`;
+    }
+  }
+  return ip;
+};
+
 // Helper to get the correct Razorpay Key ID, overriding default placeholders
 const getRazorpayKeyId = () => {
   const key = process.env.RAZORPAY_KEY_ID;
@@ -886,11 +903,12 @@ router.post('/auth/register', (req, res) => {
         try {
           const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
           const ip = clientIp.split(',')[0].trim();
+          const ipPrefix = getIPSubnetPrefix(ip);
           const [ipMatches] = await db.query(
             `SELECT referral_code FROM node_referrer_clicks 
-             WHERE ip_address = ? AND created_at >= NOW() - INTERVAL 2 HOUR 
+             WHERE (ip_address = ? OR ip_address LIKE ?) AND created_at >= NOW() - INTERVAL 2 HOUR 
              ORDER BY created_at DESC LIMIT 1`,
-            [ip]
+            [ip, ipPrefix]
           );
           if (ipMatches.length > 0) {
             referralCodeInput = ipMatches[0].referral_code;
@@ -4497,11 +4515,12 @@ router.get('/referral/detect', async (req, res) => {
   try {
     const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
     const ip = clientIp.split(',')[0].trim();
+    const ipPrefix = getIPSubnetPrefix(ip);
     const [rows] = await db.query(
       `SELECT referral_code FROM node_referrer_clicks 
-       WHERE ip_address = ? AND created_at >= NOW() - INTERVAL 2 HOUR 
+       WHERE (ip_address = ? OR ip_address LIKE ?) AND created_at >= NOW() - INTERVAL 2 HOUR 
        ORDER BY created_at DESC LIMIT 1`,
-      [ip]
+      [ip, ipPrefix]
     );
 
     if (rows.length > 0) {
