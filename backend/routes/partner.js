@@ -4302,6 +4302,18 @@ router.get('/settings/version', async (req, res) => {
       }
     }
 
+    // Force update database values if code defaults are newer
+    for (const key of Object.keys(defaults)) {
+      if (settingsMap[key] !== defaults[key]) {
+        try {
+          await db.query('UPDATE settings_config SET `value` = ? WHERE `key` = ?', [defaults[key], key]);
+          settingsMap[key] = defaults[key];
+        } catch (updateErr) {
+          console.error(`[VERSION SETTINGS] Failed to update key ${key}:`, updateErr.message);
+        }
+      }
+    }
+
     res.json({
       success: true,
       android: {
