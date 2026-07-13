@@ -242,7 +242,7 @@ const getFilteredBookingsList = async (partner) => {
   function mapV2(o) {
     const a = parseAddrV2(o);
     const s = (o.status||'').toLowerCase();
-    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
+    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':s==='amc'?'amc':'pending';
     return {
       id: parseInt(o.id), status: st, service: o.serviceName, date: o.date, time: o.timeSlot,
       serviceAmount: o.price, serviceRequestNumber: o.id.toString(),
@@ -255,7 +255,7 @@ const getFilteredBookingsList = async (partner) => {
 
   function mapAdmin(o) {
     const s = (o.status||'').toLowerCase();
-    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':'pending';
+    let st = s==='completed'?'completed':s==='cancelled'||s==='rejected'?'cancel':s==='in progress'||s==='in_progress'?'in_progress':s==='assigned'?'accepted':s==='amc'?'amc':'pending';
     return {
       id: parseInt(o.id), status: st, service: o.serviceName, date: o.serviceDate, time: o.slotTime,
       serviceAmount: parseFloat(o.serviceAmount||0), serviceRequestNumber: o.serviceRequestNumber||o.id.toString(),
@@ -2134,6 +2134,8 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
       final = allFiltered.filter(b => b.status === 'completed');
     } else if (filterStatus === 'cancel') {
       final = allFiltered.filter(b => b.status === 'cancel');
+    } else if (filterStatus === 'amc') {
+      final = allFiltered.filter(b => b.status === 'amc');
     } else {
       // All
       final = allFiltered;
@@ -2477,6 +2479,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
       else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
       else if (statusLower === 'assigned') appStatus = 'accepted';
       else if (statusLower === 'pending' || statusLower === 'searching') appStatus = 'pending';
+      else if (statusLower === 'amc') appStatus = 'amc';
 
       // Format createdAt: orders_v2 stores as ms timestamp
       let createdAtStr = '';
@@ -2538,6 +2541,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
       else if (statusLower === 'in progress' || statusLower === 'in_progress') appStatus = 'in_progress';
       else if (statusLower === 'assigned') appStatus = 'accepted';
       else if (statusLower === 'pending') appStatus = 'pending';
+      else if (statusLower === 'amc') appStatus = 'amc';
 
       // Format createdAt: admin orders store as date string or timestamp
       let createdAtStrAdmin = '';
@@ -3320,7 +3324,7 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
-    if (order.status !== 'In Progress' && order.status !== 'Assigned') {
+    if (order.status !== 'In Progress' && order.status !== 'Assigned' && order.status !== 'AMC') {
       return res.status(400).json({ error: `Cannot complete a booking that is currently '${order.status}'` });
     }
 

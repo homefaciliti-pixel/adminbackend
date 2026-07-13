@@ -238,14 +238,14 @@ Response Example:
 -------------------------------------------
 Endpoint: GET /api/bookings
 Query Parameters (Optional):
-  - status: Filter by lowercase app status ('upcoming', 'completed', 'cancel', 'in_progress')
+  - status: Filter by lowercase app status ('upcoming', 'completed', 'cancel', 'in_progress', 'amc')
 Description: Fetches list of bookings assigned to the logged-in partner. Mapped directly to the JSON format expected by Flutter.
              Latitude and longitude of the customer's location are included in each booking.
 Response Example (Status 200 OK - Raw JSON Array):
 [
   {
     "id": 129,
-    "status": "pending",
+    "status": "pending",           // possible values: 'pending', 'accepted', 'in_progress', 'completed', 'cancel', 'amc'
     "service": "Tap / Faucet Repair & Replacement",
     "date": "2026-06-19",
     "time": "6:00 PM - 7:00 PM",
@@ -281,7 +281,7 @@ Field Types:
 Response Example (Status 200 OK):
 {
   "id": "181",
-  "status": "pending",
+  "status": "pending",           // possible values: 'pending', 'accepted', 'in_progress', 'completed', 'cancel', 'amc'
   "service": "Tap / Faucet Repair & Replacement",
   "date": "2026-06-19",
   "time": "6:00 PM - 7:00 PM",
@@ -638,9 +638,10 @@ Description: Completes booking, processes commission, updates wallet/earnings, a
 Request Body (JSON):
 {
   "paymentMethod": "Cash",   // Can be "Cash" or "UPI". Defaults to "UPI"
-  "otp": "8676",             // Required. Verification OTP sent to customer phone. (Bypass: '1234')
+  "otp": "8676",             // Required. Verification OTP sent to customer phone. (OTP bypass removed - use real OTP only)
   "customerPhone": "9876543210" // Optional. Defaults to '9876543210'.
 }
+Note: Booking must be in status 'In Progress', 'Assigned', or 'AMC' to complete. Other statuses will return 400 error.
 Note on Commissions and Balances:
 - If paymentMethod is "Cash", the commission rate is 25%. Since the partner collects the cash directly, no walletBalance is added. Instead, the 25% commission is added to "payToCompany" (which the partner owes to the company).
 - If paymentMethod is "UPI", the standard commission rate (from settings, default 10%) is used. The partner's share is credited to their "walletBalance".
