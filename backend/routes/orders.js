@@ -72,8 +72,41 @@ async function findOrderSource(orderId) {
 async function getAllOrders(req) {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
-  // Fetch partners map to match partner name -> partner mobile
-  const [partners] = await db.query('SELECT id, name, mobile FROM partners');
+  // Fetch all orders, partners, and users maps in parallel to reduce sequential database network roundtrip times
+  const [
+    [partners],
+    [laravelPartners],
+    [v2Users],
+    [nodeOrders],
+    [nodeV2Orders],
+    [laravelOrders]
+  ] = await Promise.all([
+    db.query('SELECT id, name, mobile FROM partners'),
+    db.query(`SELECT id, name, mobile_number FROM \`${dbName}\`.\`users\` WHERE role_id = 2`),
+    db.query("SELECT phone, name FROM node_users_v2 WHERE phone IS NOT NULL AND phone != ''"),
+    db.query('SELECT * FROM orders'),
+    db.query('SELECT * FROM node_orders_v2'),
+    db.query(`
+      SELECT 
+        oi.id, 
+        oi.service_request_number, 
+        oi.service_name, 
+        oi.total_amount, 
+        oi.time_slot, 
+        oi.service_date, 
+        oi.status, 
+        oi.vendor_id, 
+        oi.created_at, 
+        o.address,
+        o.payment_method,
+        u.name AS customer_name,
+        u.mobile_number AS customer_mobile
+      FROM \`${dbName}\`.\`order_items\` oi
+      LEFT JOIN \`${dbName}\`.\`orders\` o ON oi.order_id = o.id
+      LEFT JOIN \`${dbName}\`.\`users\` u ON o.user_id = u.id
+    `)
+  ]);
+
   const partnerMobileMap = {};
   const partnerNameMap = {};
   partners.forEach(p => {
@@ -81,8 +114,6 @@ async function getAllOrders(req) {
     partnerNameMap[p.id] = p.name;
   });
 
-  // Fetch Laravel partners map
-  const [laravelPartners] = await db.query(`SELECT id, name, mobile_number FROM \`${dbName}\`.\`users\` WHERE role_id = 2`);
   const laravelPartnerMobileMap = {};
   const laravelPartnerNameMap = {};
   laravelPartners.forEach(p => {
@@ -90,8 +121,6 @@ async function getAllOrders(req) {
     laravelPartnerNameMap[p.id] = p.name;
   });
 
-  // Fetch V2 Users map for resolving customer names from phone numbers
-  const [v2Users] = await db.query("SELECT phone, name FROM node_users_v2 WHERE phone IS NOT NULL AND phone != ''");
   const v2UsersMap = {};
   v2Users.forEach(u => {
     v2UsersMap[u.phone] = u.name;
@@ -100,7 +129,6 @@ async function getAllOrders(req) {
   const list = [];
 
   // 1. Fetch from node_orders (Admin Panel manually created orders)
-  const [nodeOrders] = await db.query('SELECT * FROM orders');
   nodeOrders.forEach(r => {
     const yearMatch = String(r.createdAt).match(/\b(20\d{2})\b/);
     const orderYear = yearMatch ? yearMatch[1] : new Date().getFullYear();
@@ -131,7 +159,6 @@ async function getAllOrders(req) {
   });
 
   // 2. Fetch from node_orders_v2 (Live orders from Flutter apps)
-  const [nodeV2Orders] = await db.query('SELECT * FROM node_orders_v2');
   nodeV2Orders.forEach(r => {
     let addrObj = {};
     try {
@@ -188,27 +215,6 @@ async function getAllOrders(req) {
       customerMobile
     });
   });
-
-  // 3. Fetch from Laravel orders
-  const [laravelOrders] = await db.query(`
-    SELECT 
-      oi.id, 
-      oi.service_request_number, 
-      oi.service_name, 
-      oi.total_amount, 
-      oi.time_slot, 
-      oi.service_date, 
-      oi.status, 
-      oi.vendor_id, 
-      oi.created_at, 
-      o.address,
-      o.payment_method,
-      u.name AS customer_name,
-      u.mobile_number AS customer_mobile
-    FROM \`${dbName}\`.\`order_items\` oi
-    LEFT JOIN \`${dbName}\`.\`orders\` o ON oi.order_id = o.id
-    LEFT JOIN \`${dbName}\`.\`users\` u ON o.user_id = u.id
-  `);
   laravelOrders.forEach(r => {
     const createdStr = r.created_at 
       ? new Date(r.created_at).toLocaleString('en-US') 

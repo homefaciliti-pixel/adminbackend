@@ -96,55 +96,59 @@ router.get('/pending-partners', async (req, res) => {
   try {
     const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
     
-    // 1. Fetch from node_partners (where isApproved = 0 or null)
-    const [nodeRows] = await db.query('SELECT * FROM partners WHERE isApproved = 0 OR isApproved IS NULL');
-    
-    // 2. Fetch from original Laravel users where role_id = 2 (partners) and is_approval = 0
-    const [laravelRows] = await db.query(`
-      SELECT 
-        u.id, 
-        u.name, 
-        u.email, 
-        u.mobile_number AS mobile, 
-        s.name AS state, 
-        c.name AS city, 
-        l.name AS locality,
-        u.address, 
-        u.image, 
-        u.status, 
-        u.is_approval AS isApproved, 
-        u.gender, 
-        u.experience, 
-        u.service_id AS services, 
-        u.aadhaar_number AS aadhaarNumber, 
-        u.aadhaar_front_image AS aadharFront, 
-        u.aadhaar_back_image AS aadharBack, 
-        u.pan_number AS panNumber, 
-        u.pan_image AS panImage, 
-        u.bank_name AS bankName, 
-        u.account_number AS accountNumber, 
-        u.ifsc_code AS ifscCode, 
-        u.created_at AS createdAt,
-        u.do_you_have_vehicle AS hasVehicle,
-        u.category_id,
-        u.sub_category_id,
-        u.account_holder_name AS accountHolder,
-        u.payment_status AS isPaid
-      FROM \`${dbName}\`.\`users\` u
-      LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
-      LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
-      LEFT JOIN \`${dbName}\`.\`localities\` l ON u.locality_id = l.id
-      WHERE u.role_id = 2 AND (u.is_approval = 0 OR u.is_approval IS NULL)
-    `);
+    // Fetch all required data in parallel to optimize DB load latency
+    const [
+      [nodeRows],
+      [laravelRows],
+      [catRows],
+      [serviceRows]
+    ] = await Promise.all([
+      db.query('SELECT * FROM partners WHERE isApproved = 0 OR isApproved IS NULL'),
+      db.query(`
+        SELECT 
+          u.id, 
+          u.name, 
+          u.email, 
+          u.mobile_number AS mobile, 
+          s.name AS state, 
+          c.name AS city, 
+          l.name AS locality,
+          u.address, 
+          u.image, 
+          u.status, 
+          u.is_approval AS isApproved, 
+          u.gender, 
+          u.experience, 
+          u.service_id AS services, 
+          u.aadhaar_number AS aadhaarNumber, 
+          u.aadhaar_front_image AS aadharFront, 
+          u.aadhaar_back_image AS aadharBack, 
+          u.pan_number AS panNumber, 
+          u.pan_image AS panImage, 
+          u.bank_name AS bankName, 
+          u.account_number AS accountNumber, 
+          u.ifsc_code AS ifscCode, 
+          u.created_at AS createdAt,
+          u.do_you_have_vehicle AS hasVehicle,
+          u.category_id,
+          u.sub_category_id,
+          u.account_holder_name AS accountHolder,
+          u.payment_status AS isPaid
+        FROM \`${dbName}\`.\`users\` u
+        LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
+        LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
+        LEFT JOIN \`${dbName}\`.\`localities\` l ON u.locality_id = l.id
+        WHERE u.role_id = 2 AND (u.is_approval = 0 OR u.is_approval IS NULL)
+      `),
+      db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``),
+      db.query(`SELECT id, title FROM \`${dbName}\`.\`services\``)
+    ]);
 
-    // Fetch categories and services for mapping
-    const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
     const catMap = {};
     catRows.forEach(row => {
       catMap[row.id] = row.title;
     });
 
-    const [serviceRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`services\``);
     const serviceMap = {};
     serviceRows.forEach(row => {
       serviceMap[row.id] = row.title;
