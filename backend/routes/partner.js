@@ -2162,7 +2162,8 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
       inProgressBooking: 0,
       acceptedBooking: 0,
       completedBooking: 0,
-      cancelBooking: 0
+      cancelBooking: 0,
+      amcBooking: 0
     });
   }
 
@@ -2175,6 +2176,7 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
     const inProgress = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
     const completed = allFiltered.filter(b => b.status === 'completed').length;
     const cancel = allFiltered.filter(b => b.status === 'cancel').length;
+    const amc = allFiltered.filter(b => b.status === 'amc').length;
 
     res.json({
       totalBooking: total,
@@ -2182,7 +2184,8 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
       inProgressBooking: inProgress,
       acceptedBooking: accepted,
       completedBooking: completed,
-      cancelBooking: cancel
+      cancelBooking: cancel,
+      amcBooking: amc
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3324,7 +3327,9 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
-    if (order.status !== 'In Progress' && order.status !== 'Assigned' && order.status !== 'AMC') {
+    const statusLower = (order.status || '').toLowerCase();
+    const allowedStatuses = ['in progress', 'in_progress', 'assigned', 'accepted', 'amc'];
+    if (!allowedStatuses.includes(statusLower)) {
       return res.status(400).json({ error: `Cannot complete a booking that is currently '${order.status}'` });
     }
 
@@ -3493,7 +3498,8 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
         inProgressBooking: 0,
         acceptedBooking: 0,
         completedBooking: 0,
-        cancelBooking: 0
+        cancelBooking: 0,
+        amcBooking: 0
       },
       earningsStats: {
         totalEarning: 0,
@@ -3518,6 +3524,7 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     const inProgressBooking = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
     const completedBooking = allFiltered.filter(b => b.status === 'completed').length;
     const cancelBooking = allFiltered.filter(b => b.status === 'cancel').length;
+    const amcBooking = allFiltered.filter(b => b.status === 'amc').length;
 
     // 3. Fetch earnings stats (combining both orders and orders_v2 tables)
     const [adminOrders] = await db.query(
