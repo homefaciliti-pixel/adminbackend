@@ -623,13 +623,15 @@ Request Body:
 {
   "phone": "9876543210",       // Required. Customer phone number.
   "countryCode": "+91",        // Optional. Defaults to '+91'.
-  "orderId": "1"               // Required. Order/Booking ID.
+  "orderId": "1",              // Required. Order/Booking ID.
+  "status": "amc"              // Optional. 'amc' or 'completed'
 }
 Response Example (Status 200 OK):
 {
   "success": true,
   "message": "OTP sent successfully to customer",
-  "otp": "8676"
+  "otp": "8676",
+  "status": "amc"
 }
 
 7.5 COMPLETE BOOKING WORK & COMMISSIONS
@@ -638,9 +640,10 @@ Endpoint: POST /api/bookings/:id/complete (PROTECTED)
 Description: Completes booking, processes commission, updates wallet/earnings, and logs transaction details inside database tables. Requires OTP verification.
 Request Body (JSON):
 {
-  "paymentMethod": "Cash",   // Can be "Cash" or "UPI". Defaults to "UPI"
-  "otp": "8676",             // Required. Verification OTP sent to customer phone. (OTP bypass removed - use real OTP only)
-  "customerPhone": "9876543210" // Optional. Defaults to '9876543210'.
+  "paymentMethod": "Cash",     // Can be "Cash" or "UPI". Defaults to "UPI"
+  "otp": "8676",               // Required. Verification OTP sent to customer phone. (OTP bypass removed - use real OTP only)
+  "customerPhone": "9876543210", // Optional. Defaults to '9876543210'.
+  "status": "amc"              // Optional. 'amc' or 'completed'
 }
 Note: Booking must be in status 'In Progress', 'Assigned', or 'AMC' to complete. Other statuses will return 400 error.
 Note on Commissions and Balances:

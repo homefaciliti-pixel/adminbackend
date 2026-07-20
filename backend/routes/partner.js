@@ -3263,7 +3263,7 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
 
 // POST /api/bookings/send-complete-otp - Generate and send OTP for booking completion (inserts into `otps` table)
 router.post('/bookings/send-complete-otp', async (req, res) => {
-  const { phone, countryCode, orderId } = req.body;
+  const { phone, countryCode, orderId, status } = req.body;
   if (!phone) {
     return res.status(400).json({ error: 'User phone number is required' });
   }
@@ -3287,10 +3287,13 @@ router.post('/bookings/send-complete-otp', async (req, res) => {
     // Send real SMS dynamically using SMS Gateway Hub if configured
     await sendSMS(phone, otp);
 
+    const responseStatus = status ? status.toLowerCase() : 'amc';
+
     res.json({
       success: true,
       message: 'OTP sent successfully to customer',
-      otp: otp
+      otp: otp,
+      status: responseStatus
     });
   } catch (error) {
     console.error('Error in send-complete-otp:', error);
@@ -3302,7 +3305,7 @@ router.post('/bookings/send-complete-otp', async (req, res) => {
 router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
   const partnerId = req.partner.id;
   const partnerName = req.partner.name;
-  const { paymentMethod, otp, customerPhone } = req.body;
+  const { paymentMethod, otp, customerPhone, status } = req.body;
 
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
     return res.status(403).json({ error: 'Access denied: Partner account is not paid or not approved by the admin.' });
@@ -3428,10 +3431,12 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
       console.error('[REFERRAL] background bonus error:', e.message)
     );
 
+    const responseStatus = status ? status.toLowerCase() : (order.status || '').toLowerCase() === 'amc' ? 'amc' : 'completed';
+
     res.json({ 
       success: true, 
       message: 'Work completed successfully and earnings updated!', 
-      status: 'completed',
+      status: responseStatus,
       earnings: {
         serviceAmount,
         paymentMethod,
