@@ -2715,8 +2715,10 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
 // GET /api/earnings - Get earnings summary (returns zero if unapproved or unpaid)
 router.get('/earnings', authenticatePartner, async (req, res) => {
   const partnerName = req.partner.name;
-  const walletVal = parseFloat(req.partner.walletBalance || 0);
-  const totalVal = parseFloat(req.partner.totalEarnings || 0);
+  const partnerMobile = req.partner.mobile;
+  const dbWalletBalance = parseFloat(req.partner.walletBalance || 0);
+  const dbTotalEarnings = parseFloat(req.partner.totalEarnings || 0);
+  const dbPayToCompany = parseFloat(req.partner.payToCompany || 0);
 
   // RULE: Earnings show ZERO until partner has paid AND is approved by the admin
   if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
@@ -2732,15 +2734,15 @@ router.get('/earnings', authenticatePartner, async (req, res) => {
   }
 
   try {
-    // 1. Fetch completed admin orders
+    // 1. Fetch completed admin orders (case-insensitive & trimmed name or mobile match)
     const [adminOrders] = await db.query(
-      "SELECT serviceAmount, paymentMethod, serviceDate FROM orders WHERE vendorName = ? AND status = 'Completed'",
-      [partnerName]
+      "SELECT serviceAmount, paymentMethod, serviceDate FROM orders WHERE (LOWER(TRIM(vendorName)) = LOWER(TRIM(?)) OR vendorMobile = ?) AND LOWER(status) = 'completed'",
+      [partnerName, partnerMobile]
     );
 
     // 2. Fetch completed app orders (v2)
     const [v2Orders] = await db.query(
-      "SELECT price, payment, date FROM orders_v2 WHERE partnerName = ? AND status = 'Completed'",
+      "SELECT price, payment, date FROM orders_v2 WHERE LOWER(TRIM(partnerName)) = LOWER(TRIM(?)) AND LOWER(status) = 'completed'",
       [partnerName]
     );
 
@@ -2833,25 +2835,30 @@ router.get('/earnings', authenticatePartner, async (req, res) => {
       }
     }
 
+    const finalTotalEarning = Math.max(Math.round(totalEarningsCalculated), Math.round(dbTotalEarnings));
+    const finalMonthlyEarning = finalTotalEarning;
+    const finalOnlineEarning = Math.max(Math.round(onlineEarning), Math.round(dbWalletBalance));
+    const finalCashEarning = Math.max(Math.round(cashEarning), Math.round(dbPayToCompany));
+
     res.json({
-      totalEarning: Math.round(totalEarningsCalculated),
+      totalEarning: finalTotalEarning,
       todayEarning: Math.round(todayEarning),
-      monthlyEarning: Math.round(totalEarningsCalculated),
-      onlineEarning: Math.round(onlineEarning),
-      cashEarning: Math.round(cashEarning),
-      payToCompany: parseFloat(req.partner.payToCompany || 0),
-      walletBalance: parseFloat(req.partner.walletBalance || 0)
+      monthlyEarning: finalMonthlyEarning,
+      onlineEarning: finalOnlineEarning,
+      cashEarning: finalCashEarning,
+      payToCompany: dbPayToCompany,
+      walletBalance: dbWalletBalance
     });
   } catch (error) {
     console.error('Error calculating partner earnings:', error);
     res.json({
-      totalEarning: Math.round(totalVal),
-      todayEarning: Math.round(totalVal * 0.4),
-      monthlyEarning: Math.round(totalVal * 0.6),
-      onlineEarning: Math.round(totalVal * 0.6 * 0.75),
-      cashEarning: Math.round(totalVal * 0.4 * 0.75),
-      payToCompany: parseFloat(req.partner.payToCompany || 0),
-      walletBalance: parseFloat(req.partner.walletBalance || 0)
+      totalEarning: Math.round(dbTotalEarnings),
+      todayEarning: 0,
+      monthlyEarning: Math.round(dbTotalEarnings),
+      onlineEarning: Math.round(dbWalletBalance),
+      cashEarning: Math.round(dbPayToCompany),
+      payToCompany: dbPayToCompany,
+      walletBalance: dbWalletBalance
     });
   }
 });
@@ -3531,14 +3538,19 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     const cancelBooking = allFiltered.filter(b => b.status === 'cancel').length;
     const amcBooking = allFiltered.filter(b => b.status === 'amc').length;
 
+    const partnerMobile = req.partner.mobile;
+    const dbWalletBalance = parseFloat(req.partner.walletBalance || 0);
+    const dbTotalEarnings = parseFloat(req.partner.totalEarnings || 0);
+    const dbPayToCompany = parseFloat(req.partner.payToCompany || 0);
+
     // 3. Fetch earnings stats (combining both orders and orders_v2 tables)
     const [adminOrders] = await db.query(
-      "SELECT serviceAmount, paymentMethod, serviceDate FROM orders WHERE vendorName = ? AND status = 'Completed'",
-      [partnerName]
+      "SELECT serviceAmount, paymentMethod, serviceDate FROM orders WHERE (LOWER(TRIM(vendorName)) = LOWER(TRIM(?)) OR vendorMobile = ?) AND LOWER(status) = 'completed'",
+      [partnerName, partnerMobile]
     );
 
     const [v2Orders] = await db.query(
-      "SELECT price, payment, date FROM orders_v2 WHERE partnerName = ? AND status = 'Completed'",
+      "SELECT price, payment, date FROM orders_v2 WHERE LOWER(TRIM(partnerName)) = LOWER(TRIM(?)) AND LOWER(status) = 'completed'",
       [partnerName]
     );
 
@@ -3631,6 +3643,11 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
       }
     }
 
+    const finalTotalEarning = Math.max(Math.round(totalEarningsCalculated), Math.round(dbTotalEarnings));
+    const finalMonthlyEarning = finalTotalEarning;
+    const finalOnlineEarning = Math.max(Math.round(onlineEarning), Math.round(dbWalletBalance));
+    const finalCashEarning = Math.max(Math.round(cashEarning), Math.round(dbPayToCompany));
+
     res.json({
       id: partnerId,
       isPaid,
@@ -3642,16 +3659,17 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
         inProgressBooking,
         acceptedBooking,
         completedBooking,
-        cancelBooking
+        cancelBooking,
+        amcBooking
       },
       earningsStats: {
-        totalEarning: Math.round(totalEarningsCalculated),
+        totalEarning: finalTotalEarning,
         todayEarning: Math.round(todayEarning),
-        monthlyEarning: Math.round(totalEarningsCalculated),
-        onlineEarning: Math.round(onlineEarning),
-        cashEarning: Math.round(cashEarning),
-        payToCompany: parseFloat(req.partner.payToCompany || 0),
-        walletBalance: parseFloat(req.partner.walletBalance || 0)
+        monthlyEarning: finalMonthlyEarning,
+        onlineEarning: finalOnlineEarning,
+        cashEarning: finalCashEarning,
+        payToCompany: dbPayToCompany,
+        walletBalance: dbWalletBalance
       },
       banners
     });
