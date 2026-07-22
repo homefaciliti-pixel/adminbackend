@@ -1015,114 +1015,345 @@ Response Example (Status 200 OK):
 --------------------
 Endpoint: GET /api/amc/dashboard
 Description: Returns AMC dashboard summary statistics (total, active, expired, today visits, pending, revenue).
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Dashboard stats retrieved successfully",
+  "data": {
+    "totalAmc": 45,
+    "activeAmc": 38,
+    "expiredAmc": 7,
+    "totalVisits": 120,
+    "todayVisits": 3,
+    "pendingVisits": 12,
+    "revenue": 189999.00
+  }
+}
 
 13.2 RECENT AMC ORDERS
 -----------------------
 Endpoint: GET /api/amc/dashboard/recent-orders
+Description: Retrieves the 5 most recent AMC orders.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Recent orders retrieved successfully",
+  "data": [
+    {
+      "id": 510,
+      "userPhone": "+919999999999",
+      "serviceName": "AC Service Visit",
+      "price": 0.00,
+      "date": "2026-07-22",
+      "status": "Assigned",
+      "bookingStatus": "assigned",
+      "partnerName": "Govind",
+      "amcId": "AMC-2026-0041"
+    }
+  ]
+}
 
 13.3 TODAY'S AMC VISITS
 -----------------------
 Endpoint: GET /api/amc/dashboard/today-visits
+Description: Retrieves all AMC service visits scheduled for today.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Today's visits retrieved successfully",
+  "data": [
+    {
+      "id": 14,
+      "amcId": "AMC-2026-0041",
+      "userPhone": "+919999999999",
+      "scheduledDate": "2026-07-22T00:00:00.000Z",
+      "timeSlot": "10:00 AM - 11:00 AM",
+      "status": "pending",
+      "partnerName": "Govind",
+      "partnerPhone": "8009073091",
+      "serviceName": "AC Cleaning"
+    }
+  ]
+}
 
 13.4 RENEW ALERTS
 -----------------
 Endpoint: GET /api/amc/dashboard/renew-alerts
+Description: Retrieves active AMC contracts expiring within the next 30 days.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Renewal alerts retrieved successfully",
+  "data": [
+    {
+      "amcId": "AMC-2026-0012",
+      "userPhone": "+918888888888",
+      "category": "Home Cleaning",
+      "price": "4999.00",
+      "status": "active",
+      "endDate": "2026-08-15T18:30:00.000Z"
+    }
+  ]
+}
 
 13.5 RECENT ACTIVITIES
 ----------------------
 Endpoint: GET /api/amc/dashboard/recent-activities
+Description: Stream of recent AMC subscriptions and completed visits.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Recent activities retrieved successfully",
+  "data": [
+    {
+      "amcId": "AMC-TEST-999",
+      "userPhone": "+919999999999",
+      "timestamp": "2026-07-22T12:00:00.000Z",
+      "type": "subscription"
+    }
+  ]
+}
 
 13.6 LIST ACTIVE AMC MEMBERSHIPS
 --------------------------------
-Endpoint: GET /api/amc/active?page=1&limit=10&search=&category=
+Endpoint: GET /api/amc/active
+Query Params: page, limit, search, category
+Description: Returns paginated active subscriptions.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Active subscriptions retrieved successfully",
+  "data": [
+    {
+      "amcId": "AMC-TEST-999",
+      "userPhone": "+919999999999",
+      "category": "AC Service",
+      "price": "4999.00",
+      "status": "active"
+    }
+  ]
+}
 
 13.7 SINGLE AMC DETAILS
 -----------------------
 Endpoint: GET /api/amc/:amcId
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Subscription retrieved successfully",
+  "data": {
+    "amcId": "AMC-TEST-999",
+    "customerName": "Test Client",
+    "userPhone": "+919999999999",
+    "status": "active"
+  }
+}
 
 13.8 LIST EXPIRED AMC MEMBERSHIPS
 ---------------------------------
-Endpoint: GET /api/amc/expired?page=1&limit=10&search=&category=
+Endpoint: GET /api/amc/expired
+Query Params: page, limit, search, category
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Expired subscriptions retrieved successfully",
+  "data": []
+}
 
 13.9 RENEW AMC CONTRACT
 -----------------------
 Endpoint: POST /api/amc/:amcId/renew
-Body: { "planId": "gold", "note": "Renewal note", "price": 4999, "durationMonths": 12 }
+Request Body: { "planId": "gold", "note": "Renewal note", "price": 4999, "durationMonths": 12 }
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "AMC subscription renewed successfully"
+}
 
 13.10 BOOK SERVICE VISIT
 ------------------------
 Endpoint: POST /api/amc/:amcId/book-service
-Body: { "serviceName": "AC Service", "scheduledDate": "2026-07-25", "timeSlot": "10:00 AM - 12:00 PM", "description": "Notes" }
+Request Body: { "serviceName": "AC Service", "scheduledDate": "2026-07-25", "timeSlot": "10:00 AM - 12:00 PM", "description": "Notes" }
+Response Example (Status 201 Created):
+{
+  "success": true,
+  "message": "AMC Service visit booked successfully"
+}
 
 13.11 SERVICE VISITS HISTORY
 ----------------------------
 Endpoint: GET /api/amc/:amcId/service-history
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Service history retrieved successfully",
+  "data": []
+}
 
 13.12 LIST ALL SERVICE VISITS
 -----------------------------
 Endpoint: GET /api/amc/visits
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Visits retrieved successfully",
+  "data": []
+}
 
 13.13 SINGLE VISIT DETAILS
 --------------------------
 Endpoint: GET /api/amc/visits/:visitId
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Visit details retrieved successfully",
+  "data": {}
+}
 
 13.14 VISIT IMAGES
 ------------------
 Endpoint: GET /api/amc/visits/:visitId/images
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Visit images retrieved successfully",
+  "data": []
+}
 
 13.15 LIST AMC ORDERS
 ---------------------
 Endpoint: GET /api/amc/orders
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "AMC orders retrieved successfully",
+  "data": []
+}
 
 13.16 AMC ORDER DETAILS
 -----------------------
 Endpoint: GET /api/amc/orders/:orderId
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "AMC order retrieved successfully",
+  "data": {}
+}
 
 13.17 ASSIGN PARTNER TO AMC ORDER/VISIT
 ----------------------------------------
 Endpoint: POST /api/amc/orders/assign-partner
-Body: { "orderId": 505, "visitId": 12, "partnerPhone": "+919999999999", "partnerName": "Name" }
+Request Body: { "orderId": 505, "visitId": 12, "partnerPhone": "+919999999999", "partnerName": "Name" }
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Partner assigned successfully"
+}
 
 13.18 REASSIGN PARTNER
 ----------------------
 Endpoint: PUT /api/amc/orders/:orderId/change-partner
-Body: { "partnerPhone": "+919999999999", "partnerName": "Name" }
+Request Body: { "partnerPhone": "+919999999999", "partnerName": "Name" }
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Partner changed successfully"
+}
 
 13.19 UPDATE AMC ORDER STATUS
 -----------------------------
 Endpoint: PUT /api/amc/orders/:orderId/status
-Body: { "status": "Completed" }
+Request Body: { "status": "Completed" }
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Order status updated successfully"
+}
 
 13.20 GET PARTNERS SELECTION DROPDOWN
 --------------------------------------
 Endpoint: GET /api/partners/dropdown
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Partners dropdown retrieved successfully",
+  "data": [
+    { "id": 131, "name": "Kunal Mudiya", "mobile": "6375781820" }
+  ]
+}
 
 13.21 LIST PARTNER AMC PAYMENTS
 -------------------------------
 Endpoint: GET /api/amc/partner-payments
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Partner payments retrieved successfully",
+  "data": []
+}
 
 13.22 AMC PAYMENT DETAILS
 -------------------------
 Endpoint: GET /api/amc/partner-payments/:id
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Payment record retrieved successfully",
+  "data": {}
+}
 
 13.23 RELEASE PARTNER PAYMENT
 ------------------------------
 Endpoint: POST /api/amc/partner-payments/release
-Body: { "paymentId": 2 }
+Request Body: { "paymentId": 2 }
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Partner payment released successfully"
+}
 
 13.24 GENERATE REPORTS
 ----------------------
-Endpoint: GET /api/amc/reports?type=revenue
+Endpoint: GET /api/amc/reports
+Query Params: type (revenue / amc / orders / visits / payments)
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Revenue report generated",
+  "data": []
+}
 
 13.25 LIST AMC NOTIFICATIONS
 ----------------------------
 Endpoint: GET /api/amc/notifications
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "AMC notifications retrieved successfully",
+  "data": []
+}
 
 13.26 MARK NOTIFICATIONS AS READ
 --------------------------------
 Endpoint: PUT /api/amc/notifications/mark-read
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "AMC notifications marked as read"
+}
 
 13.27 GLOBAL AMC SEARCH
 -----------------------
-Endpoint: GET /api/amc/search?q=AMC-TEST
+Endpoint: GET /api/amc/search
+Query Params: q
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Global search executed successfully",
+  "data": {
+    "subscriptions": [],
+    "visits": [],
+    "orders": []
+  }
+}
 
