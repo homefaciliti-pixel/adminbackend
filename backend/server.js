@@ -509,6 +509,7 @@ const supportRouter = require('./routes/support');
 const uploadRouter = require('./routes/upload');
 const partnerRouter = require('./routes/partner');
 const adminsRouter = require('./routes/admins');
+const amcRouter = require('./routes/amc');
 
 // Register API Routes
 server.use('/api/dashboard', dashboardRouter);
@@ -524,6 +525,7 @@ server.use('/api/reports', reportsRouter);
 server.use('/api/support', supportRouter);
 server.use('/api/upload', uploadRouter);
 server.use('/api/admins', adminsRouter);
+server.use('/api/amc', amcRouter);
 server.use('/api', partnerRouter);
 
 // Android App Links / assetlinks.json route

@@ -275,3 +275,51 @@ The following accounts bypass backend authentication and always retain "super_ad
   * POST /api/partner/status & PUT /api/partner/status - Toggle partner online/offline status and update coordinates at the same time. Body: { "status": true/false/1/0, "lat": "...", "lon": "...", "time": "..." }.
 - SETTINGS / VERSION (PUBLIC):
   * GET /api/settings/version - Get app version configuration for Android and iOS. Returns: { success, android: { latestVersion, minSupportedVersion, forceUpdate }, ios: { latestVersion, minSupportedVersion, forceUpdate } }
+
+----------------------------------------------------------------------
+15. AMC (ANNUAL MAINTENANCE CONTRACT) MANAGEMENT
+----------------------------------------------------------------------
+- DASHBOARD APIS:
+  * GET /api/amc/dashboard - Summary stats (total/active/expired contracts, today's visits, revenue).
+  * GET /api/amc/dashboard/recent-orders - Recent AMC bookings.
+  * GET /api/amc/dashboard/today-visits - AMC visits scheduled for today.
+  * GET /api/amc/dashboard/renew-alerts - AMC contracts expiring within the next 30 days.
+  * GET /api/amc/dashboard/recent-activities - Recent logs (new subscriptions, completed visits, etc.).
+
+- AMC SUBSCRIPTIONS:
+  * GET /api/amc/active - Paginated active contracts list. Query params: page, limit, search, category.
+  * GET /api/amc/expired - Paginated expired contracts list. Query params: page, limit, search, category.
+  * GET /api/amc/:amcId - Single contract details with customer name.
+  * POST /api/amc/:amcId/renew - Renew subscription. Body: { planId, note, price, durationMonths }.
+
+- SERVICE BOOKINGS & VISITS:
+  * POST /api/amc/:amcId/book-service - Book an AMC service visit (also creates a corresponding general order). Body: { serviceName, scheduledDate, timeSlot, description }.
+  * GET /api/amc/:amcId/service-history - History of completed visits for a contract.
+  * GET /api/amc/visits - List all AMC visits.
+  * GET /api/amc/visits/:visitId - Single visit details.
+  * GET /api/amc/visits/:visitId/images - Images uploaded for a visit.
+
+- INTEGRATED ORDERS:
+  * GET /api/amc/orders - Fetch all orders linked to an AMC.
+  * GET /api/amc/orders/:orderId - Details of a specific AMC order.
+  * POST /api/amc/orders/assign-partner - Assign partner to AMC order/visit. Body: { orderId, visitId, partnerPhone, partnerName }.
+  * PUT /api/amc/orders/:orderId/change-partner - Reassign partner. Body: { partnerPhone, partnerName }.
+  * PUT /api/amc/orders/:orderId/status - Update status of AMC order (auto-creates payout record when completed). Body: { status }.
+
+- PARTNERS DROPDOWN:
+  * GET /api/partners/dropdown - Fetch list of approved partners (id, name, mobile) for dropdown selections.
+
+- PARTNER PAYMENTS:
+  * GET /api/amc/partner-payments - List partner payouts.
+  * GET /api/amc/partner-payments/:id - Details of a payout.
+  * POST /api/amc/partner-payments/release - Release payout status. Body: { paymentId }.
+
+- REPORTS:
+  * GET /api/amc/reports - Consolidated AMC reports. Query param: type (revenue / amc / orders / visits / payments).
+
+- NOTIFICATIONS:
+  * GET /api/amc/notifications - List AMC-related notifications.
+  * PUT /api/amc/notifications/mark-read - Mark read status.
+
+- GLOBAL SEARCH:
+  * GET /api/amc/search - Global search across subscriptions, visits, and orders. Query param: ?q=...

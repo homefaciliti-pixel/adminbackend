@@ -18,6 +18,7 @@ Request Fields:
 - Text Fields:
   * name (String, Required) - e.g., "Amit Kumar"
   * phone (String, Required) - e.g., "9911223344" (Saves to 'mobile' column in database)
+  * countryCode (String, Optional, Defaults to "+91") - e.g., "+91"
   * email (String, Required) - e.g., "amit@gmail.com"
   * address (String, Required) - e.g., "Sector 15, Jaipur"
   * state (String, Required) - e.g., "Rajasthan"
@@ -46,13 +47,15 @@ Request Fields:
 Response Example (Status 201 Created):
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "amount": 350,
+  "amount": 500,
   "partnerId": 3,
   "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
+  "countryCode": "+91",
   "partner": {
     "id": 3,
     "name": "Amit Kumar",
     "phone": "9911223344",
+    "countryCode": "+91",
     "email": "amit@gmail.com",
     "gender": "Male",
     "address": "Sector 15, Jaipur",
@@ -82,11 +85,12 @@ Response Example (Status 201 Created):
 -----------------
 Endpoint: POST /api/auth/login
 Request Format: application/json
-Description: Logs in a partner using their phone number and password.
+Description: Logs in a partner using their phone number, country code, and password.
 
 Request Body:
 {
   "phone": "9911223344",
+  "countryCode": "+91",
   "password": "secure123"
 }
 
@@ -95,6 +99,7 @@ Response Example (Status 200 OK):
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "partnerId": 10,
   "razorpayKeyId": "rzp_live_xxxxxxxxxxxxxx",
+  "countryCode": "+91",
   "partner": { ...partnerDetails... }
 }
 
@@ -107,13 +112,15 @@ Description: Resets the password for a registered mobile number.
 Request Body:
 {
   "phone": "9911223344",
+  "countryCode": "+91",
   "newPassword": "newSecurePassword123"
 }
 
 Response Example (Status 200 OK):
 {
   "success": true,
-  "message": "Password reset successful!"
+  "message": "Password reset successful!",
+  "countryCode": "+91"
 }
 
 1.4 LOGOUT
@@ -126,20 +133,52 @@ Response Example (Status 200 OK):
   "message": "Logged out successfully"
 }
 
-1.5 SEND OTP
+1.5 DELETE ACCOUNT
+------------------
+Endpoint: DELETE /api/auth/delete-account
+Request Format: application/json
+Description: Permanently deletes the partner account associated with the given phone number.
+             Phone number is required. Reason is optional.
+
+Request Body:
+{
+  "phone": "9911223344",     (Required)
+  "reason": "Not using anymore"  (Optional - can be omitted)
+}
+
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Account deleted successfully",
+  "deletedPartner": {
+    "id": 12,
+    "name": "Amit Kumar",
+    "phone": "9911223344"
+  }
+}
+
+Error Responses:
+- 400 Bad Request: { "error": "Phone number is required" }
+- 400 Bad Request: { "error": "Please enter a valid 10-digit phone number" }
+- 404 Not Found:   { "error": "No partner account found with this phone number" }
+- 500 Server Error: { "error": "Failed to delete account: ..." }
+
+1.6 SEND OTP
 ------------
 Endpoint: POST /api/auth/send-otp
 Request Format: application/json
 Description: Generates a 4-digit OTP for partner phone verification.
 Request Body:
 {
-  "phone": "9911223344"
+  "phone": "9911223344",
+  "countryCode": "+91" (optional, defaults to "+91")
 }
 Response Example (Status 200 OK):
 {
   "success": true,
   "message": "OTP sent successfully",
-  "otp": "8676"
+  "otp": "8676",
+  "countryCode": "+91"
 }
 
 1.6 VERIFY OTP
@@ -150,12 +189,14 @@ Description: Verifies the 4-digit OTP code sent to the phone number.
 Request Body:
 {
   "phone": "9911223344",
-  "otp": "8676"
+  "otp": "8676",
+  "countryCode": "+91" (optional, defaults to "+91")
 }
 Response Example (Status 200 OK):
 {
   "success": true,
-  "message": "Phone number verified successfully"
+  "message": "Phone number verified successfully",
+  "countryCode": "+91"
 }
 
 
@@ -197,47 +238,68 @@ Response Example:
 -------------------------------------------
 Endpoint: GET /api/bookings
 Query Parameters (Optional):
-  - status: Filter by lowercase app status ('upcoming', 'completed', 'cancel', 'in_progress')
+  - status: Filter by lowercase app status ('upcoming', 'completed', 'cancel', 'in_progress', 'amc')
 Description: Fetches list of bookings assigned to the logged-in partner. Mapped directly to the JSON format expected by Flutter.
+             Latitude and longitude of the customer's location are included in each booking.
 Response Example (Status 200 OK - Raw JSON Array):
 [
   {
-    "id": "1",
-    "status": "upcoming",
-    "service": "Sofa Cleaning",
-    "date": "15-05-2026",
-    "time": "10:00 AM - 12:00 PM",
-    "serviceAmount": 599.00,
-    "serviceRequestNumber": "REQ1001",
-    "address": "H.No 12, Block B, CP, New Delhi",
-    "city": "Delhi",
-    "locality": "Connaught Place",
-    "customerName": "Rahul Sharma",
-    "customerPhone": "9876543210"
+    "id": 129,
+    "status": "pending",           // possible values: 'pending', 'accepted', 'in_progress', 'completed', 'cancel', 'amc'
+    "service": "Tap / Faucet Repair & Replacement",
+    "date": "2026-06-19",
+    "time": "6:00 PM - 7:00 PM",
+    "serviceAmount": "399.00",
+    "serviceRequestNumber": "129",
+    "address": "adi, zhhz, Mansarovar, Rajasthan, Jaipur",
+    "city": "Rajasthan, Jaipur",
+    "locality": "Mansarovar",
+    "customerName": "shirt",
+    "customerPhone": "9116919356",
+    "latitude": 26.8328341,
+    "longitude": 75.7528878,
+    "source": "app"
   }
 ]
+
+Note: latitude and longitude may be null if coordinates are not available for that booking.
 
 3.1b GET SINGLE BOOKING DETAILS
 -------------------------------
 Endpoint: GET /api/bookings/:id (PROTECTED)
 Description: Fetches full details of a single booking by ID.
+             Supports pure integer IDs (e.g., /api/bookings/181).
+             Automatically resolves whether booking is from app (orders_v2) or admin (orders) table.
+
+Field Types:
+  - id                   -> String  (e.g., "181")
+  - serviceAmount        -> String/Float (e.g., "399.00")
+  - serviceRequestNumber -> String, "REQ-YYYY-XXXX" format (e.g., "REQ-2026-0181")
+  - createdAt            -> String, "DD-MM-YYYY HH:MM AM/PM" format (e.g., "19-06-2026 02:36 PM")
+  - latitude/longitude   -> Number or null
+
 Response Example (Status 200 OK):
 {
-  "id": "1",
-  "status": "upcoming",
-  "service": "AC Deep Repairing",
-  "date": "06-06-2026",
-  "time": "10:00 AM - 12:00 PM",
-  "serviceAmount": 499.00,
-  "serviceRequestNumber": "REQ-2026-0001",
-  "address": "H.No 12, Block B, Connaught Place, New Delhi",
-  "city": "Delhi",
-  "locality": "Connaught Place",
-  "paymentMethod": "UPI",
-  "customerName": "Rahul Sharma",
-  "customerPhone": "9876543210",
-  "createdAt": "05-06-2026 10:15 AM"
+  "id": "181",
+  "status": "pending",           // possible values: 'pending', 'accepted', 'in_progress', 'completed', 'cancel', 'amc'
+  "service": "Tap / Faucet Repair & Replacement",
+  "date": "2026-06-19",
+  "time": "6:00 PM - 7:00 PM",
+  "serviceAmount": "399.00",
+  "serviceRequestNumber": "REQ-2026-0181",
+  "address": "adi, zhhz, Mansarovar, Rajasthan, Jaipur",
+  "city": "Rajasthan, Jaipur",
+  "locality": "Mansarovar",
+  "latitude": 26.8328341,
+  "longitude": 75.7528878,
+  "paymentMethod": "Online",
+  "customerName": "shirt",
+  "customerPhone": "9116919356",
+  "createdAt": "19-06-2026 02:36 PM",
+  "source": "app"
 }
+
+Note: latitude and longitude may be null if coordinates are not available.
 
 3.2 BOOKING STATS (DASHBOARD)
 -----------------------------
@@ -250,7 +312,8 @@ Response Example:
   "inProgressBooking": 1,
   "acceptedBooking": 3,
   "completedBooking": 2,
-  "cancelBooking": 1
+  "cancelBooking": 1,
+  "amcBooking": 1
 }
 
 3.3 ACCEPT BOOKING
@@ -319,7 +382,7 @@ Response Example:
 5. MANDATORY REGISTRATION PAYMENT & SECURITY (PROTECTED)
 ----------------------------------------------------------------------
 
-5.1 PROCESS ₹350 REGISTRATION FEE PAYMENT
+5.1 PROCESS ₹500 REGISTRATION FEE PAYMENT
 -----------------------------------------
 Endpoint: POST /api/partner/pay-registration
 Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning. Enforces validation that a transactionId must be provided in the body.
@@ -332,8 +395,8 @@ Request Body (JSON):
 Response Example (Status 200 OK):
 {
   "success": true,
-  "message": "₹350 registration payment received successfully! You can access the dashboard once approved by the admin.",
-  "amount": 350,
+  "message": "₹500 registration payment received successfully! You can access the dashboard once approved by the admin.",
+  "amount": 500,
   "razorpayKeyId": "rzp_live_SwFaJKQjU5ZOsH",
   "razorpayOrderId": "order_Sz3T9CNJH8VqDV",
   "partner": { ...updatedPartnerDetailsWithIsPaidTrue... }
@@ -365,7 +428,7 @@ POST Response Example (Status 200 OK):
 {
   "success": true,
   "message": "Razorpay payment verified and partner account activated successfully!",
-  "amount": 350,
+  "amount": 500,
   "razorpayKeyId": "rzp_live_SwFaJKQjU5ZOsH",
   "partner": { ...updatedPartnerDetailsWithIsPaidTrue... }
 }
@@ -412,7 +475,7 @@ Response Example (Status 201 Created):
 6.2 VIEW OWN SUPPORT TICKETS
 ----------------------------
 Endpoint: GET /api/partner/support
-Description: Retrieves all support tickets filed by this partner. Enriched with partner profile image, documents, and nested partner details with fallback SVG URLs.
+Description: Retrieves all support tickets filed by this partner. Enriched with partnerId, partner profile image, documents, and nested partner details with fallback SVG URLs.
 Response Example:
 [
   {
@@ -424,6 +487,7 @@ Response Example:
     "message": "The bookings list does not load when I click it. Please fix.",
     "status": "Open",
     "createdAt": "02-06-2026",
+    "partnerId": 10,
     "partnerImage": "http://localhost:5000/uploads/default-profile.svg",
     "partnerDocuments": [
       "http://localhost:5000/uploads/default-document.svg"
@@ -493,6 +557,20 @@ Response Example (Status 200 OK):
   }
 }
 
+7.2.1 GET COUNTRIES LIST
+------------------------
+Endpoint: GET /api/countries
+Description: Returns a comprehensive list of countries with flag emojis and international dialing calling codes (e.g. for registration dropdowns).
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "countries": [
+    { "name": "India", "code": "+91", "flag": "🇮🇳", "isoCode": "IN", "flagUrl": "https://flagcdn.com/w80/in.png", "minLength": 10, "maxLength": 10 },
+    { "name": "United States", "code": "+1", "flag": "🇺🇸", "isoCode": "US", "flagUrl": "https://flagcdn.com/w80/us.png", "minLength": 10, "maxLength": 10 },
+    { "name": "United Kingdom", "code": "+44", "flag": "🇬🇧", "isoCode": "GB", "flagUrl": "https://flagcdn.com/w80/gb.png", "minLength": 10, "maxLength": 10 }
+  ]
+}
+
 7.3 GET UNIFIED PARTNER DASHBOARD
 ---------------------------------
 Endpoint: GET /api/partner/dashboard (PROTECTED)
@@ -545,13 +623,15 @@ Request Body:
 {
   "phone": "9876543210",       // Required. Customer phone number.
   "countryCode": "+91",        // Optional. Defaults to '+91'.
-  "orderId": "1"               // Required. Order/Booking ID.
+  "orderId": "1",              // Required. Order/Booking ID.
+  "status": "amc"              // Optional. 'amc' or 'completed'
 }
 Response Example (Status 200 OK):
 {
   "success": true,
   "message": "OTP sent successfully to customer",
-  "otp": "8676"
+  "otp": "8676",
+  "status": "amc"
 }
 
 7.5 COMPLETE BOOKING WORK & COMMISSIONS
@@ -560,10 +640,12 @@ Endpoint: POST /api/bookings/:id/complete (PROTECTED)
 Description: Completes booking, processes commission, updates wallet/earnings, and logs transaction details inside database tables. Requires OTP verification.
 Request Body (JSON):
 {
-  "paymentMethod": "Cash",   // Can be "Cash" or "UPI". Defaults to "UPI"
-  "otp": "8676",             // Required. Verification OTP sent to customer phone. (Bypass: '1234')
-  "customerPhone": "9876543210" // Optional. Defaults to '9876543210'.
+  "paymentMethod": "Cash",     // Can be "Cash" or "UPI". Defaults to "UPI"
+  "otp": "8676",               // Required. Verification OTP sent to customer phone. (OTP bypass removed - use real OTP only)
+  "customerPhone": "9876543210", // Optional. Defaults to '9876543210'.
+  "status": "amc"              // Optional. 'amc' or 'completed'
 }
+Note: Booking must be in status 'In Progress', 'Assigned', or 'AMC' to complete. Other statuses will return 400 error.
 Note on Commissions and Balances:
 - If paymentMethod is "Cash", the commission rate is 25%. Since the partner collects the cash directly, no walletBalance is added. Instead, the 25% commission is added to "payToCompany" (which the partner owes to the company).
 - If paymentMethod is "UPI", the standard commission rate (from settings, default 10%) is used. The partner's share is credited to their "walletBalance".
@@ -851,6 +933,196 @@ Response Example (Status 200 OK):
   }
 }
 
+----------------------------------------------------------------------
+11. BANNERS API (PARTNER & GLOBAL)
+----------------------------------------------------------------------
 
+11.1 GET ALL BANNERS
+-------------------
+Endpoint: GET /api/settings/banners
+Description: Retrieves a list of all banners in the system.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "data": [
+    {
+      "id": 29,
+      "title": "Save Video Banner",
+      "image": "save.mp4",
+      "status": true,
+      "category": "",
+      "badge": "",
+      "subtitle": "",
+      "buttonText": "Watch Video"
+    }
+  ]
+}
 
+11.2 UPLOAD/ADD NEW BANNER
+-------------------------
+Endpoint: POST /api/settings/banners
+Request Format: multipart/form-data
+Description: Adds a new banner with an image/video file.
+Request Fields:
+- title (String, Required) - e.g., "Save Video Banner"
+- status (Boolean/String, Optional) - "true" or 1
+- image (File, Required) - The banner image or video file
+- category (String, Optional)
+- badge (String, Optional)
+- subtitle (String, Optional)
+- buttonText (String, Optional)
+Response Example (Status 201 Created):
+{
+  "success": true,
+  "data": {
+    "id": 29,
+    "title": "Save Video Banner",
+    "image": "save.mp4",
+    "status": true,
+    "category": "",
+    "badge": "",
+    "subtitle": "",
+    "buttonText": "Watch Video"
+  }
+}
+
+----------------------------------------------------------------------
+12. SETTINGS & APP VERSION (PUBLIC)
+----------------------------------------------------------------------
+12.1 GET APP VERSION
+--------------------
+Endpoint: GET /api/settings/version
+Description: Retrieves app version information and force update policies for Android and iOS.
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "android": {
+    "latestVersion": "1.0.3",
+    "minSupportedVersion": "1.0.2",
+    "forceUpdate": false
+  },
+  "ios": {
+    "latestVersion": "1.0.4",
+    "minSupportedVersion": "1.0.3",
+    "forceUpdate": true
+  }
+}
+
+----------------------------------------------------------------------
+13. AMC (ANNUAL MAINTENANCE CONTRACT) & VISITS
+----------------------------------------------------------------------
+13.1 DASHBOARD STATS
+--------------------
+Endpoint: GET /api/amc/dashboard
+Description: Returns AMC dashboard summary statistics (total, active, expired, today visits, pending, revenue).
+
+13.2 RECENT AMC ORDERS
+-----------------------
+Endpoint: GET /api/amc/dashboard/recent-orders
+
+13.3 TODAY'S AMC VISITS
+-----------------------
+Endpoint: GET /api/amc/dashboard/today-visits
+
+13.4 RENEW ALERTS
+-----------------
+Endpoint: GET /api/amc/dashboard/renew-alerts
+
+13.5 RECENT ACTIVITIES
+----------------------
+Endpoint: GET /api/amc/dashboard/recent-activities
+
+13.6 LIST ACTIVE AMC MEMBERSHIPS
+--------------------------------
+Endpoint: GET /api/amc/active?page=1&limit=10&search=&category=
+
+13.7 SINGLE AMC DETAILS
+-----------------------
+Endpoint: GET /api/amc/:amcId
+
+13.8 LIST EXPIRED AMC MEMBERSHIPS
+---------------------------------
+Endpoint: GET /api/amc/expired?page=1&limit=10&search=&category=
+
+13.9 RENEW AMC CONTRACT
+-----------------------
+Endpoint: POST /api/amc/:amcId/renew
+Body: { "planId": "gold", "note": "Renewal note", "price": 4999, "durationMonths": 12 }
+
+13.10 BOOK SERVICE VISIT
+------------------------
+Endpoint: POST /api/amc/:amcId/book-service
+Body: { "serviceName": "AC Service", "scheduledDate": "2026-07-25", "timeSlot": "10:00 AM - 12:00 PM", "description": "Notes" }
+
+13.11 SERVICE VISITS HISTORY
+----------------------------
+Endpoint: GET /api/amc/:amcId/service-history
+
+13.12 LIST ALL SERVICE VISITS
+-----------------------------
+Endpoint: GET /api/amc/visits
+
+13.13 SINGLE VISIT DETAILS
+--------------------------
+Endpoint: GET /api/amc/visits/:visitId
+
+13.14 VISIT IMAGES
+------------------
+Endpoint: GET /api/amc/visits/:visitId/images
+
+13.15 LIST AMC ORDERS
+---------------------
+Endpoint: GET /api/amc/orders
+
+13.16 AMC ORDER DETAILS
+-----------------------
+Endpoint: GET /api/amc/orders/:orderId
+
+13.17 ASSIGN PARTNER TO AMC ORDER/VISIT
+----------------------------------------
+Endpoint: POST /api/amc/orders/assign-partner
+Body: { "orderId": 505, "visitId": 12, "partnerPhone": "+919999999999", "partnerName": "Name" }
+
+13.18 REASSIGN PARTNER
+----------------------
+Endpoint: PUT /api/amc/orders/:orderId/change-partner
+Body: { "partnerPhone": "+919999999999", "partnerName": "Name" }
+
+13.19 UPDATE AMC ORDER STATUS
+-----------------------------
+Endpoint: PUT /api/amc/orders/:orderId/status
+Body: { "status": "Completed" }
+
+13.20 GET PARTNERS SELECTION DROPDOWN
+--------------------------------------
+Endpoint: GET /api/partners/dropdown
+
+13.21 LIST PARTNER AMC PAYMENTS
+-------------------------------
+Endpoint: GET /api/amc/partner-payments
+
+13.22 AMC PAYMENT DETAILS
+-------------------------
+Endpoint: GET /api/amc/partner-payments/:id
+
+13.23 RELEASE PARTNER PAYMENT
+------------------------------
+Endpoint: POST /api/amc/partner-payments/release
+Body: { "paymentId": 2 }
+
+13.24 GENERATE REPORTS
+----------------------
+Endpoint: GET /api/amc/reports?type=revenue
+
+13.25 LIST AMC NOTIFICATIONS
+----------------------------
+Endpoint: GET /api/amc/notifications
+
+13.26 MARK NOTIFICATIONS AS READ
+--------------------------------
+Endpoint: PUT /api/amc/notifications/mark-read
+
+13.27 GLOBAL AMC SEARCH
+-----------------------
+Endpoint: GET /api/amc/search?q=AMC-TEST
 

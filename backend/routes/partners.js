@@ -628,6 +628,49 @@ router.get('/active', async (req, res) => {
   }
 });
 
+// GET partners dropdown list
+router.get('/dropdown', async (req, res) => {
+  try {
+    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+    
+    // Fetch approved from node partners and Laravel partners in parallel to optimize latency
+    const [
+      [nodeRows],
+      [laravelRows]
+    ] = await Promise.all([
+      db.query('SELECT id, name, mobile FROM partners WHERE isApproved = 1'),
+      db.query(`SELECT id, name, mobile_number AS mobile FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND is_approval = 1`)
+    ]);
+
+    const dropdown = [];
+    nodeRows.forEach(r => {
+      dropdown.push({
+        id: r.id,
+        name: r.name || 'Unknown Partner',
+        mobile: r.mobile || ''
+      });
+    });
+
+    laravelRows.forEach(r => {
+      const displayId = r.id >= 10000000 ? r.id : r.id + 10000000;
+      dropdown.push({
+        id: displayId,
+        name: r.name || 'Unknown Partner',
+        mobile: r.mobile || ''
+      });
+    });
+
+    res.json({
+      success: true,
+      message: 'Partners dropdown retrieved successfully',
+      data: dropdown
+    });
+  } catch (error) {
+    console.error('Error fetching partners dropdown:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch partners dropdown', error: error.message });
+  }
+});
+
 // GET single partner details
 router.get('/:id', async (req, res) => {
   const rawId = parseInt(req.params.id);
