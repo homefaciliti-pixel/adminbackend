@@ -90,8 +90,7 @@ const db = require('../db');
   } catch (err) {
     console.error('❌ Failed to initialize AMC tables:', err.message);
   }
-})();
-
+})()
 
 // ======================================================================
 // Helper Function: Populate Subscription Attributes
@@ -126,15 +125,30 @@ async function populateSubscriptionData(sub) {
   const remainingVisits = Math.max(0, totalVisits - completedVisits);
 
   return {
-    ...sub,
+    id: sub.amcId,
+    amcId: sub.amcId,
     customerName,
+    customerPhone: sub.userPhone,
+    userPhone: sub.userPhone,
+    category: sub.category,
+    planName: sub.planName || 'Premium AMC',
+    price: parseFloat(sub.price),
+    areaSqFt: sub.areaSqFt,
+    floors: sub.floors,
+    houseType: sub.houseType || 'Villa',
+    address: sub.address || 'Jaipur',
+    status: sub.status,
+    startDate: sub.startDate,
+    endDate: sub.endDate,
+    createdAt: sub.startDate,
+    totalVisits,
+    completedVisits,
+    remainingVisits,
     assignedPartner,
     partnerPhone,
-    address: sub.address || 'Jaipur',
-    completedVisits,
-    totalVisits,
-    remainingVisits,
-    expiryDate: sub.endDate
+    photoUrl: sub.photoUrl || null,
+    pdfUrl: sub.pdfUrl || null,
+    fileUrl: sub.fileUrl || null
   };
 }
 
@@ -244,68 +258,86 @@ router.get('/dashboard/recent-activities', async (req, res) => {
 // 2. LIST SUBSCRIPTIONS (STATIC FIRST)
 // ======================================================================
 
-// GET /api/amc/active - Paginated active contracts
+// Helper for filtering & sorting subscriptions
+function buildSubscriptionQuery(baseWhere, queryParams) {
+  const page = parseInt(queryParams.page) || 1;
+  const limit = parseInt(queryParams.limit) || 10;
+  const offset = (page - 1) * limit;
+  const search = queryParams.search || queryParams.q || '';
+  const category = queryParams.category || '';
+  const statusFilter = queryParams.status || '';
+  const dateFilter = queryParams.date || queryParams.startDate || '';
+  
+  // Sorting options: startDate, endDate, createdAt, price
+  let sortBy = 'startDate';
+  if (['endDate', 'createdAt', 'price', 'amcId'].includes(queryParams.sortBy)) {
+    sortBy = queryParams.sortBy === 'createdAt' ? 'startDate' : queryParams.sortBy;
+  }
+  const sortOrder = (queryParams.sortOrder || queryParams.order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+  let query = `SELECT * FROM node_amc_subscriptions WHERE ${baseWhere}`;
+  const params = [];
+
+  if (search) {
+    query += ` AND (amcId LIKE ? OR userPhone LIKE ? OR category LIKE ?)`;
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  if (category) {
+    query += ` AND category = ?`;
+    params.push(category);
+  }
+  if (statusFilter) {
+    query += ` AND status = ?`;
+    params.push(statusFilter);
+  }
+  if (dateFilter) {
+    query += ` AND DATE(startDate) = DATE(?)`;
+    params.push(dateFilter);
+  }
+
+  query += ` ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
+  params.push(limit, offset);
+
+  return { query, params, page, limit };
+}
+
+// GET /api/amc/active - Paginated active contracts with filters & sorting
 router.get('/active', async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-    const search = req.query.search || '';
-    const category = req.query.category || '';
-    
-    let query = `SELECT * FROM node_amc_subscriptions WHERE status = 'active' AND endDate >= NOW()`;
-    const params = [];
-
-    if (search) {
-      query += ` AND (amcId LIKE ? OR userPhone LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`);
-    }
-    if (category) {
-      query += ` AND category = ?`;
-      params.push(category);
-    }
-
-    query += ` ORDER BY startDate DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    const { query, params, page, limit } = buildSubscriptionQuery("status = 'active' AND endDate >= NOW()", req.query);
 
     const [rows] = await db.query(query, params);
-    
     const populated = await Promise.all(rows.map(sub => populateSubscriptionData(sub)));
 
-    res.json({ success: true, message: 'Active subscriptions retrieved successfully', data: populated });
+    res.json({
+      success: true,
+      message: 'Active subscriptions retrieved successfully',
+      page,
+      limit,
+      count: populated.length,
+      data: populated
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to retrieve active subscriptions', error: err.message });
   }
 });
 
-// GET /api/amc/expired - Paginated expired contracts
+// GET /api/amc/expired - Paginated expired contracts with filters & sorting
 router.get('/expired', async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-    const search = req.query.search || '';
-    const category = req.query.category || '';
-    
-    let query = `SELECT * FROM node_amc_subscriptions WHERE status = 'expired' OR endDate < NOW()`;
-    const params = [];
-
-    if (search) {
-      query += ` AND (amcId LIKE ? OR userPhone LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`);
-    }
-    if (category) {
-      query += ` AND category = ?`;
-      params.push(category);
-    }
-
-    query += ` ORDER BY endDate DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    const { query, params, page, limit } = buildSubscriptionQuery("(status = 'expired' OR endDate < NOW())", req.query);
 
     const [rows] = await db.query(query, params);
     const populated = await Promise.all(rows.map(sub => populateSubscriptionData(sub)));
 
-    res.json({ success: true, message: 'Expired subscriptions retrieved successfully', data: populated });
+    res.json({
+      success: true,
+      message: 'Expired subscriptions retrieved successfully',
+      page,
+      limit,
+      count: populated.length,
+      data: populated
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to retrieve expired subscriptions', error: err.message });
   }
@@ -644,15 +676,17 @@ router.get('/search', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Search query q parameter is required' });
     }
 
-    const [subs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId LIKE ? OR userPhone LIKE ? LIMIT 5', [`%${q}%`, `%${q}%`]);
-    const [visits] = await db.query('SELECT * FROM node_amc_visits WHERE amcId LIKE ? OR serviceName LIKE ? LIMIT 5', [`%${q}%`, `%${q}%`]);
+    const [subs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId LIKE ? OR userPhone LIKE ? OR category LIKE ? LIMIT 5', [`%${q}%`, `%${q}%`, `%${q}%`]);
+    const [visits] = await db.query('SELECT * FROM node_amc_visits WHERE amcId LIKE ? OR serviceName LIKE ? OR partnerName LIKE ? LIMIT 5', [`%${q}%`, `%${q}%`, `%${q}%`]);
     const [orders] = await db.query('SELECT * FROM node_orders_v2 WHERE amcId LIKE ? OR serviceName LIKE ? LIMIT 5', [`%${q}%`, `%${q}%`]);
+
+    const populatedSubs = await Promise.all(subs.map(sub => populateSubscriptionData(sub)));
 
     res.json({
       success: true,
       message: 'Global search executed successfully',
       data: {
-        subscriptions: subs,
+        subscriptions: populatedSubs,
         visits: visits,
         orders: orders
       }
@@ -677,23 +711,27 @@ router.get('/:amcId', async (req, res) => {
     }
     
     const sub = rows[0];
+    const populated = await populateSubscriptionData(sub);
 
-    // Customer info
-    let customerName = 'Unknown User';
-    try {
-      const [users] = await db.query('SELECT name FROM node_users_v2 WHERE phone = ? LIMIT 1', [sub.userPhone]);
-      if (users.length > 0 && users[0].name) {
-        customerName = users[0].name;
-      }
-    } catch (e) {}
-
-    // Visits info
+    // Fetch Visits
     const [visits] = await db.query('SELECT * FROM node_amc_visits WHERE amcId = ? ORDER BY scheduledDate ASC, id ASC', [amcId]);
-    const completedVisits = visits.filter(v => v.status === 'completed').length;
-    const totalVisits = sub.totalVisits || 12;
-    const remainingVisits = Math.max(0, totalVisits - completedVisits);
+    
+    // Format recent visits preview list for UI
+    const recentVisits = visits.map((v, index) => ({
+      id: v.id,
+      visitId: v.id,
+      bookingCode: v.bookingCode || `BK000${index + 1}`,
+      visitNumber: `Visit #${index + 1}`,
+      serviceName: v.serviceName,
+      scheduledDate: v.scheduledDate,
+      date: v.scheduledDate,
+      timeSlot: v.timeSlot,
+      partnerName: v.partnerName || 'Pending',
+      partnerPhone: v.partnerPhone || '',
+      status: v.status === 'completed' ? 'completed' : 'upcoming',
+      notes: v.description || v.notes || ''
+    }));
 
-    // Latest partner
     let assignedPartner = {
       partnerName: 'Pending',
       partnerPhone: '',
@@ -708,28 +746,16 @@ router.get('/:amcId', async (req, res) => {
       };
     }
 
-    // Format recent visits preview list for UI
-    const recentVisits = visits.map((v, index) => ({
-      id: v.id,
-      bookingCode: v.bookingCode || `BK000${index + 1}`,
-      visitNumber: `Visit #${index + 1}`,
-      serviceName: v.serviceName,
-      scheduledDate: v.scheduledDate,
-      timeSlot: v.timeSlot,
-      status: v.status === 'completed' ? 'completed' : 'upcoming',
-      notes: v.description || v.notes || ''
-    }));
-
     res.json({
       success: true,
       message: 'Subscription details retrieved successfully',
       data: {
-        ...sub,
-        customerName,
+        ...populated,
         customerInfo: {
-          customerName,
+          customerName: populated.customerName,
           amcId: sub.amcId,
           phone: sub.userPhone,
+          customerPhone: sub.userPhone,
           address: sub.address || 'Jaipur',
           status: (sub.status || 'active').toUpperCase()
         },
@@ -742,16 +768,20 @@ router.get('/:amcId', async (req, res) => {
         },
         subscriptionDetails: {
           plan: sub.planName || 'Premium AMC',
+          planName: sub.planName || 'Premium AMC',
           amount: parseFloat(sub.price),
+          price: parseFloat(sub.price),
           paymentStatus: 'Paid',
           startDate: sub.startDate,
-          expiryDate: sub.endDate
+          expiryDate: sub.endDate,
+          endDate: sub.endDate,
+          createdAt: sub.startDate
         },
         assignedPartner,
         serviceProgress: {
-          completedVisits,
-          totalVisits,
-          remainingVisits
+          completedVisits: populated.completedVisits,
+          totalVisits: populated.totalVisits,
+          remainingVisits: populated.remainingVisits
         },
         recentVisits
       }
@@ -766,20 +796,12 @@ router.get('/:amcId/service-history', async (req, res) => {
   try {
     const { amcId } = req.params;
     
-    // Get subscription info
     const [subs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId = ?', [amcId]);
     if (subs.length === 0) {
       return res.status(404).json({ success: false, message: 'Subscription not found' });
     }
     const sub = subs[0];
-
-    let customerName = 'Unknown User';
-    try {
-      const [users] = await db.query('SELECT name FROM node_users_v2 WHERE phone = ? LIMIT 1', [sub.userPhone]);
-      if (users.length > 0 && users[0].name) {
-        customerName = users[0].name;
-      }
-    } catch (e) {}
+    const populated = await populateSubscriptionData(sub);
 
     // Get ALL visits for timeline (completed, pending, assigned)
     const [visits] = await db.query(`
@@ -788,21 +810,19 @@ router.get('/:amcId/service-history', async (req, res) => {
       ORDER BY scheduledDate ASC, id ASC
     `, [amcId]);
 
-    const completedVisits = visits.filter(v => v.status === 'completed').length;
-    const totalVisits = sub.totalVisits || 12;
-    const remainingVisits = Math.max(0, totalVisits - completedVisits);
-
     const visitsTimeline = visits.map((v, idx) => ({
       id: v.id,
+      visitId: v.id,
       bookingCode: v.bookingCode || `BK000${idx + 1}`,
       serviceName: v.serviceName,
       partnerName: v.partnerName || 'Pending',
       partnerPhone: v.partnerPhone || '',
+      date: v.scheduledDate,
       scheduledDate: v.scheduledDate,
       timeSlot: v.timeSlot,
       notes: v.description || v.notes || 'Routine service visit.',
       rating: v.rating || (v.status === 'completed' ? 5 : 0),
-      status: v.status === 'completed' ? 'completed' : 'upcoming'
+      status: v.status === 'completed' ? 'completed' : (v.status === 'assigned' ? 'assigned' : 'upcoming')
     }));
 
     res.json({
@@ -810,16 +830,17 @@ router.get('/:amcId/service-history', async (req, res) => {
       message: 'Service history retrieved successfully',
       data: {
         customerInfo: {
-          customerName,
+          customerName: populated.customerName,
           phone: sub.userPhone,
+          customerPhone: sub.userPhone,
           amcId: sub.amcId,
           category: sub.category,
           address: sub.address || 'Jaipur'
         },
         visitSummary: {
-          totalVisits,
-          completedVisits,
-          remainingVisits,
+          totalVisits: populated.totalVisits,
+          completedVisits: populated.completedVisits,
+          remainingVisits: populated.remainingVisits,
           expiryDate: sub.endDate
         },
         visitsTimeline,
@@ -871,6 +892,39 @@ router.post('/:amcId/renew', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to renew AMC subscription', error: err.message });
+  }
+});
+
+// PUT /api/amc/:amcId/cancel - Cancel AMC Subscription
+router.put('/:amcId/cancel', async (req, res) => {
+  try {
+    const { amcId } = req.params;
+    const { reason } = req.body;
+
+    const [subs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId = ?', [amcId]);
+    if (subs.length === 0) {
+      return res.status(404).json({ success: false, message: 'Subscription not found' });
+    }
+
+    const noteAppend = reason ? ` [Cancelled: ${reason}]` : ' [Cancelled by Admin]';
+
+    await db.query(`
+      UPDATE node_amc_subscriptions 
+      SET status = 'cancelled', note = CONCAT(COALESCE(note, ''), ?)
+      WHERE amcId = ?
+    `, [noteAppend, amcId]);
+
+    res.json({
+      success: true,
+      message: 'AMC subscription cancelled successfully',
+      data: {
+        amcId,
+        status: 'cancelled',
+        reason: reason || 'No reason provided'
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to cancel AMC subscription', error: err.message });
   }
 });
 

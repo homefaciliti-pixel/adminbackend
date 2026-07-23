@@ -1253,6 +1253,22 @@ Response Example (Status 200 OK):
   "message": "AMC subscription renewed successfully"
 }
 
+13.10 CANCEL AMC SUBSCRIPTION
+-----------------------------
+Endpoint: PUT /api/amc/:amcId/cancel
+Request Body: { "reason": "User requested cancellation" }
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "AMC subscription cancelled successfully",
+  "data": {
+    "amcId": "AMC01318136",
+    "status": "cancelled",
+    "reason": "User requested cancellation"
+  }
+}
+
+
 13.10 BOOK SERVICE VISIT
 ------------------------
 Endpoint: POST /api/amc/:amcId/book-service

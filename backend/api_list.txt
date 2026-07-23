@@ -287,10 +287,11 @@ The following accounts bypass backend authentication and always retain "super_ad
   * GET /api/amc/dashboard/recent-activities - Recent logs (new subscriptions, completed visits, etc.).
 
 - AMC SUBSCRIPTIONS:
-  * GET /api/amc/active - Paginated active contracts list. Query params: page, limit, search, category.
-  * GET /api/amc/expired - Paginated expired contracts list. Query params: page, limit, search, category.
-  * GET /api/amc/:amcId - Single contract details with customer name.
+  * GET /api/amc/active - Paginated active contracts list. Query params: page, limit, search/q, category, status, date/startDate, sortBy (startDate/endDate/createdAt/price), sortOrder (ASC/DESC).
+  * GET /api/amc/expired - Paginated expired contracts list. Query params: page, limit, search/q, category, status, date/startDate, sortBy, sortOrder.
+  * GET /api/amc/:amcId - Complete contract details with customer info, property details, subscription details, price, areaSqFt, floors, dates, visit counts, status, and address.
   * POST /api/amc/:amcId/renew - Renew subscription. Body: { planId, note, price, durationMonths }.
+  * PUT /api/amc/:amcId/cancel - Cancel subscription. Body: { reason }.
 
 - SERVICE BOOKINGS & VISITS:
   * POST /api/amc/:amcId/book-service - Book an AMC service visit (also creates a corresponding general order). Body: { serviceName, scheduledDate, timeSlot, description }.
