@@ -1117,19 +1117,31 @@ Response Example (Status 200 OK):
 13.6 LIST ACTIVE AMC MEMBERSHIPS
 --------------------------------
 Endpoint: GET /api/amc/active
-Query Params: page, limit, search, category
-Description: Returns paginated active subscriptions.
+Query Params: page (default 1), limit (default 10), search (optional string), category (optional string)
+Description: Returns paginated active subscriptions with customer info, address, completed/total visits progress, and assigned partner.
 Response Example (Status 200 OK):
 {
   "success": true,
   "message": "Active subscriptions retrieved successfully",
   "data": [
     {
-      "amcId": "AMC-TEST-999",
-      "userPhone": "+919999999999",
-      "category": "AC Service",
-      "price": "4999.00",
-      "status": "active"
+      "amcId": "AMC001",
+      "userPhone": "9876543210",
+      "category": "Electrical",
+      "areaSqFt": 2400,
+      "floors": 2,
+      "price": "1500.00",
+      "status": "active",
+      "startDate": "2026-07-15T00:00:00.000Z",
+      "endDate": "2027-07-15T00:00:00.000Z",
+      "customerName": "Hira",
+      "assignedPartner": "Rahul",
+      "partnerPhone": "9876543210",
+      "address": "Jaipur",
+      "completedVisits": 2,
+      "totalVisits": 12,
+      "remainingVisits": 10,
+      "expiryDate": "2027-07-15T00:00:00.000Z"
     }
   ]
 }
@@ -1137,15 +1149,86 @@ Response Example (Status 200 OK):
 13.7 SINGLE AMC DETAILS
 -----------------------
 Endpoint: GET /api/amc/:amcId
+Description: Retrieves comprehensive AMC details matching the AMC Details UI screen (customer info, property details, subscription details, assigned partner, visit progress, and recent visits preview).
 Response Example (Status 200 OK):
 {
   "success": true,
-  "message": "Subscription retrieved successfully",
+  "message": "Subscription details retrieved successfully",
   "data": {
-    "amcId": "AMC-TEST-999",
-    "customerName": "Test Client",
-    "userPhone": "+919999999999",
-    "status": "active"
+    "amcId": "AMC001",
+    "userPhone": "9876543210",
+    "category": "Electrical",
+    "areaSqFt": 2400,
+    "floors": 2,
+    "houseType": "Villa",
+    "price": "3500.00",
+    "status": "active",
+    "startDate": "2026-07-15T00:00:00.000Z",
+    "endDate": "2027-07-15T00:00:00.000Z",
+    "customerName": "Hira",
+    "customerInfo": {
+      "customerName": "Hira",
+      "amcId": "AMC001",
+      "phone": "9876543210",
+      "address": "Jaipur",
+      "status": "ACTIVE"
+    },
+    "propertyDetails": {
+      "category": "Electrical",
+      "areaSqFt": 2400,
+      "floors": 2,
+      "houseType": "Villa",
+      "photoUrl": null
+    },
+    "subscriptionDetails": {
+      "plan": "Premium AMC",
+      "amount": 3500.00,
+      "paymentStatus": "Paid",
+      "startDate": "2026-07-15T00:00:00.000Z",
+      "expiryDate": "2027-07-15T00:00:00.000Z"
+    },
+    "assignedPartner": {
+      "partnerName": "Rahul Sharma",
+      "partnerPhone": "9876543210",
+      "isVerified": true
+    },
+    "serviceProgress": {
+      "completedVisits": 2,
+      "totalVisits": 12,
+      "remainingVisits": 10
+    },
+    "recentVisits": [
+      {
+        "id": 1,
+        "bookingCode": "BK0001",
+        "visitNumber": "Visit #1",
+        "serviceName": "Electrical Inspection",
+        "scheduledDate": "2026-07-15",
+        "timeSlot": "10:00 AM",
+        "status": "completed",
+        "notes": "All electrical points checked successfully."
+      },
+      {
+        "id": 2,
+        "bookingCode": "BK0002",
+        "visitNumber": "Visit #2",
+        "serviceName": "Fan Repair",
+        "scheduledDate": "2026-07-28",
+        "timeSlot": "11:30 AM",
+        "status": "completed",
+        "notes": "Fan capacitor replaced."
+      },
+      {
+        "id": 3,
+        "bookingCode": "BK0003",
+        "visitNumber": "Visit #3",
+        "serviceName": "MCB Checking",
+        "scheduledDate": "2026-08-10",
+        "timeSlot": "03:00 PM",
+        "status": "upcoming",
+        "notes": "Routine checkup"
+      }
+    ]
   }
 }
 
@@ -1177,18 +1260,81 @@ Request Body: { "serviceName": "AC Service", "scheduledDate": "2026-07-25", "tim
 Response Example (Status 201 Created):
 {
   "success": true,
-  "message": "AMC Service visit booked successfully"
+  "message": "AMC Service visit booked successfully",
+  "data": {
+    "visitId": 15,
+    "bookingCode": "BK8391",
+    "orderId": 512,
+    "amcId": "AMC001",
+    "serviceName": "AC Service",
+    "scheduledDate": "2026-07-25",
+    "timeSlot": "10:00 AM - 12:00 PM"
+  }
 }
 
-13.11 SERVICE VISITS HISTORY
-----------------------------
+13.11 SERVICE VISITS HISTORY & TIMELINE
+---------------------------------------
 Endpoint: GET /api/amc/:amcId/service-history
+Description: Retrieves full visit summary metrics (total, completed, remaining, expiry) and full visit timeline matching the Service History UI screen.
 Response Example (Status 200 OK):
 {
   "success": true,
   "message": "Service history retrieved successfully",
-  "data": []
+  "data": {
+    "customerInfo": {
+      "customerName": "Hira",
+      "phone": "9876543210",
+      "amcId": "AMC001",
+      "category": "Electrical",
+      "address": "Jaipur"
+    },
+    "visitSummary": {
+      "totalVisits": 12,
+      "completedVisits": 2,
+      "remainingVisits": 10,
+      "expiryDate": "2027-07-15T00:00:00.000Z"
+    },
+    "visitsTimeline": [
+      {
+        "id": 1,
+        "bookingCode": "BK0001",
+        "serviceName": "Electrical Inspection",
+        "partnerName": "Rahul Sharma",
+        "partnerPhone": "9876543210",
+        "scheduledDate": "2026-07-15",
+        "timeSlot": "10:00 AM",
+        "notes": "All electrical points checked successfully.",
+        "rating": 5,
+        "status": "completed"
+      },
+      {
+        "id": 2,
+        "bookingCode": "BK0002",
+        "serviceName": "Fan Repair",
+        "partnerName": "Rahul Sharma",
+        "partnerPhone": "9876543210",
+        "scheduledDate": "2026-07-28",
+        "timeSlot": "11:30 AM",
+        "notes": "Fan capacitor replaced.",
+        "rating": 4,
+        "status": "completed"
+      },
+      {
+        "id": 3,
+        "bookingCode": "BK0003",
+        "serviceName": "MCB Checking",
+        "partnerName": "Pending",
+        "partnerPhone": "",
+        "scheduledDate": "2026-08-10",
+        "timeSlot": "03:00 PM",
+        "notes": "Routine MCB checking",
+        "rating": 0,
+        "status": "upcoming"
+      }
+    ]
+  }
 }
+
 
 13.12 LIST ALL SERVICE VISITS
 -----------------------------
