@@ -193,6 +193,8 @@ async function getAllOrders(req) {
 
     const customerMobile = addrObj.userPhone || r.userPhone || '-';
 
+    const pPhone = r.partnerPhone || partnerMobileMap[r.partnerName] || '';
+
     list.push({
       id: r.id, // Raw database ID directly
       serviceRequestNumber: reqNum,
@@ -204,7 +206,9 @@ async function getAllOrders(req) {
       locality: addrObj.locality || '',
       status: r.status || 'Pending',
       vendorName: r.partnerName || '-',
-      vendorMobile: partnerMobileMap[r.partnerName] || '',
+      vendorMobile: pPhone,
+      partnerPhone: pPhone,
+      partnerMobile: pPhone,
       address: fullAddr,
       createdAt: createdStr,
       paymentMethod: payObj.paymentMethod || 'COD',
@@ -215,6 +219,7 @@ async function getAllOrders(req) {
       customerMobile
     });
   });
+
   laravelOrders.forEach(r => {
     const createdStr = r.created_at 
       ? new Date(r.created_at).toLocaleString('en-US') 
@@ -611,11 +616,19 @@ router.put('/:id/assign', async (req, res) => {
 
     const newStatus = resolvedName === null ? 'Pending' : 'Assigned';
 
+    let resolvedMobile = req.body.vendorPhone || req.body.phone || req.body.mobile || null;
+    if (resolvedName && !resolvedMobile) {
+      const [partners] = await db.query('SELECT mobile FROM partners WHERE name = ?', [resolvedName]);
+      if (partners.length > 0) {
+        resolvedMobile = partners[0].mobile;
+      }
+    }
+
     if (orderSource.source === 'v2') {
       const bStatus = newStatus === 'Pending' ? 'searching' : 'assigned';
       const [result] = await db.query(
-        'UPDATE node_orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
-        [resolvedName, newStatus, bStatus, rawId]
+        'UPDATE node_orders_v2 SET partnerName = ?, partnerPhone = ?, status = ?, bookingStatus = ? WHERE id = ?',
+        [resolvedName, resolvedMobile, newStatus, bStatus, rawId]
       );
       if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
 
@@ -634,19 +647,13 @@ router.put('/:id/assign', async (req, res) => {
       if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
 
     } else {
-      let resolvedMobile = null;
-      if (resolvedName) {
-        const [partners] = await db.query('SELECT mobile FROM partners WHERE name = ?', [resolvedName]);
-        if (partners.length > 0) {
-          resolvedMobile = partners[0].mobile;
-        }
-      }
       const [result] = await db.query(
         'UPDATE orders SET vendorName = ?, vendorMobile = ?, status = ? WHERE id = ?',
         [resolvedName, resolvedMobile, newStatus, rawId]
       );
       if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
     }
+
 
     const list = await getAllOrders(req);
     const updatedOrder = list.find(o => {

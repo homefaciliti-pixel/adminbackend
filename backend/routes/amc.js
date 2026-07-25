@@ -86,6 +86,9 @@ const db = require('../db');
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    // 4. node_orders_v2 column check
+    await safeAddCol('node_orders_v2', 'partnerPhone', 'VARCHAR(20)');
+
     console.log('✅ AMC module database tables initialized successfully.');
   } catch (err) {
     console.error('❌ Failed to initialize AMC tables:', err.message);
@@ -423,9 +426,9 @@ router.post('/orders/assign-partner', async (req, res) => {
     if (orderId) {
       await db.query(`
         UPDATE node_orders_v2 
-        SET partnerName = ?, status = 'Assigned', bookingStatus = 'assigned'
+        SET partnerName = ?, partnerPhone = ?, status = 'Assigned', bookingStatus = 'assigned'
         WHERE id = ?
-      `, [partnerName, orderId]);
+      `, [partnerName, partnerPhone, orderId]);
     }
 
     res.json({ success: true, message: 'Partner assigned successfully' });
@@ -460,9 +463,10 @@ router.put('/orders/:orderId/change-partner', async (req, res) => {
 
     await db.query(`
       UPDATE node_orders_v2 
-      SET partnerName = ?, status = 'Assigned', bookingStatus = 'assigned'
+      SET partnerName = ?, partnerPhone = ?, status = 'Assigned', bookingStatus = 'assigned'
       WHERE id = ?
-    `, [partnerName, orderId]);
+    `, [partnerName, partnerPhone, orderId]);
+
 
     // Sync to visit too
     await db.query(`
