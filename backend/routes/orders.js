@@ -135,6 +135,8 @@ async function getAllOrders(req) {
     const paddedId = String(r.id).padStart(4, '0');
     const reqNum = `#REQ ${orderYear}-${paddedId}`;
 
+    const vMobile = r.vendorMobile || '';
+
     list.push({
       id: r.id,
       serviceRequestNumber: reqNum,
@@ -146,7 +148,11 @@ async function getAllOrders(req) {
       locality: r.locality || '',
       status: r.status || 'Pending',
       vendorName: r.vendorName || '-',
-      vendorMobile: r.vendorMobile || '',
+      partnerName: r.vendorName || '-',
+      vendorMobile: vMobile,
+      partnerPhone: vMobile,
+      partnerMobile: vMobile,
+      vendorPhone: vMobile,
       address: r.address || '',
       createdAt: r.createdAt || '',
       paymentMethod: r.paymentMethod || 'COD',
@@ -154,7 +160,11 @@ async function getAllOrders(req) {
       longitude: r.longitude,
       source: 'Admin Panel (MySQL)',
       customerName: '-',
-      customerMobile: '-'
+      customerMobile: '-',
+      customerPhone: '-',
+      userPhone: '-',
+      phone: '-',
+      mobile: '-'
     });
   });
 
@@ -192,7 +202,6 @@ async function getAllOrders(req) {
     }
 
     const customerMobile = addrObj.userPhone || r.userPhone || '-';
-
     const pPhone = r.partnerPhone || partnerMobileMap[r.partnerName] || '';
 
     list.push({
@@ -206,9 +215,11 @@ async function getAllOrders(req) {
       locality: addrObj.locality || '',
       status: r.status || 'Pending',
       vendorName: r.partnerName || '-',
+      partnerName: r.partnerName || '-',
       vendorMobile: pPhone,
       partnerPhone: pPhone,
       partnerMobile: pPhone,
+      vendorPhone: pPhone,
       address: fullAddr,
       createdAt: createdStr,
       paymentMethod: payObj.paymentMethod || 'COD',
@@ -216,7 +227,11 @@ async function getAllOrders(req) {
       longitude: addrObj.longitude ? parseFloat(addrObj.longitude) : null,
       source: 'User App (MySQL v2)',
       customerName,
-      customerMobile
+      customerMobile,
+      customerPhone: customerMobile,
+      userPhone: customerMobile,
+      phone: customerMobile,
+      mobile: customerMobile
     });
   });
 
@@ -237,6 +252,8 @@ async function getAllOrders(req) {
 
     const paddedId = String(r.id).padStart(4, '0');
     const reqNum = `#REQ ${orderYear}-${paddedId}`;
+    const cMobile = r.customer_mobile || '-';
+    const pPhone = laravelPartnerMobileMap[r.vendor_id] || '';
 
     list.push({
       id: r.id, // Raw database ID directly
@@ -249,7 +266,11 @@ async function getAllOrders(req) {
       locality: '',
       status: r.status || 'Pending',
       vendorName: laravelPartnerNameMap[r.vendor_id] || '-',
-      vendorMobile: laravelPartnerMobileMap[r.vendor_id] || '',
+      partnerName: laravelPartnerNameMap[r.vendor_id] || '-',
+      vendorMobile: pPhone,
+      partnerPhone: pPhone,
+      partnerMobile: pPhone,
+      vendorPhone: pPhone,
       address: r.address || '',
       createdAt: createdStr,
       paymentMethod: r.payment_method || 'COD',
@@ -257,9 +278,14 @@ async function getAllOrders(req) {
       longitude: null,
       source: 'App User (Laravel)',
       customerName: r.customer_name || '-',
-      customerMobile: r.customer_mobile || '-'
+      customerMobile: cMobile,
+      customerPhone: cMobile,
+      userPhone: cMobile,
+      phone: cMobile,
+      mobile: cMobile
     });
   });
+
 
   // Sort by ID descending
   list.sort((a, b) => b.id - a.id);

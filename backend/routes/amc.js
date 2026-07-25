@@ -396,11 +396,62 @@ router.get('/visits/:visitId/images', async (req, res) => {
 // 4. ORDERS INTEGRATION APIS
 // ======================================================================
 
+// Helper to enrich AMC order items with formatted phone numbers and customer details
+async function formatAmcOrder(o) {
+  let addrObj = {};
+  try { addrObj = JSON.parse(o.address || '{}'); } catch (e) {}
+
+  let payObj = {};
+  try { payObj = JSON.parse(o.payment || '{}'); } catch (e) {}
+
+  const cMobile = addrObj.userPhone || addrObj.mobile || o.userPhone || '-';
+  
+  let pPhone = o.partnerPhone || '';
+  if (!pPhone && o.partnerName) {
+    const [partners] = await db.query('SELECT mobile FROM partners WHERE name = ?', [o.partnerName]);
+    if (partners.length > 0) pPhone = partners[0].mobile;
+  }
+
+  const fullAddr = addrObj.houseNo 
+    ? `${addrObj.houseNo}, ${addrObj.society || ''}, ${addrObj.locality || ''}, ${addrObj.city || ''}`.replace(/,\s*,/g, ',').trim()
+    : (o.address || '');
+
+  return {
+    ...o,
+    id: o.id,
+    amcId: o.amcId,
+    serviceName: o.serviceName,
+    price: parseFloat(o.price || 0),
+    serviceAmount: parseFloat(o.price || 0),
+    status: o.status,
+    bookingStatus: o.bookingStatus,
+    customerName: addrObj.name || 'Customer',
+    customerMobile: cMobile,
+    customerPhone: cMobile,
+    userPhone: cMobile,
+    phone: cMobile,
+    mobile: cMobile,
+    partnerName: o.partnerName || '-',
+    partnerPhone: pPhone,
+    partnerMobile: pPhone,
+    vendorName: o.partnerName || '-',
+    vendorMobile: pPhone,
+    vendorPhone: pPhone,
+    address: fullAddr,
+    timeSlot: o.timeSlot,
+    slotTime: o.timeSlot,
+    date: o.date,
+    serviceDate: o.date,
+    createdAt: o.createdAt
+  };
+}
+
 // GET /api/amc/orders - Fetch AMC orders
 router.get('/orders', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM node_orders_v2 WHERE amcId IS NOT NULL ORDER BY id DESC');
-    res.json({ success: true, message: 'AMC orders retrieved successfully', data: rows });
+    const formattedRows = await Promise.all(rows.map(o => formatAmcOrder(o)));
+    res.json({ success: true, message: 'AMC orders retrieved successfully', data: formattedRows });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to retrieve AMC orders', error: err.message });
   }
@@ -445,11 +496,13 @@ router.get('/orders/:orderId', async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'AMC order not found' });
     }
-    res.json({ success: true, message: 'AMC order retrieved successfully', data: rows[0] });
+    const formatted = await formatAmcOrder(rows[0]);
+    res.json({ success: true, message: 'AMC order retrieved successfully', data: formatted });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to retrieve AMC order details', error: err.message });
   }
 });
+
 
 // PUT /api/amc/orders/:orderId/change-partner
 router.put('/orders/:orderId/change-partner', async (req, res) => {
