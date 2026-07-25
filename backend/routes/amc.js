@@ -852,11 +852,11 @@ router.get('/:amcId/service-history', async (req, res) => {
   }
 });
 
-// POST /api/amc/:amcId/renew
+// POST /api/amc/:amcId/renew - Renew AMC Subscription
 router.post('/:amcId/renew', async (req, res) => {
   try {
     const { amcId } = req.params;
-    const { planId, note, price, durationMonths } = req.body;
+    const { planId, planName, note, price, durationMonths } = req.body;
 
     const [subs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId = ?', [amcId]);
     if (subs.length === 0) {
@@ -867,33 +867,43 @@ router.post('/:amcId/renew', async (req, res) => {
     const months = parseInt(durationMonths) || 12;
     const renewPrice = parseFloat(price) || parseFloat(currentSub.price);
 
+    // Calculate new end date based on current end date (if in future) or current date (if expired)
     let baseDate = new Date();
-    if (new Date(currentSub.endDate) > new Date()) {
+    if (currentSub.endDate && new Date(currentSub.endDate) > new Date()) {
       baseDate = new Date(currentSub.endDate);
     }
     baseDate.setMonth(baseDate.getMonth() + months);
-    const newEndDate = baseDate.toISOString().slice(0, 19).replace('T', ' ');
+
+    // Helper for formatting local MySQL DATETIME (YYYY-MM-DD HH:mm:ss)
+    const pad = (n) => String(n).padStart(2, '0');
+    const newEndDateStr = `${baseDate.getFullYear()}-${pad(baseDate.getMonth() + 1)}-${pad(baseDate.getDate())} ${pad(baseDate.getHours())}:${pad(baseDate.getMinutes())}:${pad(baseDate.getSeconds())}`;
+    
+    const nowObj = new Date();
+    const nowStr = `${nowObj.getFullYear()}-${pad(nowObj.getMonth() + 1)}-${pad(nowObj.getDate())} ${pad(nowObj.getHours())}:${pad(nowObj.getMinutes())}:${pad(nowObj.getSeconds())}`;
+
+    const updateNote = note ? `${currentSub.note || ''} [Renewed: ${note}]` : (currentSub.note || '');
+    const newPlanName = planName || currentSub.planName || 'Premium AMC';
 
     await db.query(`
       UPDATE node_amc_subscriptions 
-      SET status = 'active', price = ?, endDate = ?, note = ?
+      SET status = 'active', price = ?, startDate = ?, endDate = ?, note = ?, planName = ?
       WHERE amcId = ?
-    `, [renewPrice, newEndDate, note || currentSub.note, amcId]);
+    `, [renewPrice, nowStr, newEndDateStr, updateNote, newPlanName, amcId]);
+
+    // Fetch updated record
+    const [updatedSubs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId = ?', [amcId]);
+    const populated = await populateSubscriptionData(updatedSubs[0]);
 
     res.json({
       success: true,
-      message: 'AMC subscription renewed successfully',
-      data: {
-        amcId,
-        status: 'active',
-        endDate: newEndDate,
-        price: renewPrice
-      }
+      message: 'AMC subscription renewed successfully and moved to active list',
+      data: populated
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to renew AMC subscription', error: err.message });
   }
 });
+
 
 // PUT /api/amc/:amcId/cancel - Cancel AMC Subscription
 router.put('/:amcId/cancel', async (req, res) => {
