@@ -466,6 +466,159 @@ router.put('/:id/approve', async (req, res) => {
   }
 });
 
+// PUT mark partner as paid
+router.put('/:id/mark-paid', async (req, res) => {
+  const rawId = parseInt(req.params.id);
+  if (isNaN(rawId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Partner ID format' });
+  }
+
+  try {
+    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+    let query, params, selectQuery, selectParams;
+    let partnerPhone = null;
+    let partnerName = 'Partner';
+
+    if (rawId >= 10000000) {
+      const originalId = rawId - 10000000;
+      
+      // Get partner details first
+      const [uRows] = await db.query(`SELECT name, mobile_number FROM \`${dbName}\`.\`users\` WHERE id = ?`, [originalId]);
+      if (uRows.length > 0) {
+        partnerPhone = uRows[0].mobile_number;
+        partnerName = uRows[0].name;
+      }
+
+      // Update Laravel user (mark paid, approve, activate)
+      await db.query(`UPDATE \`${dbName}\`.\`users\` SET payment_status = '1', is_approval = '1', status = 1 WHERE id = ?`, [originalId]);
+      
+      // Sync node_partners if exists
+      if (partnerPhone) {
+        await db.query(`UPDATE partners SET isPaid = 1, isApproved = 1, status = 1 WHERE mobile = ?`, [partnerPhone]);
+      }
+
+      selectQuery = `
+        SELECT 
+          u.id, 
+          u.name, 
+          u.email, 
+          u.mobile_number AS mobile, 
+          s.name AS state, 
+          c.name AS city, 
+          l.name AS locality,
+          u.address, 
+          u.image, 
+          u.status, 
+          u.is_approval AS isApproved, 
+          u.gender, 
+          u.experience, 
+          u.service_id AS services, 
+          u.aadhaar_number AS aadhaarNumber, 
+          u.aadhaar_front_image AS aadharFront, 
+          u.aadhaar_back_image AS aadharBack, 
+          u.pan_number AS panNumber, 
+          u.pan_image AS panImage, 
+          u.bank_name AS bankName, 
+          u.account_number AS accountNumber, 
+          u.ifsc_code AS ifscCode, 
+          u.created_at AS createdAt,
+          u.do_you_have_vehicle AS hasVehicle,
+          u.category_id,
+          u.sub_category_id,
+          u.account_holder_name AS accountHolder,
+          u.payment_status AS isPaid
+        FROM \`${dbName}\`.\`users\` u
+        LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
+        LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
+        LEFT JOIN \`${dbName}\`.\`localities\` l ON u.locality_id = l.id
+        WHERE u.id = ?
+      `;
+      selectParams = [originalId];
+    } else {
+      // Get partner details first
+      const [pRows] = await db.query(`SELECT name, mobile FROM partners WHERE id = ?`, [rawId]);
+      if (pRows.length > 0) {
+        partnerPhone = pRows[0].mobile;
+        partnerName = pRows[0].name;
+      }
+
+      // Update node_partners (mark paid, approve, activate)
+      await db.query('UPDATE partners SET isPaid = 1, isApproved = 1, status = 1 WHERE id = ?', [rawId]);
+
+      // Sync Laravel user if exists
+      if (partnerPhone) {
+        await db.query(`UPDATE \`${dbName}\`.\`users\` SET payment_status = '1', is_approval = '1', status = 1 WHERE mobile_number = ?`, [partnerPhone]);
+      }
+
+      selectQuery = 'SELECT * FROM partners WHERE id = ?';
+      selectParams = [rawId];
+    }
+
+    // Log subscription payment inside node_subscription_earnings
+    const todayStr = new Date().toLocaleDateString('en-IN');
+    const displayId = rawId >= 10000000 ? rawId - 10000000 : rawId;
+    await db.query(
+      `INSERT INTO subscription_earnings (partnerId, partnerName, amount, paymentMethod, purchaseDate, status) 
+       VALUES (?, ?, 500.00, 'Offline', ?, 'Paid')`,
+      [displayId, partnerName, todayStr]
+    );
+
+    const [rows] = await db.query(selectQuery, selectParams);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Partner not found' });
+    }
+    let partner = rows[0];
+
+    if (rawId >= 10000000) {
+      const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
+      const catMap = {};
+      catRows.forEach(row => { catMap[row.id] = row.title; });
+
+      const [serviceRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`services\``);
+      const serviceMap = {};
+      serviceRows.forEach(row => { serviceMap[row.id] = row.title; });
+
+      let mappedServices = '';
+      if (partner.services) {
+        mappedServices = partner.services
+          .split(',')
+          .map(id => serviceMap[id.trim()])
+          .filter(Boolean)
+          .join(',');
+      }
+
+      partner = {
+        ...partner,
+        id: rawId,
+        policeVerificationImage: '',
+        aadhaarImage: partner.aadharFront || '',
+        panImage: partner.panImage || '',
+        password: '',
+        aadharFront: partner.aadharFront || '',
+        aadharBack: partner.aadharBack || '',
+        hasVehicle: (partner.hasVehicle === 1 || partner.hasVehicle === '1') ? 'Yes' : 'No',
+        category: catMap[partner.category_id] || '',
+        subCategory: catMap[partner.sub_category_id] || '',
+        accountHolder: partner.accountHolder || '',
+        isPaid: (partner.isPaid === 1 || partner.isPaid === '1') ? 1 : 0,
+        createdAt: partner.createdAt ? new Date(partner.createdAt).toLocaleDateString('en-IN') : '',
+        services: mappedServices,
+        documents: [partner.aadharFront, partner.aadharBack, partner.panImage].filter(Boolean).join(','),
+        source: 'App Partner (Laravel)'
+      };
+    }
+
+    res.json({
+      success: true,
+      message: 'Partner marked as paid, approved, and transaction logged successfully',
+      data: mapPartner(partner, req)
+    });
+  } catch (error) {
+    console.error('Error marking partner as paid:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark partner as paid', error: error.message });
+  }
+});
+
 // PUT disapprove partner
 router.put('/:id/disapprove', async (req, res) => {
   const rawId = parseInt(req.params.id);

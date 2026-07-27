@@ -39,6 +39,8 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   - Approve partner. Sets isApproved = 1 and status = 1.
 * PUT /api/partners/:id/disapprove
   - Disapprove partner. Sets isApproved = 0.
+* PUT /api/partners/:id/mark-paid
+  - Mark partner as paid, approved, active, sync tables, and log subscription transaction.
 * DELETE /api/partners/:id
   - Delete partner by ID.
 * PUT /api/partners/:id/password
