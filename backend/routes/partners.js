@@ -352,7 +352,7 @@ router.put('/:id/approve', async (req, res) => {
 
     if (rawId >= 10000000) {
       const originalId = rawId - 10000000;
-      query = `UPDATE \`${dbName}\`.\`users\` SET is_approval = '1', status = 1 WHERE id = ?`;
+      query = `UPDATE \`${dbName}\`.\`users\` SET is_approval = '1', status = 1, payment_status = '1' WHERE id = ?`;
       params = [originalId];
 
       const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
@@ -401,7 +401,7 @@ router.put('/:id/approve', async (req, res) => {
       `;
       selectParams = [originalId];
     } else {
-      query = 'UPDATE partners SET isApproved = 1, status = 1 WHERE id = ?';
+      query = 'UPDATE partners SET isApproved = 1, status = 1, isPaid = 1 WHERE id = ?';
       params = [rawId];
       selectQuery = 'SELECT * FROM partners WHERE id = ?';
       selectParams = [rawId];

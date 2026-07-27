@@ -379,13 +379,18 @@ Response Example:
 
 
 ----------------------------------------------------------------------
-5. MANDATORY REGISTRATION PAYMENT & SECURITY (PROTECTED)
+5. REGISTRATION PAYMENT & SECURITY (PROTECTED) - NOW ₹0 (FREE & AUTO-APPROVED)
 ----------------------------------------------------------------------
+
+> [!NOTE]
+> The ₹500 registration payment has been set to ₹0 (free).
+> All new partner registrations and approvals are automatically marked as paid (`isPaid = 1`).
+> These payment endpoints are kept active only for backward compatibility.
 
 5.1 PROCESS ₹500 REGISTRATION FEE PAYMENT
 -----------------------------------------
 Endpoint: POST /api/partner/pay-registration
-Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning. Enforces validation that a transactionId must be provided in the body.
+Description: Submits registration fee details, updates partner's payment status (`isPaid = 1`), and logs the subscription earning. Enforces validation that a transactionId must be provided in the body. (Note: Kept for backward compatibility only; new accounts auto-default to `isPaid = 1`).
 Request Body (JSON):
 {
   "partnerId": 10,

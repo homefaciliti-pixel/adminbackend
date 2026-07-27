@@ -1,0 +1,256 @@
+======================================================================
+UNAPPROVED PARTNERS LIST
+Generated on: 14/7/2026, 3:02:07 pm
+Total Unapproved Partners: 25
+======================================================================
+
+1. ID: 3
+   Name: Sonali Sonawane
+   Mobile: 9819021075
+   Email: sonalideepak4554@gmail.com
+   Category: N/A
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 0
+   Created At: 19-03-2026 02:24 pm
+----------------------------------------------------------------------
+2. ID: 39
+   Name: Naveen Dabi
+   Mobile: 8302333331
+   Email: navindabi1906@gmail.com
+   Category: Electrician
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 8/6/2026
+----------------------------------------------------------------------
+3. ID: 57
+   Name: Active Partner
+   Mobile: 8307511384
+   Email: hy4856155@gmail.com
+   Category: N/A
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: N/A
+----------------------------------------------------------------------
+4. ID: 130
+   Name: Parvej ahmad 
+   Mobile: 9984755560
+   Email: ahmadparvej313@gmail.com
+   Category: Carpenter
+   Paid Status (isPaid): 1
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 1/7/2026
+----------------------------------------------------------------------
+5. ID: 133
+   Name: pinki
+   Mobile: 91999531994
+   Email: plvk@gmail.com
+   Category: Plumber
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 2/7/2026
+----------------------------------------------------------------------
+6. ID: 182
+   Name: puja
+   Mobile: 9199953398
+   Email: pl@gmail.com
+   Category: Plumber
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 7/7/2026
+----------------------------------------------------------------------
+7. ID: 183
+   Name: pallavi
+   Mobile: 9199953392
+   Email: pl@gmail.com
+   Category: Electrician
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 7/7/2026
+----------------------------------------------------------------------
+8. ID: 186
+   Name: pp
+   Mobile: 9199953391
+   Email: plvk@gmail.com
+   Category: Plumber
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 9/7/2026
+----------------------------------------------------------------------
+9. ID: 194
+   Name: Bandoji Rajessh Chary 
+   Mobile: 8790977324
+   Email: rajeshbandoji@gmail.com
+   Category: Pest Control
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 11/7/2026
+----------------------------------------------------------------------
+10. ID: 195
+   Name: Ramesh chand
+   Mobile: 9571914497
+   Email: meramesh981@gmail.com
+   Category: Electrician
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 11/7/2026
+----------------------------------------------------------------------
+11. ID: 196
+   Name: KAMAL Sain 
+   Mobile: 8875566679
+   Email: Kamalsain9957@gmail.com
+   Category: Photographer
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 11/7/2026
+----------------------------------------------------------------------
+12. ID: 198
+   Name: sanjeev Kumar 
+   Mobile: 8700463814
+   Email: sanjeevkumarsharma042@gmail.com
+   Category: AC Repair
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 11/7/2026
+----------------------------------------------------------------------
+13. ID: 199
+   Name: yogesh Sarpota 
+   Mobile: +918209655968
+   Email: yogeshsarpota007@gmail.com
+   Category: Plumber
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 11/7/2026
+----------------------------------------------------------------------
+14. ID: 201
+   Name: vinesh
+   Mobile: 6375044736
+   Email: vineshgurara@gmail.com
+   Category: Plumber
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 11/7/2026
+----------------------------------------------------------------------
+15. ID: 203
+   Name: Pardeep Vaishnav
+   Mobile: +919588910790
+   Email: pardeepvaishnav988@gmail.com
+   Category: Carpenter
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 12/7/2026
+----------------------------------------------------------------------
+16. ID: 205
+   Name: Praveen Kumar Banjara 
+   Mobile: 9024117919
+   Email: banjarapraveenkumar83@gmail.com
+   Category: Cleaning
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+17. ID: 206
+   Name: Durgesh Dukare
+   Mobile: 7498718631
+   Email: durgeshdukare2003@gmail.com
+   Category: Cleaning
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+18. ID: 207
+   Name: Durgesh Dukare
+   Mobile: 917498718631
+   Email: durgeshdukare2003@gmail.com
+   Category: Cleaning
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+19. ID: 208
+   Name: Abdul Razak
+   Mobile: 7435900147
+   Email: abdulrazzak7180360@gmail.com
+   Category: AC Repair
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+20. ID: 209
+   Name: shrvan
+   Mobile: 9119239538
+   Email: shrvanbagriya@gmail.com
+   Category: Plumber
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+21. ID: 211
+   Name: SHAHRUKH KHAN
+   Mobile: 6377580774
+   Email: nagorishahrukh579@gmail.com
+   Category: Iron Works
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+22. ID: 212
+   Name: Rishabh Gurawa
+   Mobile: 8005802647
+   Email: mskart.com@gmail.com
+   Category: Cleaning
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+23. ID: 213
+   Name: imad Uddin 
+   Mobile: 9964211724
+   Email: uddinimad094@gmail.com
+   Category: Cleaning
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+24. ID: 214
+   Name: Deepak Sharma 
+   Mobile: 7688818365
+   Email: Sdeepu0700@gmail.com
+   Category: Contractor
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------
+25. ID: 215
+   Name: Kamal Nayak
+   Mobile: 7230854721
+   Email: kamalnayak7230@gmail.com
+   Category: Photographer
+   Paid Status (isPaid): 0
+   Approved Status (isApproved): 0
+   Status: 1
+   Created At: 13/7/2026
+----------------------------------------------------------------------

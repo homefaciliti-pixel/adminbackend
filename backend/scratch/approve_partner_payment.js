@@ -1,57 +1,31 @@
-const mysql = require('mysql2/promise');
+const db = require('../db');
 
-async function run() {
-  const connection = await mysql.createConnection({
-    host: 'homefaciliti.com',
-    user: 'homef4fw_homefaci',
-    password: 'Xnj3*t%F36RDK+!',
-    database: 'homef4fw_homefaci',
-    port: 3306
-  });
-
-  const phone = '8619945407';
-  const phoneWithPrefix1 = '+918619945407';
-  const phoneWithPrefix2 = '918619945407';
-
+async function main() {
   try {
-    // 1. Check legacy users table
-    const [users] = await connection.query(
-      "SELECT id, name, mobile_number, status, payment_status, is_approval FROM users WHERE mobile_number IN (?, ?, ?)",
-      [phone, phoneWithPrefix1, phoneWithPrefix2]
-    );
-    console.log('Legacy users found:', users);
-
-    if (users.length > 0) {
-      const user = users[0];
-      const [upRes1] = await connection.query(
-        "UPDATE users SET payment_status = 1, is_approval = '1', status = 1 WHERE id = ?",
-        [user.id]
-      );
-      console.log(`Updated legacy users table: ${upRes1.affectedRows} row(s) updated.`);
+    const phone = '8450921692';
+    // 1. Fetch partner details
+    const [rows] = await db.query('SELECT id, name, mobile, isPaid, isApproved, status FROM partners WHERE mobile = ?', [phone]);
+    if (rows.length === 0) {
+      console.log(`No partner found with phone: ${phone}`);
+      process.exit(1);
     }
 
-    // 2. Check partners table
-    const [partners] = await connection.query(
-      "SELECT id, name, mobile, isPaid, isApproved FROM node_partners WHERE mobile IN (?, ?, ?)",
-      [phone, phoneWithPrefix1, phoneWithPrefix2]
-    );
-    console.log('Partners found in node_partners:', partners);
+    const partner = rows[0];
+    console.log('Partner before approval:', partner);
 
-    if (partners.length > 0) {
-      const partner = partners[0];
-      const [upRes2] = await connection.query(
-        "UPDATE node_partners SET isPaid = 1, isApproved = 1, status = 1 WHERE id = ?",
-        [partner.id]
-      );
-      console.log(`Updated node_partners table: ${upRes2.affectedRows} row(s) updated.`);
-    } else {
-      console.log('Partner not in node_partners yet. They will be auto-migrated as paid and approved on their first login.');
-    }
+    // 2. Approve payment (isPaid = 1, isApproved = 1, status = 1)
+    await db.query('UPDATE partners SET isPaid = 1, isApproved = 1, status = 1 WHERE id = ?', [partner.id]);
+    console.log('Update query executed successfully!');
+
+    // 3. Fetch updated partner details
+    const [updatedRows] = await db.query('SELECT id, name, mobile, isPaid, isApproved, status FROM partners WHERE id = ?', [partner.id]);
+    console.log('Partner after approval:', updatedRows[0]);
+
+    process.exit(0);
   } catch (err) {
-    console.error(err);
-  } finally {
-    await connection.end();
+    console.error('Error approving partner payment:', err);
+    process.exit(1);
   }
 }
 
-run();
+main();
