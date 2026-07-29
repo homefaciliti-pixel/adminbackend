@@ -86,6 +86,9 @@ const db = require('../db');
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
+    await safeAddCol('node_amc_partner_payments', 'razorpayPaymentId', 'VARCHAR(100)');
+    await safeAddCol('node_amc_partner_payments', 'razorpayOrderId', 'VARCHAR(100)');
+
     // 4. node_orders_v2 column check
     await safeAddCol('node_orders_v2', 'partnerPhone', 'VARCHAR(20)');
 
@@ -563,10 +566,16 @@ router.put('/orders/:orderId/status', async (req, res) => {
         const [visits] = await db.query('SELECT id, partnerPhone, partnerName FROM node_amc_visits WHERE amcId = ? AND serviceName = ? ORDER BY id DESC LIMIT 1', [order.amcId, order.serviceName]);
         if (visits.length > 0 && visits[0].partnerPhone) {
           const visit = visits[0];
+          
+          // Fetch payment ids from subscription
+          const [subs] = await db.query('SELECT razorpayPaymentId, razorpayOrderId FROM node_amc_subscriptions WHERE amcId = ?', [order.amcId]);
+          const razorpayPaymentId = subs.length > 0 ? subs[0].razorpayPaymentId : null;
+          const razorpayOrderId = subs.length > 0 ? subs[0].razorpayOrderId : null;
+
           await db.query(`
-            INSERT INTO node_amc_partner_payments (visitId, amcId, partnerPhone, partnerName, amount, status)
-            VALUES (?, ?, ?, ?, 350.00, 'pending')
-          `, [visit.id, order.amcId, visit.partnerPhone, visit.partnerName]);
+            INSERT INTO node_amc_partner_payments (visitId, amcId, partnerPhone, partnerName, amount, status, razorpayPaymentId, razorpayOrderId)
+            VALUES (?, ?, ?, ?, 350.00, 'pending', ?, ?)
+          `, [visit.id, order.amcId, visit.partnerPhone, visit.partnerName, razorpayPaymentId, razorpayOrderId]);
         }
       }
     }
@@ -585,8 +594,25 @@ router.put('/orders/:orderId/status', async (req, res) => {
 // GET /api/amc/partner-payments - List partner payments
 router.get('/partner-payments', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM node_amc_partner_payments ORDER BY id DESC');
-    res.json({ success: true, message: 'Partner payments retrieved successfully', data: rows });
+    const [rows] = await db.query(`
+      SELECT p.*, 
+             COALESCE(p.razorpayPaymentId, s.razorpayPaymentId) AS razorpayPaymentId,
+             COALESCE(p.razorpayOrderId, s.razorpayOrderId) AS razorpayOrderId
+      FROM node_amc_partner_payments p
+      LEFT JOIN node_amc_subscriptions s ON p.amcId = s.amcId
+      ORDER BY p.id DESC
+    `);
+
+    const data = rows.map(row => ({
+      ...row,
+      paymentId: row.razorpayPaymentId || null,
+      payment_id: row.razorpayPaymentId || null,
+      razorpayId: row.razorpayOrderId || null,
+      razorpay_id: row.razorpayOrderId || null,
+      rozerpay_id: row.razorpayOrderId || null
+    }));
+
+    res.json({ success: true, message: 'Partner payments retrieved successfully', data });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to retrieve partner payments', error: err.message });
   }
@@ -620,11 +646,30 @@ router.post('/partner-payments/release', async (req, res) => {
 router.get('/partner-payments/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await db.query('SELECT * FROM node_amc_partner_payments WHERE id = ?', [id]);
+    const [rows] = await db.query(`
+      SELECT p.*, 
+             COALESCE(p.razorpayPaymentId, s.razorpayPaymentId) AS razorpayPaymentId,
+             COALESCE(p.razorpayOrderId, s.razorpayOrderId) AS razorpayOrderId
+      FROM node_amc_partner_payments p
+      LEFT JOIN node_amc_subscriptions s ON p.amcId = s.amcId
+      WHERE p.id = ?
+    `, [id]);
+
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Payment record not found' });
     }
-    res.json({ success: true, message: 'Payment record retrieved successfully', data: rows[0] });
+
+    const row = rows[0];
+    const data = {
+      ...row,
+      paymentId: row.razorpayPaymentId || null,
+      payment_id: row.razorpayPaymentId || null,
+      razorpayId: row.razorpayOrderId || null,
+      razorpay_id: row.razorpayOrderId || null,
+      rozerpay_id: row.razorpayOrderId || null
+    };
+
+    res.json({ success: true, message: 'Payment record retrieved successfully', data });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to retrieve payment record', error: err.message });
   }
@@ -992,6 +1037,43 @@ router.put('/:amcId/cancel', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Failed to cancel AMC subscription', error: err.message });
+  }
+});
+
+// PUT /api/amc/:amcId/mark-paid - Mark AMC Subscription as Paid (Active)
+router.put('/:amcId/mark-paid', async (req, res) => {
+  try {
+    const { amcId } = req.params;
+
+    const [subs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId = ?', [amcId]);
+    if (subs.length === 0) {
+      return res.status(404).json({ success: false, message: 'Subscription not found' });
+    }
+
+    const sub = subs[0];
+    if (sub.status === 'active') {
+      return res.status(400).json({ success: false, message: 'Subscription is already active' });
+    }
+
+    const noteAppend = ' [Paid Offline: Verified by Admin]';
+    await db.query(`
+      UPDATE node_amc_subscriptions 
+      SET status = 'active', 
+          note = CONCAT(COALESCE(note, ''), ?),
+          razorpayPaymentId = COALESCE(razorpayPaymentId, 'OFFLINE_ADMIN')
+      WHERE amcId = ?
+    `, [noteAppend, amcId]);
+
+    const [updatedSubs] = await db.query('SELECT * FROM node_amc_subscriptions WHERE amcId = ?', [amcId]);
+    const populated = await populateSubscriptionData(updatedSubs[0]);
+
+    res.json({
+      success: true,
+      message: 'AMC subscription marked as paid and activated successfully',
+      data: populated
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Failed to mark AMC subscription as paid', error: err.message });
   }
 });
 

@@ -294,6 +294,7 @@ The following accounts bypass backend authentication and always retain "super_ad
   * GET /api/amc/:amcId - Complete contract details with customer info, property details, subscription details, price, areaSqFt, floors, dates, visit counts, status, and address.
   * POST /api/amc/:amcId/renew - Renew subscription. Body: { planId, note, price, durationMonths }.
   * PUT /api/amc/:amcId/cancel - Cancel subscription. Body: { reason }.
+  * PUT /api/amc/:amcId/mark-paid - Mark subscription as paid and active.
 
 - SERVICE BOOKINGS & VISITS:
   * POST /api/amc/:amcId/book-service - Book an AMC service visit (also creates a corresponding general order). Body: { serviceName, scheduledDate, timeSlot, description }.
