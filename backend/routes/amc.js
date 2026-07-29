@@ -605,11 +605,11 @@ router.get('/partner-payments', async (req, res) => {
 
     const data = rows.map(row => ({
       ...row,
-      paymentId: row.razorpayPaymentId || null,
-      payment_id: row.razorpayPaymentId || null,
-      razorpayId: row.razorpayOrderId || null,
-      razorpay_id: row.razorpayOrderId || null,
-      rozerpay_id: row.razorpayOrderId || null
+      paymentId: row.id,
+      payment_id: row.id,
+      razorpayId: row.id,
+      razorpay_id: row.id,
+      rozerpay_id: row.id
     }));
 
     res.json({ success: true, message: 'Partner payments retrieved successfully', data });
@@ -662,11 +662,11 @@ router.get('/partner-payments/:id', async (req, res) => {
     const row = rows[0];
     const data = {
       ...row,
-      paymentId: row.razorpayPaymentId || null,
-      payment_id: row.razorpayPaymentId || null,
-      razorpayId: row.razorpayOrderId || null,
-      razorpay_id: row.razorpayOrderId || null,
-      rozerpay_id: row.razorpayOrderId || null
+      paymentId: row.id,
+      payment_id: row.id,
+      razorpayId: row.id,
+      razorpay_id: row.id,
+      rozerpay_id: row.id
     };
 
     res.json({ success: true, message: 'Payment record retrieved successfully', data });
