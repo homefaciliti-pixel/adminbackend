@@ -274,9 +274,26 @@ const getFilteredBookingsList = async (partner) => {
   const dismissedAdminIds = new Set(dismissedRows.filter(r => r.source === 'admin').map(r => r.bookingId));
 
   // 2. Fetch assigned and pending bookings
-  const [v2A] = await db.query(`SELECT * FROM orders_v2 WHERE partnerName=? ORDER BY id DESC`,[partnerName]);
+  const partnerMobile = partner.mobile || '';
+  const partnerMobileWithCode = (partner.countryCode || '+91') + partnerMobile;
+
+  const [v2A] = await db.query(
+    `SELECT * FROM orders_v2 
+     WHERE partnerName = ? 
+        OR partnerPhone = ? 
+        OR partnerPhone = ? 
+     ORDER BY id DESC`,
+    [partnerName, partnerMobile, partnerMobileWithCode]
+  );
   const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
-  const [adA] = await db.query(`SELECT * FROM orders WHERE vendorName=? ORDER BY id DESC`,[partnerName]);
+  const [adA] = await db.query(
+    `SELECT * FROM orders 
+     WHERE vendorName = ? 
+        OR vendorMobile = ? 
+        OR vendorMobile = ? 
+     ORDER BY id DESC`,
+    [partnerName, partnerMobile, partnerMobileWithCode]
+  );
   const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
 
   const serviceMap = await getServiceMap();

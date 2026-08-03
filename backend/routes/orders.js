@@ -24,8 +24,8 @@ function getDistance(lat1, lon1, lat2, lon2) {
 }
 
 // Helper: Resolve partner name from phone number
-async function resolveVendorName(vendorName, vendorPhone, phone, mobile) {
-  let targetPhone = vendorPhone || phone || mobile;
+async function resolveVendorName(vendorName, vendorPhone, phone, mobile, vendorMobile) {
+  let targetPhone = vendorPhone || phone || mobile || vendorMobile;
   let lookupName = vendorName || '';
 
   if (!targetPhone && lookupName && /^\+?\d{10,15}$/.test(String(lookupName).trim())) {
@@ -42,6 +42,7 @@ async function resolveVendorName(vendorName, vendorPhone, phone, mobile) {
 
   return (lookupName === '' || lookupName === '-') ? null : lookupName;
 }
+
 
 // Helper: Sequentially lookup an order ID to find which table it belongs to
 async function findOrderSource(orderId) {
@@ -348,7 +349,7 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid Order ID format' });
   }
   
-  const { status, vendorName, slotTime, serviceDate, city, locality, address } = req.body;
+  const { status, vendorName, vendorMobile, slotTime, serviceDate, city, locality, address } = req.body;
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
   try {
@@ -374,13 +375,13 @@ router.put('/:id', async (req, res) => {
     }
 
     let resolvedName = null;
-    let resolvedMobile = null;
-    const hasVendorUpdate = (vendorName !== undefined || req.body.vendorPhone !== undefined || req.body.phone !== undefined || req.body.mobile !== undefined);
+    let resolvedMobile = req.body.vendorPhone || req.body.phone || req.body.mobile || req.body.vendorMobile || null;
+    const hasVendorUpdate = (vendorName !== undefined || req.body.vendorPhone !== undefined || req.body.phone !== undefined || req.body.mobile !== undefined || req.body.vendorMobile !== undefined);
 
     if (hasVendorUpdate) {
       try {
-        resolvedName = await resolveVendorName(vendorName, req.body.vendorPhone, req.body.phone, req.body.mobile);
-        if (resolvedName) {
+        resolvedName = await resolveVendorName(vendorName, req.body.vendorPhone, req.body.phone, req.body.mobile, req.body.vendorMobile);
+        if (resolvedName && !resolvedMobile) {
           const [partners] = await db.query('SELECT mobile FROM partners WHERE name = ?', [resolvedName]);
           if (partners.length > 0) {
             resolvedMobile = partners[0].mobile;
@@ -624,7 +625,7 @@ router.put('/:id/assign', async (req, res) => {
   if (isNaN(rawId)) {
     return res.status(400).json({ success: false, message: 'Invalid Order ID format' });
   }
-  const { vendorName, vendorPhone, phone, mobile } = req.body;
+  const { vendorName, vendorPhone, phone, mobile, vendorMobile } = req.body;
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
   try {
@@ -635,14 +636,14 @@ router.put('/:id/assign', async (req, res) => {
 
     let resolvedName = null;
     try {
-      resolvedName = await resolveVendorName(vendorName, vendorPhone, phone, mobile);
+      resolvedName = await resolveVendorName(vendorName, vendorPhone, phone, mobile, vendorMobile);
     } catch (err) {
       return res.status(404).json({ success: false, message: err.message });
     }
 
     const newStatus = resolvedName === null ? 'Pending' : 'Assigned';
 
-    let resolvedMobile = req.body.vendorPhone || req.body.phone || req.body.mobile || null;
+    let resolvedMobile = req.body.vendorPhone || req.body.phone || req.body.mobile || req.body.vendorMobile || null;
     if (resolvedName && !resolvedMobile) {
       const [partners] = await db.query('SELECT mobile FROM partners WHERE name = ?', [resolvedName]);
       if (partners.length > 0) {
