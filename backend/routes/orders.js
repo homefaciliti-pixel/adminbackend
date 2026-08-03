@@ -33,7 +33,19 @@ async function resolveVendorName(vendorName, vendorPhone, phone, mobile, vendorM
   }
 
   if (targetPhone) {
-    const [partners] = await db.query('SELECT name FROM partners WHERE mobile = ?', [targetPhone]);
+    let cleanedPhone = String(targetPhone).trim().replace(/\s+/g, '');
+    if (cleanedPhone.startsWith('+91') && cleanedPhone.length === 13) {
+      cleanedPhone = cleanedPhone.substring(3);
+    } else if (cleanedPhone.startsWith('91') && cleanedPhone.length === 12) {
+      cleanedPhone = cleanedPhone.substring(2);
+    } else if (cleanedPhone.startsWith('+')) {
+      cleanedPhone = cleanedPhone.replace('+', '');
+    }
+
+    const [partners] = await db.query(
+      'SELECT name FROM partners WHERE mobile = ? OR mobile = ? OR CONCAT(countryCode, mobile) = ?',
+      [cleanedPhone, targetPhone, targetPhone]
+    );
     if (partners.length === 0) {
       throw new Error(`No partner found with phone number: ${targetPhone}`);
     }
@@ -392,6 +404,17 @@ router.put('/:id', async (req, res) => {
       }
     }
 
+    if (resolvedMobile) {
+      let cleaned = String(resolvedMobile).trim().replace(/\s+/g, '');
+      if (cleaned.startsWith('+91') && cleaned.length === 13) {
+        resolvedMobile = cleaned.substring(3);
+      } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+        resolvedMobile = cleaned.substring(2);
+      } else if (cleaned.startsWith('+')) {
+        resolvedMobile = cleaned.replace('+', '');
+      }
+    }
+
     if (orderSource.source === 'v2') {
       // It is a node_orders_v2 order
       const fields = [];
@@ -648,6 +671,17 @@ router.put('/:id/assign', async (req, res) => {
       const [partners] = await db.query('SELECT mobile FROM partners WHERE name = ?', [resolvedName]);
       if (partners.length > 0) {
         resolvedMobile = partners[0].mobile;
+      }
+    }
+
+    if (resolvedMobile) {
+      let cleaned = String(resolvedMobile).trim().replace(/\s+/g, '');
+      if (cleaned.startsWith('+91') && cleaned.length === 13) {
+        resolvedMobile = cleaned.substring(3);
+      } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+        resolvedMobile = cleaned.substring(2);
+      } else if (cleaned.startsWith('+')) {
+        resolvedMobile = cleaned.replace('+', '');
       }
     }
 
