@@ -42,10 +42,22 @@ async function resolveVendorName(vendorName, vendorPhone, phone, mobile, vendorM
       cleanedPhone = cleanedPhone.replace('+', '');
     }
 
-    const [partners] = await db.query(
+    let [partners] = await db.query(
       'SELECT name FROM partners WHERE mobile = ? OR mobile = ? OR CONCAT(countryCode, mobile) = ?',
       [cleanedPhone, targetPhone, targetPhone]
     );
+
+    if (partners.length === 0) {
+      const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+      const [laravelRows] = await db.query(
+        `SELECT name FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND (mobile_number = ? OR mobile_number = ? OR mobile_number = ?)`,
+        [cleanedPhone, targetPhone, `+91${cleanedPhone}`]
+      );
+      if (laravelRows.length > 0) {
+        partners = laravelRows;
+      }
+    }
+
     if (partners.length === 0) {
       throw new Error(`No partner found with phone number: ${targetPhone}`);
     }
