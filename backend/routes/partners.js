@@ -177,8 +177,19 @@ function mapPartner(r, req) {
 // GET all partners (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
-    const { name, mobile, city, state, date, status, isApproved } = req.query;
+    const { name, mobile, city, state, date, status, isApproved, search, category, locality, paymentStatus, isPaid, payment } = req.query;
     let list = await getAllPartners();
+
+    // 1. General search (Search Name / Mobile / Partner ID)
+    const searchVal = (search || req.query.q || req.query.query || '').trim().toLowerCase();
+    if (searchVal !== '') {
+      list = list.filter(p => 
+        (p.name && p.name.toLowerCase().includes(searchVal)) ||
+        (p.mobile && p.mobile.toLowerCase().includes(searchVal)) ||
+        (p.id && String(p.id).toLowerCase().includes(searchVal)) ||
+        (p.email && p.email.toLowerCase().includes(searchVal))
+      );
+    }
 
     if (name) {
       const q = name.toLowerCase();
@@ -196,10 +207,28 @@ router.get('/', async (req, res) => {
       const q = state.toLowerCase();
       list = list.filter(p => p.state && p.state.toLowerCase().includes(q));
     }
+    if (locality) {
+      const q = locality.toLowerCase();
+      list = list.filter(p => p.locality && p.locality.toLowerCase().includes(q));
+    }
+    if (category) {
+      const q = category.toLowerCase();
+      list = list.filter(p => p.category && p.category.toLowerCase().includes(q));
+    }
     if (date) {
       const q = date.toLowerCase();
       list = list.filter(p => p.createdAt && p.createdAt.toLowerCase().includes(q));
     }
+
+    // Payment status filter (Paid, Unpaid, all)
+    const payVal = (paymentStatus || isPaid || payment || '').trim().toLowerCase();
+    if (payVal !== '' && payVal !== 'all') {
+      list = list.filter(p => {
+        const pStatus = (p.isPaid === 1 || p.isPaid === '1' || p.isPaid === true || p.isPaid === 'Paid') ? 'paid' : 'unpaid';
+        return pStatus === payVal;
+      });
+    }
+
     if (status !== undefined) {
       const statusVal = (status === 'true' || status === '1' || status === true);
       list = list.filter(p => (p.status === statusVal));
@@ -298,10 +327,21 @@ router.get('/search', async (req, res) => {
 // GET pending approval partners
 router.get('/pending', async (req, res) => {
   try {
-    const { name, mobile, city, state, date, status } = req.query;
+    const { name, mobile, city, state, date, status, search, category, locality, paymentStatus, isPaid, payment } = req.query;
     let list = await getAllPartners();
 
     list = list.filter(p => !p.isApproved);
+
+    // 1. General search (Search Name / Mobile / Partner ID)
+    const searchVal = (search || req.query.q || req.query.query || '').trim().toLowerCase();
+    if (searchVal !== '') {
+      list = list.filter(p => 
+        (p.name && p.name.toLowerCase().includes(searchVal)) ||
+        (p.mobile && p.mobile.toLowerCase().includes(searchVal)) ||
+        (p.id && String(p.id).toLowerCase().includes(searchVal)) ||
+        (p.email && p.email.toLowerCase().includes(searchVal))
+      );
+    }
 
     if (name) {
       const q = name.toLowerCase();
@@ -319,10 +359,28 @@ router.get('/pending', async (req, res) => {
       const q = state.toLowerCase();
       list = list.filter(p => p.state && p.state.toLowerCase().includes(q));
     }
+    if (locality) {
+      const q = locality.toLowerCase();
+      list = list.filter(p => p.locality && p.locality.toLowerCase().includes(q));
+    }
+    if (category) {
+      const q = category.toLowerCase();
+      list = list.filter(p => p.category && p.category.toLowerCase().includes(q));
+    }
     if (date) {
       const q = date.toLowerCase();
       list = list.filter(p => p.createdAt && p.createdAt.toLowerCase().includes(q));
     }
+
+    // Payment status filter (Paid, Unpaid, all)
+    const payVal = (paymentStatus || isPaid || payment || '').trim().toLowerCase();
+    if (payVal !== '' && payVal !== 'all') {
+      list = list.filter(p => {
+        const pStatus = (p.isPaid === 1 || p.isPaid === '1' || p.isPaid === true || p.isPaid === 'Paid') ? 'paid' : 'unpaid';
+        return pStatus === payVal;
+      });
+    }
+
     if (status !== undefined) {
       const statusVal = (status === 'true' || status === '1' || status === true);
       list = list.filter(p => (p.status === statusVal));
