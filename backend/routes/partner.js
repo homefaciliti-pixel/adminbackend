@@ -1348,6 +1348,45 @@ function sendSMS(phone, otp) {
   });
 }
 
+// Helper to send a custom transactional SMS (non-OTP) to a customer
+async function sendCustomerSMS(phone, messageText, customDltId) {
+  const apiKey = process.env.SMS_API_KEY || process.env.FAST2SMS_API_KEY || 'b395HRZTRUGZThPOeRSnVg';
+  const senderId = process.env.SMS_SENDER_ID || 'HMFCLI';
+  const entityId = process.env.SMS_ENTITY_ID || '1201173444411453897';
+  const dltTemplateId = customDltId || process.env.SMS_DLT_TEMPLATE_ID_ASSIGN || process.env.SMS_DLT_TEMPLATE_ID || '1207173589889308632';
+
+  let formattedPhone = String(phone).trim();
+  if (formattedPhone.startsWith('+')) formattedPhone = formattedPhone.slice(1);
+  if (formattedPhone.length === 10) formattedPhone = '91' + formattedPhone;
+
+  try {
+    const queryParams = new URLSearchParams({
+      APIKey: apiKey,
+      senderid: senderId,
+      channel: '2',
+      DCS: '0',
+      flashsms: '0',
+      number: formattedPhone,
+      text: messageText,
+      route: '2',
+      EntityId: entityId,
+      dlttemplateid: dltTemplateId
+    }).toString();
+
+    const url = `https://www.smsgatewayhub.com/api/mt/SendSMS?${queryParams}`;
+    console.log('[Customer SMS] Sending notification to', formattedPhone);
+
+    const response = await fetch(url);
+    const rawText = await response.text();
+    console.log('[Customer SMS] Response:', rawText);
+    return true;
+  } catch (err) {
+    console.error('[Customer SMS] Failed:', err.message);
+    return false;
+  }
+}
+
+
 // POST /api/auth/send-otp - Generate and send OTP (inserts into `otps` table)
 router.post('/auth/send-otp', async (req, res) => {
   const { phone, type, countryCode } = req.body;
@@ -2282,6 +2321,19 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
       'UPDATE orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
       [partnerName, 'Assigned', 'assigned', id]
     );
+
+    // Send assignment notification SMS to the customer
+    try {
+      const customerPhone = order.userPhone || '';
+      if (customerPhone) {
+        const partnerMobile = req.partner.mobile || '';
+        const assignMsg = `Dear Customer, your order #${order.id || id} has been accepted by ${partnerName} (Mobile: ${partnerMobile}). They will be at your location at the scheduled time. Thank You, Super Home`;
+        const assignDltId = process.env.SMS_DLT_TEMPLATE_ID_ASSIGN || '1207173589889308632';
+        await sendCustomerSMS(customerPhone, assignMsg, assignDltId);
+      }
+    } catch (smsErr) {
+      console.error('[Customer SMS] Assignment SMS failed (non-critical):', smsErr.message);
+    }
 
     res.json({ success: true, message: 'Order accepted successfully!' });
   } catch (error) {
