@@ -845,6 +845,7 @@ router.get('/active', async (req, res) => {
     console.error('Error fetching active partners:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch active partners', error: error.message });
   }
+});
 // GET partner filter options (unique categories, states, cities, localities with dependencies)
 router.get('/filter-options', async (req, res) => {
   try {
