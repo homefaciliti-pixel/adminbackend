@@ -845,6 +845,63 @@ router.get('/active', async (req, res) => {
     console.error('Error fetching active partners:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch active partners', error: error.message });
   }
+// GET partner filter options (unique categories, states, cities, localities with dependencies)
+router.get('/filter-options', async (req, res) => {
+  try {
+    const { state, city } = req.query;
+    const allPartners = await getAllPartners();
+
+    const categoriesSet = new Set();
+    const statesSet = new Set();
+    const citiesSet = new Set();
+    const localitiesSet = new Set();
+
+    allPartners.forEach(p => {
+      const pCategory = p.category ? p.category.trim() : '';
+      const pState = p.state ? p.state.trim() : '';
+      const pCity = p.city ? p.city.trim() : '';
+      const pLocality = p.locality ? p.locality.trim() : '';
+
+      if (pCategory) categoriesSet.add(pCategory);
+      if (pState) statesSet.add(pState);
+
+      let matchState = true;
+      if (state && state.trim() !== '') {
+        matchState = (pState.toLowerCase() === state.trim().toLowerCase());
+      }
+
+      let matchCity = true;
+      if (city && city.trim() !== '') {
+        matchCity = (pCity.toLowerCase() === city.trim().toLowerCase());
+      }
+
+      if (matchState) {
+        if (pCity) citiesSet.add(pCity);
+      }
+
+      if (matchState && matchCity) {
+        if (pLocality) localitiesSet.add(pLocality);
+      }
+    });
+
+    const categories = Array.from(categoriesSet).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const states = Array.from(statesSet).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const cities = Array.from(citiesSet).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const localities = Array.from(localitiesSet).filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+    res.json({
+      success: true,
+      data: {
+        categories,
+        states,
+        cities,
+        localities
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching partner filter options:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch partner filter options', error: error.message });
+  }
 });
 
 // GET partners dropdown list
