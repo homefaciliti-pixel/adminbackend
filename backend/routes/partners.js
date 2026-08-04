@@ -849,7 +849,6 @@ router.get('/active', async (req, res) => {
 
 // GET /checkout-api/:phone — Fetch checkout data for a user based on their phone and last booked productId
 // Called by the Flutter user app (checkout_screen.dart) to populate the checkout page.
-// FIX: Uses exact-match first to prevent fuzzy matching from returning the wrong service.
 router.get('/checkout-api/:phone', async (req, res) => {
   try {
     const phone = req.params.phone;
@@ -859,7 +858,7 @@ router.get('/checkout-api/:phone', async (req, res) => {
     const [users] = await db.query('SELECT * FROM node_users_v2 WHERE phone = ?', [phone]);
     const user = users[0] || { name: '', phone, email: '', walletBalance: 0 };
 
-    // 2. Fetch the last order for this user to get real product info
+    // 2. Fetch the last order for this user to get context
     const [lastOrders] = await db.query(
       `SELECT * FROM node_orders_v2 WHERE userPhone = ? ORDER BY id DESC LIMIT 1`,
       [phone]
@@ -874,52 +873,45 @@ router.get('/checkout-api/:phone', async (req, res) => {
     let orderId = 0;
     let razorpayOrderId = 'order_' + Math.random().toString(36).substring(2, 15);
 
-    // If there is a recent order for this user, use that data
-    if (lastOrders.length > 0) {
-      const lastOrder = lastOrders[0];
-      orderId = lastOrder.id;
-      productTitle = lastOrder.serviceName || productTitle;
-      productPrice = parseFloat(lastOrder.price) || productPrice;
-      productDate = lastOrder.date || productDate;
-      productTimeSlot = lastOrder.timeSlot || '';
-      productDescription = lastOrder.description || 'Professional Home Service';
-
-      // Try to enrich image from services table
-      const [svcRows] = await db.query('SELECT * FROM services WHERE title = ? LIMIT 1', [productTitle]);
-      if (svcRows.length > 0) {
-        productImage = svcRows[0].image || '';
-        if (!productDescription || productDescription === 'Professional Home Service') {
-          productDescription = svcRows[0].description || 'Professional Home Service';
-        }
-      }
-    } else if (productId) {
-      // No recent order — look up service by productId (exact match first, then partial)
+    // 3. Always look up service info if productId is provided
+    if (productId) {
       const [services] = await db.query('SELECT * FROM services');
       const cleanTitle = productId.toLowerCase().trim();
 
-      // STEP 1: exact match
+      // Exact match
       let matched = services.find(s => (s.title || '').toLowerCase().trim() === cleanTitle);
-
-      // STEP 2: starts-with match
+      
+      // Partial matches
       if (!matched) {
         matched = services.find(s => (s.title || '').toLowerCase().trim().startsWith(cleanTitle) || cleanTitle.startsWith((s.title || '').toLowerCase().trim()));
       }
-
-      // STEP 3: contains match (fallback only)
       if (!matched) {
         matched = services.find(s => {
           const t = (s.title || '').toLowerCase().trim();
-          // Only match if the overlap is significant (>50% of either string)
           return cleanTitle.includes(t) && t.length >= 4;
         });
       }
 
       if (matched) {
-        productPrice = parseInt(matched.price) || 499;
+        productPrice = parseFloat(matched.price) || 499;
         productTitle = matched.title;
         productDescription = matched.description || 'Professional Home Service';
         productImage = matched.image || '';
       }
+    } else if (lastOrders.length > 0) {
+      // Fallback to last order if no productId
+      const lastOrder = lastOrders[0];
+      productTitle = lastOrder.serviceName || productTitle;
+      productPrice = parseFloat(lastOrder.price) || productPrice;
+      productDescription = lastOrder.description || 'Professional Home Service';
+    }
+
+    // 4. Fill in order context from last order if exists
+    if (lastOrders.length > 0) {
+      const lastOrder = lastOrders[0];
+      orderId = lastOrder.id;
+      productDate = lastOrder.date || productDate;
+      productTimeSlot = lastOrder.timeSlot || '';
     }
 
     // Resolve address from last order if available
