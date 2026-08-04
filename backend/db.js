@@ -19,7 +19,7 @@ const pool = mysql.createPool({
 const dbHost = process.env.DB_HOST !== undefined ? process.env.DB_HOST : 'homefaciliti.com';
 const tablePrefix = process.env.DB_PREFIX !== undefined 
   ? process.env.DB_PREFIX 
-  : (dbHost === 'homefaciliti.com' ? 'node_' : '');
+  : (dbHost === 'homefaciliti.com' || dbHost === '162.241.116.166' || process.env.DB_USER === 'homef4fw_homefaci' ? 'node_' : '');
 
 if (tablePrefix) {
   console.log(`🔧 SQL Table prefixing active: prepending "${tablePrefix}" to table names.`);
