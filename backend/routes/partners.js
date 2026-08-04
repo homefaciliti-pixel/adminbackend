@@ -76,6 +76,8 @@ async function getAllPartners() {
   nodeRows.forEach(r => {
     all.push({
       ...r,
+      isApproved: r.isApproved === 1 || r.isApproved === true,
+      status: r.status === 1 || r.status === true,
       source: 'Admin Partner (MySQL)'
     });
   });
@@ -93,6 +95,8 @@ async function getAllPartners() {
     all.push({
       ...r,
       id: r.id + 10000000, // Offset Laravel IDs by 10,000,000
+      isApproved: r.isApproved === 1 || r.isApproved === '1' || r.isApproved === true,
+      status: r.status === 1 || r.status === '1' || r.status === true,
       policeVerificationImage: '',
       aadhaarImage: r.aadharFront || '',
       panImage: r.panImage || '',
