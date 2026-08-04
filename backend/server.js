@@ -528,6 +528,19 @@ server.use('/api/admins', adminsRouter);
 server.use('/api/amc', amcRouter);
 server.use('/api', partnerRouter);
 
+// Compatibility route: the Flutter user app calls /api/checkout-api/:phone
+// The actual handler lives in partnersRouter at /api/partners/checkout-api/:phone
+// This forward ensures both URLs work without a Flutter app update.
+server.get('/api/checkout-api/:phone', (req, res, next) => {
+  const qs = Object.keys(req.query).length
+    ? '?' + new URLSearchParams(req.query).toString()
+    : '';
+  req.url = '/checkout-api/' + req.params.phone + qs;
+  partnersRouter(req, res, next);
+});
+
+
+
 // Android App Links / assetlinks.json route
 server.get('/.well-known/assetlinks.json', (req, res) => {
   const package_name = process.env.APP_PACKAGE_NAME || 'com.homefaciliti.partner';
