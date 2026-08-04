@@ -29,6 +29,10 @@ Base URL: https://partner-backend-2.onrender.com/api (Local: http://localhost:50
   - Fetch all partners (includes 'countryCode' field). Optional query params: 'search', 'name', 'mobile', 'category', 'state', 'city', 'locality', 'paymentStatus' / 'isPaid' / 'payment', 'status', 'isApproved'.
 * GET /api/partners/pending
   - Fetch partners pending approval (isApproved = 0). Includes 'isPaid' status ('Paid' or 'Unpaid'). Supports the same query parameters as GET /api/partners.
+* GET /api/partners/filter-options
+  - Fetch unique, non-empty, trimmed, and alphabetically sorted categories, states, cities, and localities options. Supports dependent query parameters:
+    - ?state=Rajasthan -> limits cities and localities to Rajasthan
+    - ?state=Rajasthan&city=Jaipur -> limits localities to Jaipur
 * GET /api/partners/:id
   - Fetch details of a single partner by ID.
 * POST /api/partners
