@@ -30,6 +30,8 @@ async function getAllPartners() {
         s.name AS state, 
         c.name AS city, 
         l.name AS locality,
+        cat.title AS categoryName,
+        subcat.title AS subCategoryName,
         u.address, 
         u.image, 
         u.status, 
@@ -55,6 +57,8 @@ async function getAllPartners() {
       LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
       LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
       LEFT JOIN \`${dbName}\`.\`localities\` l ON u.locality_id = l.id
+      LEFT JOIN \`${dbName}\`.\`categories\` cat ON u.category_id = cat.id
+      LEFT JOIN \`${dbName}\`.\`categories\` subcat ON u.sub_category_id = subcat.id
       WHERE u.role_id = 2
     `),
     db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``),
@@ -104,8 +108,8 @@ async function getAllPartners() {
       aadharFront: r.aadharFront || '',
       aadharBack: r.aadharBack || '',
       hasVehicle: (r.hasVehicle === 1 || r.hasVehicle === '1') ? 'Yes' : 'No',
-      category: catMap[r.category_id] || '',
-      subCategory: catMap[r.sub_category_id] || '',
+      category: r.categoryName || '',
+      subCategory: r.subCategoryName || '',
       accountHolder: r.accountHolder || '',
       isPaid: (r.isPaid === 1 || r.isPaid === '1') ? 1 : 0,
       createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : '',
