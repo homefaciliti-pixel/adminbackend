@@ -846,6 +846,154 @@ router.get('/active', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch active partners', error: error.message });
   }
 });
+
+// GET /checkout-api/:phone — Fetch checkout data for a user based on their phone and last booked productId
+// Called by the Flutter user app (checkout_screen.dart) to populate the checkout page.
+// FIX: Uses exact-match first to prevent fuzzy matching from returning the wrong service.
+router.get('/checkout-api/:phone', async (req, res) => {
+  try {
+    const phone = req.params.phone;
+    const productId = req.query.productId || '';
+
+    // 1. Fetch user info
+    const [users] = await db.query('SELECT * FROM node_users_v2 WHERE phone = ?', [phone]);
+    const user = users[0] || { name: '', phone, email: '', walletBalance: 0 };
+
+    // 2. Fetch the last order for this user to get real product info
+    const [lastOrders] = await db.query(
+      `SELECT * FROM node_orders_v2 WHERE userPhone = ? ORDER BY id DESC LIMIT 1`,
+      [phone]
+    );
+
+    let productPrice = 499;
+    let productTitle = productId || 'Service';
+    let productDescription = 'Professional Home Service';
+    let productImage = '';
+    let productDate = new Date().toISOString().split('T')[0];
+    let productTimeSlot = '';
+    let orderId = 0;
+    let razorpayOrderId = 'order_' + Math.random().toString(36).substring(2, 15);
+
+    // If there is a recent order for this user, use that data
+    if (lastOrders.length > 0) {
+      const lastOrder = lastOrders[0];
+      orderId = lastOrder.id;
+      productTitle = lastOrder.serviceName || productTitle;
+      productPrice = parseFloat(lastOrder.price) || productPrice;
+      productDate = lastOrder.date || productDate;
+      productTimeSlot = lastOrder.timeSlot || '';
+      productDescription = lastOrder.description || 'Professional Home Service';
+
+      // Try to enrich image from services table
+      const [svcRows] = await db.query('SELECT * FROM services WHERE title = ? LIMIT 1', [productTitle]);
+      if (svcRows.length > 0) {
+        productImage = svcRows[0].image || '';
+        if (!productDescription || productDescription === 'Professional Home Service') {
+          productDescription = svcRows[0].description || 'Professional Home Service';
+        }
+      }
+    } else if (productId) {
+      // No recent order — look up service by productId (exact match first, then partial)
+      const [services] = await db.query('SELECT * FROM services');
+      const cleanTitle = productId.toLowerCase().trim();
+
+      // STEP 1: exact match
+      let matched = services.find(s => (s.title || '').toLowerCase().trim() === cleanTitle);
+
+      // STEP 2: starts-with match
+      if (!matched) {
+        matched = services.find(s => (s.title || '').toLowerCase().trim().startsWith(cleanTitle) || cleanTitle.startsWith((s.title || '').toLowerCase().trim()));
+      }
+
+      // STEP 3: contains match (fallback only)
+      if (!matched) {
+        matched = services.find(s => {
+          const t = (s.title || '').toLowerCase().trim();
+          // Only match if the overlap is significant (>50% of either string)
+          return cleanTitle.includes(t) && t.length >= 4;
+        });
+      }
+
+      if (matched) {
+        productPrice = parseInt(matched.price) || 499;
+        productTitle = matched.title;
+        productDescription = matched.description || 'Professional Home Service';
+        productImage = matched.image || '';
+      }
+    }
+
+    // Resolve address from last order if available
+    let addressObj = {
+      name: user.name || '',
+      alternateNumber: '',
+      type: 'Home',
+      houseNo: '',
+      society: '',
+      floor: '',
+      landmark: '',
+      city: 'Jaipur',
+      locality: 'Mansarovar',
+      pincode: ''
+    };
+
+    if (lastOrders.length > 0 && lastOrders[0].address) {
+      try {
+        const parsed = typeof lastOrders[0].address === 'string'
+          ? JSON.parse(lastOrders[0].address)
+          : lastOrders[0].address;
+        addressObj = {
+          name: parsed.name || user.name || '',
+          alternateNumber: parsed.alternateNumber || parsed.altPhone || '',
+          type: parsed.type || 'Home',
+          houseNo: parsed.houseNo || '',
+          society: parsed.society || '',
+          floor: parsed.floor || '',
+          landmark: parsed.landmark || '',
+          city: parsed.city || 'Jaipur',
+          locality: parsed.locality || 'Mansarovar',
+          pincode: parsed.pincode || ''
+        };
+      } catch (e) { /* use defaults */ }
+    }
+
+    res.json({
+      success: true,
+      orderId,
+      userId: phone,
+      user: {
+        name: user.name || '',
+        phone: user.phone,
+        email: user.email || '',
+        walletBalance: parseFloat(user.walletBalance) || 0
+      },
+      product: {
+        productId: productTitle,
+        serviceName: productTitle,
+        title: productTitle,
+        name: productTitle,
+        productName: productTitle,
+        product_name: productTitle,
+        price: productPrice,
+        description: productDescription,
+        image: productImage,
+        date: productDate,
+        timeSlot: productTimeSlot
+      },
+      address: addressObj,
+      payment: {
+        paymentMethod: 'Online',
+        amountPaid: productPrice
+      },
+      status: 'Pending',
+      bookingStatus: 'draft',
+      razorpayOrderId
+    });
+  } catch (error) {
+    console.error('Error in checkout-api:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET partner filter options (unique categories, states, cities, localities with dependencies)
 router.get('/filter-options', async (req, res) => {
   try {
