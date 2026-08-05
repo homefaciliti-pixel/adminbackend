@@ -274,27 +274,80 @@ const getFilteredBookingsList = async (partner) => {
   const dismissedAdminIds = new Set(dismissedRows.filter(r => r.source === 'admin').map(r => r.bookingId));
 
   // 2. Fetch assigned and pending bookings
-  const partnerMobile = partner.mobile || '';
-  const partnerMobileWithCode = (partner.countryCode || '+91') + partnerMobile;
+  const pNameClean = (partner.name || '').trim();
+  const pMobileClean = (partner.mobile || '').trim().replace(/\s+/g, '');
+  const pMobileNoCode = pMobileClean.replace(/^\+?91/, '');
+  const pMobileWithCode = pMobileClean.startsWith('+91') ? pMobileClean : (pMobileClean.startsWith('91') ? '+' + pMobileClean : '+91' + pMobileClean);
 
   const [v2A] = await db.query(
     `SELECT * FROM orders_v2 
-     WHERE partnerName = ? 
-        OR partnerPhone = ? 
-        OR partnerPhone = ? 
+     WHERE (partnerName IS NOT NULL AND partnerName != '' AND (
+        TRIM(LOWER(partnerName)) = LOWER(?) OR
+        LOWER(?) LIKE CONCAT('%', TRIM(LOWER(partnerName)), '%') OR
+        TRIM(LOWER(partnerName)) LIKE CONCAT('%', LOWER(?), '%')
+     ))
+     OR (partnerPhone IS NOT NULL AND partnerPhone != '' AND (partnerPhone = ? OR partnerPhone = ? OR partnerPhone = ? OR REPLACE(partnerPhone, '+91', '') = ?))
      ORDER BY id DESC`,
-    [partnerName, partnerMobile, partnerMobileWithCode]
+    [pNameClean, pNameClean, pNameClean, pMobileClean, pMobileWithCode, pMobileNoCode, pMobileNoCode]
   );
   const [v2P] = await db.query(`SELECT * FROM orders_v2 WHERE (status='Pending' OR bookingStatus='searching') AND (partnerName IS NULL OR partnerName='') ORDER BY id DESC`);
   const [adA] = await db.query(
     `SELECT * FROM orders 
-     WHERE vendorName = ? 
-        OR vendorMobile = ? 
-        OR vendorMobile = ? 
+     WHERE (vendorName IS NOT NULL AND vendorName != '' AND vendorName != '-' AND (
+        TRIM(LOWER(vendorName)) = LOWER(?) OR
+        LOWER(?) LIKE CONCAT('%', TRIM(LOWER(vendorName)), '%') OR
+        TRIM(LOWER(vendorName)) LIKE CONCAT('%', LOWER(?), '%')
+     ))
+     OR (vendorMobile IS NOT NULL AND vendorMobile != '' AND vendorMobile != '-' AND (vendorMobile = ? OR vendorMobile = ? OR vendorMobile = ? OR REPLACE(vendorMobile, '+91', '') = ?))
      ORDER BY id DESC`,
-    [partnerName, partnerMobile, partnerMobileWithCode]
+    [pNameClean, pNameClean, pNameClean, pMobileClean, pMobileWithCode, pMobileNoCode, pMobileNoCode]
   );
   const [adP] = await db.query(`SELECT * FROM orders WHERE status='Pending' AND (vendorName IS NULL OR vendorName='-' OR vendorName='') ORDER BY id DESC`);
+
+  // Fetch Laravel assigned order_items
+  const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+  let laravelPartnerId = partner.id >= 10000000 ? (partner.id - 10000000) : partner.id;
+  let larA = [];
+  try {
+    const [larRows] = await db.query(
+      `SELECT oi.*, o.user_id AS order_user_id, o.payment_method, o.address AS full_address, o.pincode, s.title AS service_name, v.name AS variant_name
+       FROM \`${dbName}\`.\`order_items\` oi
+       LEFT JOIN \`${dbName}\`.\`orders\` o ON oi.order_id = o.id
+       LEFT JOIN \`${dbName}\`.\`services\` s ON oi.service_id = s.id
+       LEFT JOIN \`${dbName}\`.\`variants\` v ON oi.variant_id = v.id
+       WHERE oi.vendor_id = ? OR oi.vendor_id = ?
+       ORDER BY oi.id DESC`,
+      [partner.id, laravelPartnerId]
+    );
+    larA = larRows;
+  } catch (err) {
+    console.error('Error fetching Laravel order_items:', err.message);
+  }
+
+  function mapLaravel(o) {
+    const s = (o.status || '').toLowerCase();
+    let st = (s === 'completed' || s === 'delivered') ? 'completed'
+           : (s === 'cancelled' || s === 'rejected' || s === 'cancel') ? 'cancel'
+           : (s === 'in progress' || s === 'in_progress' || s === 'accepted' || s === 'assigned') ? 'accepted'
+           : 'pending';
+    return {
+      id: parseInt(o.id) + 10000000,
+      status: st,
+      service: o.service_name || 'Home Service',
+      date: o.date || (o.created_at ? new Date(o.created_at).toISOString().split('T')[0] : ''),
+      time: o.time || o.slot_time || '',
+      serviceAmount: parseFloat(o.price || o.amount || 0),
+      serviceRequestNumber: `LAR-${o.id}`,
+      address: o.full_address || o.address || '',
+      city: o.city || '',
+      locality: o.locality || '',
+      customerName: 'Customer',
+      customerPhone: '',
+      latitude: null,
+      longitude: null,
+      source: 'laravel'
+    };
+  }
 
   const serviceMap = await getServiceMap();
 
@@ -306,7 +359,8 @@ const getFilteredBookingsList = async (partner) => {
     ...v2A.map(mapV2),
     ...v2P.filter(r => !v2Ids.has(r.id) && !dismissedAppIds.has(r.id) && nearbyV2(r) && partnerMatchesBooking(partner, r, serviceMap)).map(mapV2),
     ...adA.map(mapAdmin),
-    ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r) && partnerMatchesBooking(partner, r, serviceMap)).map(mapAdmin)
+    ...adP.filter(r => !adIds.has(r.id) && !dismissedAdminIds.has(r.id) && nearbyAdmin(r) && partnerMatchesBooking(partner, r, serviceMap)).map(mapAdmin),
+    ...larA.map(mapLaravel)
   ];
 
   // 4. Apply common date/time filters
@@ -2169,36 +2223,37 @@ router.get('/partner/pay-redirect', async (req, res) => {
 
 // -------------------------------------------------------------
 // BOOKING / ORDERS ENDPOINTS (PROTECTED)
-// -----------------------------------------------// GET /api/bookings - Get list of bookings for the partner (returns empty if unapproved or unpaid)
+// -----------------------------------------------// GET /api/bookings - Get list of bookings for the partner
 router.get('/bookings', authenticatePartner, async (req, res) => {
-  // RULE: Dashboard shows BLANK until partner has paid AND is approved
-  if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
-    return res.json([]);
-  }
-
-  const filterStatus = req.query.status;
+  const filterStatus = (req.query.status || '').toLowerCase().trim();
 
   try {
     const allFiltered = await getFilteredBookingsList(req.partner);
 
+    // If partner is not paid or not approved, only return explicitly assigned/accepted orders
+    let eligible = allFiltered;
+    if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
+      eligible = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'completed');
+    }
+
     let final = [];
-    if (filterStatus === 'upcoming') {
-      final = allFiltered.filter(b => b.status === 'pending');
+    if (filterStatus === 'upcoming' || filterStatus === 'assigned' || filterStatus === 'accepted') {
+      final = eligible.filter(b => b.status === 'pending' || b.status === 'accepted' || b.status === 'assigned');
     } else if (filterStatus === 'in_progress') {
-      final = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress');
+      final = eligible.filter(b => b.status === 'accepted' || b.status === 'in_progress');
     } else if (filterStatus === 'completed') {
-      final = allFiltered.filter(b => b.status === 'completed');
-    } else if (filterStatus === 'cancel') {
-      final = allFiltered.filter(b => b.status === 'cancel');
+      final = eligible.filter(b => b.status === 'completed');
+    } else if (filterStatus === 'cancel' || filterStatus === 'cancelled') {
+      final = eligible.filter(b => b.status === 'cancel');
     } else if (filterStatus === 'amc') {
-      final = allFiltered.filter(b => b.status === 'amc');
+      final = eligible.filter(b => b.status === 'amc');
     } else {
       // All
-      final = allFiltered;
+      final = eligible;
     }
 
     // Sort newest first
-    final.sort((a,b)=>parseInt(String(b.id).split('_').pop())-parseInt(String(a.id).split('_').pop()));
+    final.sort((a, b) => parseInt(String(b.id).split('_').pop()) - parseInt(String(a.id).split('_').pop()));
     res.json(final);
   } catch (error) {
     console.error('Error fetching partner bookings:', error);
@@ -2208,31 +2263,23 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
 
 
 
-// GET /api/bookings/stats - Stats summary (returns zeros if unapproved or unpaid)
+// GET /api/bookings/stats - Stats summary
 router.get('/bookings/stats', authenticatePartner, async (req, res) => {
-  // RULE: Dashboard stats show ZERO until partner has paid AND is approved by the admin
-  if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
-    return res.json({
-      totalBooking: 0,
-      upcomingBooking: 0,
-      inProgressBooking: 0,
-      acceptedBooking: 0,
-      completedBooking: 0,
-      cancelBooking: 0,
-      amcBooking: 0
-    });
-  }
-
   try {
     const allFiltered = await getFilteredBookingsList(req.partner);
 
-    const total = allFiltered.length;
-    const upcoming = allFiltered.filter(b => b.status === 'pending').length;
-    const accepted = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
-    const inProgress = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
-    const completed = allFiltered.filter(b => b.status === 'completed').length;
-    const cancel = allFiltered.filter(b => b.status === 'cancel').length;
-    const amc = allFiltered.filter(b => b.status === 'amc').length;
+    let eligible = allFiltered;
+    if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
+      eligible = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'completed');
+    }
+
+    const total = eligible.length;
+    const upcoming = eligible.filter(b => b.status === 'pending' || b.status === 'accepted' || b.status === 'assigned').length;
+    const accepted = eligible.filter(b => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'assigned').length;
+    const inProgress = eligible.filter(b => b.status === 'accepted' || b.status === 'in_progress').length;
+    const completed = eligible.filter(b => b.status === 'completed').length;
+    const cancel = eligible.filter(b => b.status === 'cancel').length;
+    const amc = eligible.filter(b => b.status === 'amc').length;
 
     res.json({
       totalBooking: total,

@@ -679,11 +679,53 @@ router.put('/:id/assign', async (req, res) => {
     const newStatus = resolvedName === null ? 'Pending' : 'Assigned';
 
     let resolvedMobile = req.body.vendorPhone || req.body.phone || req.body.mobile || req.body.vendorMobile || null;
+
+    // 1. If we have name but missing phone, lookup phone
     if (resolvedName && !resolvedMobile) {
-      const [partners] = await db.query('SELECT mobile FROM partners WHERE name = ?', [resolvedName]);
+      resolvedName = String(resolvedName).trim();
+      const [partners] = await db.query(
+        'SELECT name, mobile FROM partners WHERE TRIM(LOWER(name)) = TRIM(LOWER(?)) OR TRIM(LOWER(name)) LIKE CONCAT("%", TRIM(LOWER(?)), "%")',
+        [resolvedName, resolvedName]
+      );
       if (partners.length > 0) {
         resolvedMobile = partners[0].mobile;
+        resolvedName = partners[0].name; // Use canonical name from DB
+      } else {
+        const [laravelRows] = await db.query(
+          `SELECT name, mobile_number AS mobile FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND (TRIM(LOWER(name)) = TRIM(LOWER(?)) OR TRIM(LOWER(name)) LIKE CONCAT("%", TRIM(LOWER(?)), "%"))`,
+          [resolvedName, resolvedName]
+        );
+        if (laravelRows.length > 0) {
+          resolvedMobile = laravelRows[0].mobile;
+          resolvedName = laravelRows[0].name;
+        }
       }
+    }
+
+    // 2. If we have phone but missing name, lookup name
+    if (resolvedMobile && !resolvedName) {
+      let cleanedPhone = String(resolvedMobile).trim().replace(/\s+/g, '').replace(/^\+?91/, '');
+      const [partners] = await db.query(
+        'SELECT name, mobile FROM partners WHERE mobile = ? OR mobile = ? OR CONCAT(countryCode, mobile) = ?',
+        [cleanedPhone, resolvedMobile, resolvedMobile]
+      );
+      if (partners.length > 0) {
+        resolvedName = partners[0].name;
+        resolvedMobile = partners[0].mobile;
+      } else {
+        const [laravelRows] = await db.query(
+          `SELECT name, mobile_number AS mobile FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND (mobile_number = ? OR mobile_number = ? OR mobile_number = ?)`,
+          [cleanedPhone, resolvedMobile, `+91${cleanedPhone}`]
+        );
+        if (laravelRows.length > 0) {
+          resolvedName = laravelRows[0].name;
+          resolvedMobile = laravelRows[0].mobile;
+        }
+      }
+    }
+
+    if (resolvedName) {
+      resolvedName = String(resolvedName).trim();
     }
 
     if (resolvedMobile) {
@@ -708,7 +750,10 @@ router.put('/:id/assign', async (req, res) => {
     } else if (orderSource.source === 'laravel') {
       let laravelVendorId = null;
       if (resolvedName) {
-        const [laravelRows] = await db.query(`SELECT id FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND name = ?`, [resolvedName]);
+        const [laravelRows] = await db.query(
+          `SELECT id FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND TRIM(LOWER(name)) = TRIM(LOWER(?))`,
+          [resolvedName]
+        );
         if (laravelRows.length > 0) {
           laravelVendorId = laravelRows[0].id;
         }
