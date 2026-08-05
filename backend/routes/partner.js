@@ -281,12 +281,15 @@ const getFilteredBookingsList = async (partner) => {
 
   const [v2A] = await db.query(
     `SELECT * FROM orders_v2 
-     WHERE (partnerName IS NOT NULL AND partnerName != '' AND (
-        TRIM(LOWER(partnerName)) = LOWER(?) OR
-        LOWER(?) LIKE CONCAT('%', TRIM(LOWER(partnerName)), '%') OR
-        TRIM(LOWER(partnerName)) LIKE CONCAT('%', LOWER(?), '%')
-     ))
-     OR (partnerPhone IS NOT NULL AND partnerPhone != '' AND (partnerPhone = ? OR partnerPhone = ? OR partnerPhone = ? OR REPLACE(partnerPhone, '+91', '') = ?))
+     WHERE LOWER(COALESCE(status, '')) NOT IN ('draft', 'cancelled', 'canceled')
+     AND (
+       (partnerName IS NOT NULL AND partnerName != '' AND (
+          TRIM(LOWER(partnerName)) = LOWER(?) OR
+          LOWER(?) LIKE CONCAT('%', TRIM(LOWER(partnerName)), '%') OR
+          TRIM(LOWER(partnerName)) LIKE CONCAT('%', LOWER(?), '%')
+       ))
+       OR (partnerPhone IS NOT NULL AND partnerPhone != '' AND (partnerPhone = ? OR partnerPhone = ? OR partnerPhone = ? OR REPLACE(partnerPhone, '+91', '') = ?))
+     )
      ORDER BY id DESC`,
     [pNameClean, pNameClean, pNameClean, pMobileClean, pMobileWithCode, pMobileNoCode, pMobileNoCode]
   );
@@ -2230,10 +2233,11 @@ router.get('/bookings', authenticatePartner, async (req, res) => {
   try {
     const allFiltered = await getFilteredBookingsList(req.partner);
 
-    // If partner is not paid or not approved, only return explicitly assigned/accepted orders
+    // If partner is not paid or not approved, only return explicitly assigned/accepted/in_progress/completed orders
+    // Note: 'accepted' = mapped from 'Assigned' DB status, so newly assigned orders always show
     let eligible = allFiltered;
     if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
-      eligible = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'completed');
+      eligible = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'completed' || b.status === 'cancel');
     }
 
     let final = [];
@@ -2270,7 +2274,7 @@ router.get('/bookings/stats', authenticatePartner, async (req, res) => {
 
     let eligible = allFiltered;
     if (req.partner.isPaid !== 1 || req.partner.isApproved !== 1) {
-      eligible = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'completed');
+      eligible = allFiltered.filter(b => b.status === 'accepted' || b.status === 'in_progress' || b.status === 'completed' || b.status === 'cancel');
     }
 
     const total = eligible.length;
