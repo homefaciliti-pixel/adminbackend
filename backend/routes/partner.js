@@ -2364,13 +2364,13 @@ router.post('/bookings/:id/accept', authenticatePartner, async (req, res) => {
       }
     }
 
-    if (order.partnerName && order.partnerName !== '' && order.partnerName.toLowerCase() !== partnerName.toLowerCase()) {
+    if (order.partnerName && order.partnerName !== '' && order.partnerName.trim().toLowerCase() !== partnerName.trim().toLowerCase()) {
       return res.status(400).json({ error: 'Order already accepted by another partner' });
     }
 
     await db.query(
       'UPDATE orders_v2 SET partnerName = ?, status = ?, bookingStatus = ? WHERE id = ?',
-      [partnerName, 'Assigned', 'assigned', id]
+      [partnerName.trim(), 'Assigned', 'assigned', id]
     );
 
     // Send assignment notification SMS to the customer
@@ -3368,7 +3368,7 @@ router.post('/bookings/:id/start', authenticatePartner, async (req, res) => {
 
     const order = rows[0];
     const vendorNameField = isV2 ? order.partnerName : order.vendorName;
-    if ((vendorNameField || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
+    if ((vendorNameField || '').trim().toLowerCase() !== (partnerName || '').trim().toLowerCase()) {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
@@ -3453,7 +3453,7 @@ router.post('/bookings/:id/complete', authenticatePartner, async (req, res) => {
 
     const order = rows[0];
     const vendorNameField = isV2 ? order.partnerName : order.vendorName;
-    if ((vendorNameField || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
+    if ((vendorNameField || '').trim().toLowerCase() !== (partnerName || '').trim().toLowerCase()) {
       return res.status(403).json({ error: 'You are not assigned to this booking' });
     }
 
