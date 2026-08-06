@@ -2591,7 +2591,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
 
       // Check authorization
       const isUnassigned = !order.partnerName || order.partnerName === '';
-      if ((order.partnerName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
+      if ((order.partnerName || '').trim().toLowerCase() !== (partnerName || '').trim().toLowerCase() && !isUnassigned) {
         return res.status(403).json({ error: 'You do not have access to view this booking' });
       }
 
@@ -2653,7 +2653,7 @@ router.get('/bookings/:id', authenticatePartner, async (req, res) => {
 
       // Check authorization
       const isUnassigned = !order.vendorName || order.vendorName === '-' || order.vendorName === '';
-      if ((order.vendorName || '').toLowerCase() !== (partnerName || '').toLowerCase() && !isUnassigned) {
+      if ((order.vendorName || '').trim().toLowerCase() !== (partnerName || '').trim().toLowerCase() && !isUnassigned) {
         return res.status(403).json({ error: 'You do not have access to view this booking' });
       }
 
@@ -2755,7 +2755,7 @@ router.put('/bookings/:id/status', authenticatePartner, async (req, res) => {
 
     const order = orders[0];
     const vendorNameField = isV2 ? order.partnerName : order.vendorName;
-    if ((vendorNameField || '').toLowerCase() !== (partnerName || '').toLowerCase()) {
+    if ((vendorNameField || '').trim().toLowerCase() !== (partnerName || '').trim().toLowerCase()) {
       return res.status(403).json({ error: 'You are not authorized to update this booking' });
     }
 
