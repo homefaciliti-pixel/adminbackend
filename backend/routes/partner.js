@@ -803,6 +803,9 @@ async function authenticatePartner(req, res, next) {
     }
     
     req.partner = rows[0];
+    // Always trim name and mobile to prevent trailing-space mismatches
+    if (req.partner.name) req.partner.name = req.partner.name.trim();
+    if (req.partner.mobile) req.partner.mobile = req.partner.mobile.trim();
 
     next();
   } catch (err) {
