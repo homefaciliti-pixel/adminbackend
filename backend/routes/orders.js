@@ -322,12 +322,21 @@ async function getAllOrders(req) {
 // GET /api/orders  — List all orders (admin panel)
 // ─────────────────────────────────────────────
 router.get('/', async (req, res) => {
-  try {
-    const list = await getAllOrders(req);
-    res.json({ success: true, data: list });
-  } catch (error) {
-    console.error('Error fetching orders:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch orders', error: error.message });
+  let retries = 2;
+  while (retries >= 0) {
+    try {
+      const list = await getAllOrders(req);
+      return res.json({ success: true, data: list });
+    } catch (error) {
+      if (retries > 0 && (error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET' || error.code === 'PROTOCOL_CONNECTION_LOST')) {
+        console.warn(`Orders fetch timeout, retrying... (${retries} retries left)`);
+        retries--;
+        await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
+      } else {
+        console.error('Error fetching orders:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch orders', error: error.message });
+      }
+    }
   }
 });
 

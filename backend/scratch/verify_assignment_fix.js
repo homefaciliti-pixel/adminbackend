@@ -1,80 +1,62 @@
-const mysql = require('mysql2/promise');
+const db = require('../db');
 
-async function run() {
-  const connection = await mysql.createConnection({
-    host: 'homefaciliti.com',
-    user: 'homef4fw_homefaci',
-    password: 'Xnj3*t%F36RDK+!',
-    database: 'homef4fw_homefaci',
-    port: 3306
-  });
-
+async function testAssignmentFix() {
   try {
-    const orderId = 608;
-    const vendorMobile = '+919875787616';
-    const vendorName = 'Vikash Sharma';
+    const [partners] = await db.query("SELECT * FROM partners WHERE mobile IN ('7626873570', '9653853414', '7892409858', '7597816095') OR name LIKE '%Pawan%'");
+    console.log(`Testing ${partners.length} partners...`);
 
-    console.log(`Assigning Order ${orderId} to ${vendorName} with input mobile (${vendorMobile})...`);
+    for (const p of partners) {
+      console.log(`\n--------------------------------------------`);
+      console.log(`Partner: ID=${p.id}, Name="${p.name}", Mobile="${p.mobile}", isPaid=${p.isPaid}, isApproved=${p.isApproved}`);
 
-    // Simulate resolveVendorName cleaning logic with Laravel fallback
-    let targetPhone = vendorMobile;
-    let resolvedName = vendorName;
-    let resolvedMobile = vendorMobile;
+      const pNameClean = (p.name || '').trim();
+      const pMobileClean = (p.mobile || '').trim().replace(/\s+/g, '');
+      const pMobileNoCode = pMobileClean.replace(/^\+?91/, '');
+      const pMobileWithCode = pMobileClean.startsWith('+91') ? pMobileClean : (pMobileClean.startsWith('91') ? '+' + pMobileClean : '+91' + pMobileClean);
 
-    if (targetPhone) {
-      let cleanedPhone = String(targetPhone).trim().replace(/\s+/g, '');
-      if (cleanedPhone.startsWith('+91') && cleanedPhone.length === 13) {
-        cleanedPhone = cleanedPhone.substring(3);
-      } else if (cleanedPhone.startsWith('91') && cleanedPhone.length === 12) {
-        cleanedPhone = cleanedPhone.substring(2);
-      } else if (cleanedPhone.startsWith('+')) {
-        cleanedPhone = cleanedPhone.replace('+', '');
-      }
-
-      console.log(`Cleaned phone for query lookup: "${cleanedPhone}"`);
-
-      // 1. Try node_partners
-      let [partners] = await connection.query(
-        'SELECT name FROM node_partners WHERE mobile = ? OR mobile = ? OR CONCAT(countryCode, mobile) = ?',
-        [cleanedPhone, targetPhone, targetPhone]
+      const [v2A] = await db.query(
+        `SELECT id, serviceName, partnerName, partnerPhone, status, bookingStatus FROM node_orders_v2 
+         WHERE (partnerName IS NOT NULL AND TRIM(LOWER(partnerName)) = LOWER(?))
+            OR (partnerPhone IS NOT NULL AND (partnerPhone = ? OR partnerPhone = ? OR partnerPhone = ? OR REPLACE(partnerPhone, '+91', '') = ?))
+         ORDER BY id DESC`,
+        [pNameClean, pMobileClean, pMobileWithCode, pMobileNoCode, pMobileNoCode]
       );
-
-      // 2. Try Laravel users table
-      if (partners.length === 0) {
-        console.log('Not found in node_partners. Falling back to Laravel users...');
-        const dbName = 'homef4fw_homefaci';
-        const [laravelRows] = await connection.query(
-          `SELECT name FROM \`${dbName}\`.\`users\` WHERE role_id = 2 AND (mobile_number = ? OR mobile_number = ? OR mobile_number = ?)`,
-          [cleanedPhone, targetPhone, `+91${cleanedPhone}`]
-        );
-        if (laravelRows.length > 0) {
-          partners = laravelRows;
-        }
+      console.log(`Assigned orders in v2: ${v2A.length}`);
+      if (v2A.length > 0) {
+        console.log('Sample:', v2A);
       }
 
-      if (partners.length > 0) {
-        resolvedName = partners[0].name;
+      const [adA] = await db.query(
+        `SELECT id, serviceName, vendorName, vendorMobile, status FROM orders 
+         WHERE (vendorName IS NOT NULL AND TRIM(LOWER(vendorName)) = LOWER(?))
+            OR (vendorMobile IS NOT NULL AND (vendorMobile = ? OR vendorMobile = ? OR vendorMobile = ? OR REPLACE(vendorMobile, '+91', '') = ?))
+         ORDER BY id DESC`,
+        [pNameClean, pMobileClean, pMobileWithCode, pMobileNoCode, pMobileNoCode]
+      );
+      console.log(`Assigned orders in admin orders: ${adA.length}`);
+      if (adA.length > 0) {
+        console.log('Sample:', adA);
+      }
+
+      const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+      let laravelPartnerId = p.id >= 10000000 ? (p.id - 10000000) : p.id;
+      const [larA] = await db.query(
+        `SELECT oi.id, oi.vendor_id, oi.status, s.title AS service_name
+         FROM \`${dbName}\`.\`order_items\` oi
+         LEFT JOIN \`${dbName}\`.\`services\` s ON oi.service_id = s.id
+         WHERE oi.vendor_id = ? OR oi.vendor_id = ?
+         ORDER BY oi.id DESC`,
+        [p.id, laravelPartnerId]
+      );
+      console.log(`Assigned orders in Laravel order_items: ${larA.length}`);
+      if (larA.length > 0) {
+        console.log('Sample:', larA);
       }
     }
-
-    if (resolvedMobile) {
-      let cleaned = String(resolvedMobile).trim().replace(/\s+/g, '');
-      if (cleaned.startsWith('+91') && cleaned.length === 13) {
-        resolvedMobile = cleaned.substring(3);
-      } else if (cleaned.startsWith('91') && cleaned.length === 12) {
-        resolvedMobile = cleaned.substring(2);
-      } else if (cleaned.startsWith('+')) {
-        resolvedMobile = cleaned.replace('+', '');
-      }
-    }
-
-    console.log(`Resolved Name to save: "${resolvedName}", Resolved Mobile to save: "${resolvedMobile}"`);
-
   } catch (err) {
     console.error(err);
-  } finally {
-    await connection.end();
   }
+  process.exit(0);
 }
 
-run();
+testAssignmentFix();

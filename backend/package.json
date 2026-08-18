@@ -24,6 +24,10 @@
     "jimp": "^1.6.1",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
-    "mysql2": "^3.9.7"
+    "mysql2": "^3.9.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "pdfkit": "^0.19.1"
   }
 }

@@ -12,8 +12,12 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME !== undefined ? process.env.DB_NAME : 'homef4fw_homefaci',
   port: parseInt(process.env.DB_PORT !== undefined ? process.env.DB_PORT : '3306'),
   waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+  connectionLimit: 20,
+  queueLimit: 0,
+  connectTimeout: 30000,       // 30s connection timeout
+  acquireTimeout: 30000,       // 30s acquire timeout
+  enableKeepAlive: true,       // keep connections alive (prevents ETIMEDOUT)
+  keepAliveInitialDelay: 10000 // ping every 10s
 });
 
 const dbHost = process.env.DB_HOST !== undefined ? process.env.DB_HOST : 'homefaciliti.com';
