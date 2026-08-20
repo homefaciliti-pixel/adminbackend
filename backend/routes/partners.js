@@ -13,14 +13,18 @@ const laravelFields = [
 async function getAllPartners() {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
   
-  // Fetch from all tables in parallel to optimize latency
+  // Fetch from all tables in parallel to optimize latency, selecting only required fields to minimize RAM and payload size
   const [
     [nodeRows],
-    [laravelRows],
-    [catRows],
-    [serviceRows]
+    [laravelRows]
   ] = await Promise.all([
-    db.query('SELECT * FROM partners'),
+    db.query(`
+      SELECT 
+        id, name, email, mobile, city, state, locality, image, status, 
+        isApproved, isPaid, latitude, longitude, locationTime, createdAt, 
+        category, subCategory 
+      FROM partners
+    `),
     db.query(`
       SELECT 
         u.id, 
@@ -32,26 +36,10 @@ async function getAllPartners() {
         l.name AS locality,
         cat.title AS categoryName,
         subcat.title AS subCategoryName,
-        u.address, 
         u.image, 
         u.status, 
         u.is_approval AS isApproved, 
-        u.gender, 
-        u.experience, 
-        u.service_id AS services, 
-        u.aadhaar_number AS aadhaarNumber, 
-        u.aadhaar_front_image AS aadharFront, 
-        u.aadhaar_back_image AS aadharBack, 
-        u.pan_number AS panNumber, 
-        u.pan_image AS panImage, 
-        u.bank_name AS bankName, 
-        u.account_number AS accountNumber, 
-        u.ifsc_code AS ifscCode, 
         u.created_at AS createdAt,
-        u.do_you_have_vehicle AS hasVehicle,
-        u.category_id,
-        u.sub_category_id,
-        u.account_holder_name AS accountHolder,
         u.payment_status AS isPaid
       FROM \`${dbName}\`.\`users\` u
       LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
@@ -60,61 +48,53 @@ async function getAllPartners() {
       LEFT JOIN \`${dbName}\`.\`categories\` cat ON u.category_id = cat.id
       LEFT JOIN \`${dbName}\`.\`categories\` subcat ON u.sub_category_id = subcat.id
       WHERE u.role_id = 2
-    `),
-    db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``),
-    db.query(`SELECT id, title FROM \`${dbName}\`.\`services\``)
+    `)
   ]);
-
-  const catMap = {};
-  catRows.forEach(row => {
-    catMap[row.id] = row.title;
-  });
-
-  const serviceMap = {};
-  serviceRows.forEach(row => {
-    serviceMap[row.id] = row.title;
-  });
 
   const all = [];
 
   nodeRows.forEach(r => {
     all.push({
-      ...r,
-      isApproved: r.isApproved === 1 || r.isApproved === true,
+      id: r.id,
+      name: r.name || '',
+      email: r.email || '',
+      mobile: r.mobile || '',
+      city: r.city || '',
+      state: r.state || '',
+      locality: r.locality || '',
+      image: r.image || '',
       status: r.status === 1 || r.status === true,
+      isApproved: r.isApproved === 1 || r.isApproved === true,
+      isPaid: (r.isPaid === 1 || r.isPaid === true || r.isPaid === 'Paid') ? 1 : 0,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      locationTime: r.locationTime || '',
+      createdAt: r.createdAt || '',
+      category: r.category || '',
+      subCategory: r.subCategory || '',
       source: 'Admin Partner (MySQL)'
     });
   });
 
   laravelRows.forEach(r => {
-    let mappedServices = '';
-    if (r.services) {
-      mappedServices = r.services
-        .split(',')
-        .map(id => serviceMap[id.trim()])
-        .filter(Boolean)
-        .join(',');
-    }
-
     all.push({
-      ...r,
       id: r.id + 10000000, // Offset Laravel IDs by 10,000,000
-      isApproved: r.isApproved === 1 || r.isApproved === '1' || r.isApproved === true,
+      name: r.name || '',
+      email: r.email || '',
+      mobile: r.mobile || '',
+      city: r.city || '',
+      state: r.state || '',
+      locality: r.locality || '',
+      image: r.image || '',
       status: r.status === 1 || r.status === '1' || r.status === true,
-      policeVerificationImage: '',
-      aadhaarImage: r.aadharFront || '',
-      panImage: r.panImage || '',
-      password: '',
-      aadharFront: r.aadharFront || '',
-      aadharBack: r.aadharBack || '',
-      hasVehicle: (r.hasVehicle === 1 || r.hasVehicle === '1') ? 'Yes' : 'No',
+      isApproved: r.isApproved === 1 || r.isApproved === '1' || r.isApproved === true,
+      isPaid: (r.isPaid === 1 || r.isPaid === '1') ? 1 : 0,
+      latitude: null,
+      longitude: null,
+      locationTime: '',
+      createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : '',
       category: r.categoryName || '',
       subCategory: r.subCategoryName || '',
-      accountHolder: r.accountHolder || '',
-      isPaid: (r.isPaid === 1 || r.isPaid === '1') ? 1 : 0,
-      createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : '',
-      services: mappedServices,
-      documents: [r.aadharFront, r.aadharBack, r.panImage].filter(Boolean).join(','),
       source: 'App Partner (Laravel)'
     });
   });
@@ -131,18 +111,14 @@ function resolveDocUrl(url, req, type = 'document') {
   if (url.includes('cloudinary.com')) {
     return url;
   }
-  try {
-    if (url.startsWith('http')) {
-      const parsed = new URL(url);
-      if (parsed.pathname.startsWith('/uploads/')) {
-        return `${currentBase}${parsed.pathname}`;
-      }
-      return url;
+  if (url.startsWith('http')) {
+    const idx = url.indexOf('/uploads/');
+    if (idx !== -1) {
+      return currentBase + url.substring(idx);
     }
-  } catch (e) {
-    // Fallback if URL parsing fails
+    return url;
   }
-  return url;
+  return `${currentBase}/uploads/${url}`;
 }
 
 function mapPartner(r, req) {
