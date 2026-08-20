@@ -17,49 +17,47 @@ router.get('/', async (req, res) => {
     const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
     const todayStr = getTodayDateString();
 
-    // Run all queries in parallel using Promise.all for maximum speed
-    const [
-      [[{ total: nodeUsersV2Count }]],
-      [[{ total: nodeUsersCount }]],
-      [[{ total: laravelUsersCount }]],
-      [[{ total: totalCategories }]],
-      [[{ total: totalServices }]],
-      [[{ total: nodePartnersCount }]],
-      [[{ total: laravelPartnersCount }]],
-      [[{ total: totalOrders }]],
-      [[{ total: completeOrders }]],
-      [[{ total: assignedOrders }]],
-      [[{ total: inProgressOrders }]],
-      [[{ total: cancelOrders }]],
-      todayResult,
-      subEarningsResult,
-      orderEarningsResult,
-      supportResult,
-    ] = await Promise.all([
-      db.query('SELECT COUNT(*) as total FROM node_users_v2'),
-      db.query('SELECT COUNT(*) as total FROM users'),
-      db.query(`SELECT COUNT(*) as total FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`),
-      db.query('SELECT COUNT(*) as total FROM categories'),
-      db.query('SELECT COUNT(*) as total FROM services'),
-      db.query('SELECT COUNT(*) as total FROM partners'),
-      db.query(`SELECT COUNT(*) as total FROM \`${dbName}\`.\`users\` WHERE role_id = 2`),
-      db.query('SELECT COUNT(*) as total FROM orders'),
-      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Completed'"),
-      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Assigned'"),
-      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'In Progress'"),
-      db.query("SELECT COUNT(*) as total FROM orders WHERE status = 'Cancelled'"),
-      db.query("SELECT COUNT(*) as total FROM orders WHERE serviceDate = ?", [todayStr]).catch(() => [[{ total: 0 }]]),
-      db.query("SELECT SUM(amount) as total FROM subscription_earnings").catch(() => [[{ total: 0 }]]),
-      db.query("SELECT SUM(totalAmount) as total FROM booking_earnings").catch(() => [[{ total: 0 }]]),
-      db.query('SELECT COUNT(*) as total FROM support_tickets').catch(() => [[{ total: 0 }]]),
-    ]);
+    const [rows] = await db.query(`
+      SELECT
+        (SELECT COUNT(*) FROM node_users_v2) AS nodeUsersV2Count,
+        (SELECT COUNT(*) FROM users) AS nodeUsersCount,
+        (SELECT COUNT(*) FROM categories) AS totalCategories,
+        (SELECT COUNT(*) FROM services) AS totalServices,
+        (SELECT COUNT(*) FROM partners) AS nodePartnersCount,
+        (SELECT COUNT(*) FROM orders) AS totalOrders,
+        (SELECT COUNT(*) FROM orders WHERE status = 'Completed') AS completeOrders,
+        (SELECT COUNT(*) FROM orders WHERE status = 'Assigned') AS assignedOrders,
+        (SELECT COUNT(*) FROM orders WHERE status = 'In Progress') AS inProgressOrders,
+        (SELECT COUNT(*) FROM orders WHERE status = 'Cancelled') AS cancelOrders,
+        (SELECT COUNT(*) FROM orders WHERE serviceDate = ?) AS todayOrders,
+        (SELECT SUM(amount) FROM subscription_earnings) AS subEarningsVal,
+        (SELECT SUM(totalAmount) FROM booking_earnings) AS orderEarningsVal,
+        (SELECT COUNT(*) FROM support_tickets) AS totalSupporters,
+        (SELECT COUNT(*) FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL) AS laravelUsersCount,
+        (SELECT COUNT(*) FROM \`${dbName}\`.\`users\` WHERE role_id = 2) AS laravelPartnersCount
+    `, [todayStr]);
+
+    const r = rows[0] || {};
+    
+    const nodeUsersV2Count = parseInt(r.nodeUsersV2Count || 0);
+    const nodeUsersCount = parseInt(r.nodeUsersCount || 0);
+    const laravelUsersCount = parseInt(r.laravelUsersCount || 0);
+    const totalCategories = parseInt(r.totalCategories || 0);
+    const totalServices = parseInt(r.totalServices || 0);
+    const nodePartnersCount = parseInt(r.nodePartnersCount || 0);
+    const laravelPartnersCount = parseInt(r.laravelPartnersCount || 0);
+    const totalOrders = parseInt(r.totalOrders || 0);
+    const completeOrders = parseInt(r.completeOrders || 0);
+    const assignedOrders = parseInt(r.assignedOrders || 0);
+    const inProgressOrders = parseInt(r.inProgressOrders || 0);
+    const cancelOrders = parseInt(r.cancelOrders || 0);
+    const todayOrders = parseInt(r.todayOrders || 0);
+    const subEarningsVal = parseFloat(r.subEarningsVal || 0);
+    const orderEarningsVal = parseFloat(r.orderEarningsVal || 0);
+    const totalSupporters = parseInt(r.totalSupporters || 0);
 
     const totalUsers = nodeUsersV2Count + nodeUsersCount + laravelUsersCount;
     const totalPartners = nodePartnersCount + laravelPartnersCount;
-    const todayOrders = todayResult[0][0]?.total ?? 0;
-    const subEarningsVal = parseFloat(subEarningsResult[0][0]?.total || 0);
-    const orderEarningsVal = parseFloat(orderEarningsResult[0][0]?.total || 0);
-    const totalSupporters = supportResult[0][0]?.total ?? 0;
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
 
