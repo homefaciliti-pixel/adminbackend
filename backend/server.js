@@ -4,7 +4,7 @@ const path = require('path');
 const https = require('https');
 require('dotenv').config();
 
-// Force redeploy 6 - added server public IP resolver and helper
+// Force redeploy 7 - reset connection pool after whitelisting
 const server = express();
 server.set('trust proxy', true);
 const PORT = process.env.PORT || 3000;
