@@ -1,12 +1,33 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const https = require('https');
 require('dotenv').config();
 
-// Force redeploy 5 - revert to 10:00 AM DB settings
+// Force redeploy 6 - added server public IP resolver and helper
 const server = express();
 server.set('trust proxy', true);
 const PORT = process.env.PORT || 3000;
+
+let serverPublicIp = 'Fetching...';
+
+function fetchIp() {
+  https.get('https://api.ipify.org?format=json', (res) => {
+    let data = '';
+    res.on('data', chunk => data += chunk);
+    res.on('end', () => {
+      try {
+        serverPublicIp = JSON.parse(data).ip;
+        console.log(`📡 Server Public IP resolved: ${serverPublicIp}`);
+      } catch (e) {
+        serverPublicIp = 'Failed to parse IP';
+      }
+    });
+  }).on('error', err => {
+    serverPublicIp = 'Failed to resolve IP: ' + err.message;
+  });
+}
+fetchIp();
 
 // Enable CORS for all domains so Flutter Web client can access APIs without origin blocks
 server.use(cors());
@@ -476,8 +497,10 @@ server.get('/', async (req, res) => {
       <span class="badge-dot"></span>
       Server Online | DB: ${dbStatusMessage}
     </div>
-    <h1>Home Services Partner API Backend</h1>
     <p>The backend server for your Home Services Partner Flutter application is running successfully and connected to <strong>MySQL Database (homefaciliti.com)</strong>.</p>
+    <p style="background-color: #F8FAFC; border: 1px solid #E2E8F0; padding: 16px; border-radius: 12px; font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 24px;">
+      💡 <strong>IP Whitelisting Help:</strong> If the database status is "Disconnected" above, it means your database hosting provider (BigRock) is blocking connection requests from Render. To fix this, please log into your cPanel → <strong>Remote MySQL</strong> and whitelist this server's specific outbound IP address: <code style="background-color: #F1F5F9; color: #EF4444; padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 14px; font-weight: bold; border: 1px solid #E2E8F0; white-space: nowrap;">${serverPublicIp}</code>
+    </p>
     
     <div class="stats-container">
       <div class="stat-card">
@@ -510,6 +533,10 @@ server.get('/', async (req, res) => {
 });
 
 // Import Router Modules
+server.get('/api/system/ip', (req, res) => {
+  res.json({ success: true, ip: serverPublicIp });
+});
+
 const dashboardRouter = require('./routes/dashboard');
 const usersRouter = require('./routes/users');
 const categoriesRouter = require('./routes/categories');
