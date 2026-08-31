@@ -1,0 +1,391 @@
+============================================================
+         JAIPUR PARTNERS LIST - HomeFaciliti
+         Generated: 17/8/2026, 6:02:46 pm
+============================================================
+
+SECTION 1: Admin Panel Partners (node_partners) - Total: 49
+------------------------------------------------------------
+S.No ID     Name                        Mobile          Category              Locality              Approved  
+--------------------------------------------------------------------------------------------------------------
+1.   170    Afjal khan                  9462015852      AC Repair             Mansarovar            Yes       
+2.   265    akash                       9653853414      Spa                   Jhotwara              Yes       
+3.   266    Amit kumawat                7073156942      Electrician           Kalwar                Yes       
+4.   373    Anil Lalawat                6378546989      Painter               shastri nagar         Yes       
+5.   238    Arvind Suthar               9784161538      Carpenter              Jawahar nagar        Yes       
+6.   278    Azhar Qureshi               9166600268      Spa                   Hotel nilam           Yes       
+7.   202    Birmaram Puniya             9549407155      Carpenter             Jaipur Mansarovar     Yes       
+8.   269    Chandraparkash              7892409858      Cleaning Services     Vaishali Nagar        Yes       
+9.   446    Deep Lalawat                9680997600      Cleaning              vaishali nagar jaipu… Yes       
+10.  456    deepak kumar bairwa         8949505810      Painter               pratap nagar          Yes       
+11.  214    Deepak Sharma               7688818365      Contractor            Dcm Ajmer road Jaipu… Yes       
+12.  330    deepsinghchouhan            9680522753      Cleaning Services     Mansarovar            Yes       
+13.  375    firoj khan                  8003851264      Painter               chandwas              Yes       
+14.  308    hira                        7597816095      Spa                   mansarovar            Yes       
+15.  172    Jhgshs                      8619945407      Electrician           Shyam Nagar           Yes       
+16.  444    Jitendra Kumar parsoiya     7742319166      Electrician           bassi                 Yes       
+17.  320    Jugal kishor Sharma         +917891745328   Pest Control          jaipur                Yes       
+18.  215    Kamal Nayak                 7230854721      Photographer          Jaipur                Yes       
+19.  196    KAMAL Sain                  8875566679      Photographer          vaishali nagar        Yes       
+20.  463    Kamal Sharma                7597337666      Cleaning              Vaishali              Yes       
+21.  399    kanhaiya lal sharma         9982893503      Spa                   D 112 manglam City    Yes       
+22.  131    Kunal Mudiya                6375781820      Driver                Mansarovar            Yes       
+23.  267    Kunan Nath Siddh            9928417201      Carpenter             Vaishali Nagar        Yes       
+24.  175    Madan Singh Rajput          8595421930      Electrician           Mansarovar            Yes       
+25.  173    Mukesh yadav                9799125006      Electrician           Mansarovar            Yes       
+26.  407    NANDKISHOR REGAR            9636941874      Painter               deoli                 Yes       
+27.  397    Netrapal Singh              9079617692      Pest Control          shastri Nagar         Yes       
+28.  224    Nitesh kumar                9549518414      Salon And Spa         Malviya Nagar         Yes       
+29.  317    nitish parashar             9680099500      Cleaning              bandikui              Yes       
+30.  185    palak                       9518488273      Doctor                jagatpura             Yes       
+31.  205    Praveen Kumar Banjara       9024117919      Cleaning              jaipur                Yes       
+32.  342    Rajesh Sharma               8690775573      Carpenter             Raja park             Yes       
+33.  180    Raju bairwa                 6375571560      Electrician           Mansarovar            Yes       
+34.  353    Rakesh Jangid               .9024041486     Carpenter             jaipur                Yes       
+35.  318    Rakesh kumar gora           8209089229      Electrician           khirni fatak          Yes       
+36.  174    Rambabu meena               9784637683      Cleaning Services     Raja Park             Yes       
+37.  195    Ramesh chand                9571914497      Electrician           Jaipur                Yes       
+38.  212    Rishabh Gurawa              8005802647      Cleaning              Jaipur                Yes       
+39.  225    Sanjay Kumar Bairwa         +918209798364   Spa                   jaipur                Yes       
+40.  211    SHAHRUKH KHAN               6377580774      Iron Works            sangner               Yes       
+41.  193    Shankar Singh sirohiya      8104550877      Electrician           Pratap Nagar          Yes       
+42.  209    shrvan                      9119239538      Plumber               jaipur                Yes       
+43.  392    Subhash Godara              +919980600171   Carpenter             Mansarovar            Yes       
+44.  262    sumit meena                 8209037340      Electrician           Mansarovar            Yes       
+45.  273    Sunil Mangal                9875208451      Pest Control          jaipur                Yes       
+46.  187    Vaibhav Sharma              8003671335      Spa                   Jagtpura              Yes       
+47.  201    vinesh                      6375044736      Plumber               jaipur                Yes       
+48.  271    vishal saini                9636744197      Spa                   jaipur                Yes       
+49.  408    Vivek Dixit                 +917849816407   Electrician           Pratap nagar          Yes       
+
+
+SECTION 2: App Partners (Laravel users) - Total: 323
+------------------------------------------------------------
+S.No ID     Name                        Mobile          Category              Locality              Approved  
+--------------------------------------------------------------------------------------------------------------
+1.   783    8503931738                  +918503931738   Professional Driver’s Mansarovar            Yes       
+2.   1093   Aakash tepan                +917414040697   Car Washing           Civil Lines           Yes       
+3.   690    Abdul Salam                 +919636743374   Electrician           Civil Lines           Yes       
+4.   377    Abhay pratap                6375781820      Carpenter             Mansarovar            Yes       
+5.   712    Achal sharma                +919251132068   Professional Driver’s Pratap Nagar          Yes       
+6.   1111   Ahamad electrician          +918078671438   Electrician           Shyam Nagar           Yes       
+7.   2292   Ajaj Ali                    +918561994315   Electrician           Mansarovar            Yes       
+8.   767    Ajay Rajput                 +919376529235   Professional Driver’s Vaishali Nagar        Yes       
+9.   1135   Ajay sharma                 +919024750846   Professional Driver’s Raja Park             Yes       
+10.  774    Ajay Singh                  +918824138177   Electrician           Pratap Nagar          Yes       
+11.  1625   AJEET KUMAR BARODIYA        +918440937302   Cleaning Services     Murlipura             Yes       
+12.  408    Akash kashyap               +916376069935   -                     Mansarovar            Yes       
+13.  514    AKBAR                       +917878059247   Plumber               Vishwakarma Industri… Yes       
+14.  1605   Aman Kumar Singh            +918709822877   Electrician           Mansarovar            Yes       
+15.  769    Amar singh                  +917568404191   Plumber               Murlipura             Yes       
+16.  1063   Amit kumawat                +917073156942   Electrician           Kalwar                Yes       
+17.  737    ANIL                        +916378898498   Cleaning Services     Vidhyadhar Nagar      Yes       
+18.  678    Anil Kumar mahawar          +917073336616   Electrician           Pratap Nagar          Yes       
+19.  427    Anil samria                 +919784866500   Electrician           Sanganer              Yes       
+20.  535    Ankit                       +918619569676   Salon And Spa         Sanganer              Yes       
+21.  575    Ankit Kumar                 +918000469082   -                     Jyoti Nagar           Yes       
+22.  2049   Ankur kumar                 +919257788503   Electrician           Mansarovar            Yes       
+23.  1849   Anup                        +917891911131   Cleaning Services     Mansarovar            Yes       
+24.  1188   Anurag mourya               +919982691143   Electrician           Vishwakarma Industri… Yes       
+25.  800    Arafan kathat               +917742562948   Electrician           Vishwakarma Industri… Yes       
+26.  901    Arun Kumar Chawla           +918949789911   Car Washing           Kalwar                Yes       
+27.  1038   ASHISH                      +917689043504   Professional Driver’s Sanganer              Yes       
+28.  1539   Ashish Sharma               +917877613345   Contractor            Gopal Pura            Yes       
+29.  421    Ashok Kashyap               +916350300060   Carpenter             Mansarovar            Yes       
+30.  760    Ashok Kashyap               +917790888643   -                     Bani Park             Yes       
+31.  1308   Ashok Kumar                 +919571745513   -                     Pratap Nagar          Yes       
+32.  2151   Ashok Kumar                 +919216429288   Carpenter             Pratap Nagar          Yes       
+33.  663    Ashok kumar kumawat         +918302965430   Electrician           Jhotwara              Yes       
+34.  2093   Babulal Gurjar              +919057853744   Plumber               Mansarovar            Yes       
+35.  1520   Badshah Nawaz Khan          +917742787391   Carpenter             Raja Park             Yes       
+36.  793    BAHADUR SINGH RATHORE       +917568982526   Electrician           Shyam Nagar           Yes       
+37.  703    Bairwa rajendra             +918278633592   Contractor            Sanganer              Yes       
+38.  679    Balbeer                     +918058012833   Cleaning Services     Vaishali Nagar        Yes       
+39.  700    Balram Yadav                +919887409407   Mechanic              Khatipura             Yes       
+40.  675    Balwant                     +919887440157   -                     Jhotwara              Yes       
+41.  1183   Bhagwan singh               +918079039845   Professional Driver’s Shyam Nagar           Yes       
+42.  2113   Bhanu arora                 +917690899183   -                     Vidhyadhar Nagar      Yes       
+43.  1918   Bhanupratap                 +917976992923   Cleaning Services     Vaishali Nagar        Yes       
+44.  803    BHARAT RAM                  +919460714043   Professional Driver’s Vaishali Nagar        Yes       
+45.  410    Bhavana kashyap             +919772738544   Professional Photogr… Mansarovar            Yes       
+46.  1106   Bhoopendra sharma           +917500992898   Electrician           Jagat Pura            Yes       
+47.  2135   Chandra Prakash             +919784202485   Architecture          Vaishali Nagar        Yes       
+48.  670    Chandramohan machal         +917737659121   Contractor            Pratap Nagar          Yes       
+49.  1740   Chandraparkash              +917892409858   Cleaning Services     Vaishali Nagar        Yes       
+50.  666    Charan Singh Choudhary      +919057846489   Plumber               Jhotwara              Yes       
+51.  1021   Chawla Refrigeration        +919549960872   Electrician           Vaishali Nagar        Yes       
+52.  757    Deep Lalawat                +919664165889   Cleaning Services     Vaishali Nagar        Yes       
+53.  1879   Deepak                      +919571839132   Professional Driver’s Raja Park             Yes       
+54.  1042   Deepak Kumar Sain           +916350323856   Salon And Spa         Sanganer              Yes       
+55.  2134   DEEPENDRA SINGH YADAV       +918741099555   -                     Mansarovar            Yes       
+56.  965    deepsinghchouhan            +919680522753   Cleaning Services     Mansarovar            Yes       
+57.  886    Deshraj meena               +916350245805   -                     Raja Park             Yes       
+58.  1173   Devendra kashyap            +918619034266   Professional Photogr… Mansarovar            Yes       
+59.  758    Devendrakumar               +919782084935   Professional Compoun… Vidhyadhar Nagar      Yes       
+60.  549    Dhanesh kumar               +919772585662   Electrician           Vishwakarma Industri… Yes       
+61.  726    Dharmendra                  +919772430702   Salon And Spa         Jhotwara              Yes       
+62.  1354   Dharmendra Kumar BAINDHARA  +919694602808   Plumber               Pratap Nagar          Yes       
+63.  772    Dharmesh                    +917976170315   Electrician           Mansarovar            Yes       
+64.  789    Dheeraj Kumar               +919887643761   -                     Mansarovar            Yes       
+65.  749    Dilkhush kumawat            +918094548250   Plumber               Sanganer              Yes       
+66.  1127   Dilraj Gurjar               +919571908097   Salon And Spa         Mansarovar            Yes       
+67.  1164   Dinesh Chand Sharma         +916377767199   Electrician           Sanganer              Yes       
+68.  1542   Dinesh Kumar                +919667212100   Mechanic              Civil Lines           Yes       
+69.  817    Dr Hemant choudhary         +918769113039   Professional Doctors  Murlipura             Yes       
+70.  1567   Dr. Sunil bhargava          +918619759442   Professional Doctors  Jhotwara              Yes       
+71.  527    Durgesh                     +919057629060   Electrician           Vidhyadhar Nagar      Yes       
+72.  1809   Etoe Services               +919829518375   Cleaning Services     Vaishali Nagar        Yes       
+73.  779    Gajanand                    +919664067881   Plumber               Khatipura             Yes       
+74.  1143   Gajendra singh              +917733091023   Contractor            Jhotwara              Yes       
+75.  1535   Gajendra singh shekhawat    +919571740504   Electrician           Jhotwara              Yes       
+76.  733    Gajendra yogi               +919680705577   Car Washing           Raja Park             Yes       
+77.  482    Gajjubanawa                 +916377635058   -                     Malviya Nagar         Yes       
+78.  1993   Ganesh naryan mehra         +916375044052   Cleaning Services     Raja Park             Yes       
+79.  920    Ganesharam                  +918118862644   Contractor            Gopal Pura            Yes       
+80.  820    GAURAV                      +918696206524   Salon And Spa         Mansarovar            Yes       
+81.  794    Gaurav Dave                 +918003246910   -                     Jagat Pura            Yes       
+82.  744    Ghanshyam                   +919602686463   Car Washing           Tonk Phatak           Yes       
+83.  438    Girish sharma               +919610580065   Carpenter             Pratap Nagar          Yes       
+84.  423    Girjesh Sharma              +917073894442   -                     Raja Park             Yes       
+85.  1114   Golu143                     +918824848342   Contractor            Jhotwara              Yes       
+86.  818    Gourav kothari              +919376186244   Contractor            Raja Park             Yes       
+87.  1587   Govind Bendwal              +918619903809   Cleaning Services     Malviya Nagar         Yes       
+88.  740    Hajaree lal                 +919694775654   Plumber               Pratap Nagar          Yes       
+89.  2019   Harfuldev                   +919950308386   Contractor            Vaishali Nagar        Yes       
+90.  1572   Harpal                      +917014708048   Professional Driver’s Gopal Pura            Yes       
+91.  831    Heera ram                   +916376102922   -                     Mansarovar            Yes       
+92.  1589   Hemant                      +919829392599   Salon And Spa         Vaishali Nagar        Yes       
+93.  459    Hemant Kumar                +917073820757   Contractor            Vaishali Nagar        Yes       
+94.  709    Hemraj bairwa               +917665448299   Electrician           Jagat Pura            Yes       
+95.  1800   Hemraj saini                +918696054721   Electrician           Sanganer              Yes       
+96.  648    Him                         +919784106535   Plumber               Mansarovar            Yes       
+97.  787    Iiman khan                  +919983352917   Plumber               Bani Park             Yes       
+98.  778    Irshad                      +918504911444   Electrician           Sanganer              Yes       
+99.  1610   Jagdish                     +916378475322   Electrician           Jyoti Nagar           Yes       
+100. 770    Jagdish Choudhary bhuniya   +919057386467   Electrician           Pratap Nagar          Yes       
+101. 962    Jagdish Singh               +919829826007   Electrician           Mansarovar            Yes       
+102. 707    Jaiveer Singh Rathore       +918963841870   Electrician           Malviya Nagar         Yes       
+103. 784    Javed Khan                  +919358559255   -                     Pratap Nagar          Yes       
+104. 710    Jay prakash                 +919166852985   Car Washing           Jagat Pura            Yes       
+105. 705    Jitendra meena              +916367988423   -                     Sanganer              Yes       
+106. 2132   Joginder singh              +919829020208   -                     Malviya Nagar         Yes       
+107. 381    Kajal                       +916377962065   Plumber               Mansarovar            Yes       
+108. 382    Kajal                       +918890277635   -                     Pratap Nagar          Yes       
+109. 1142   Kalu ram                    +917232028378   Professional Halbai   Vishwakarma Industri… Yes       
+110. 1683   Kamal Sharma                +917597337666   Cleaning Services     Vaishali Nagar        Yes       
+111. 941    Kamlesh                     +919928453551   Electrician           Malviya Nagar         Yes       
+112. 738    Kana ram                    +919024588980   -                     Gopal Pura            Yes       
+113. 739    Kanaram Bokoliya            +919682694736   Cleaning Services     Mansarovar            Yes       
+114. 732    Kanha sharma                +919610777001   Plumber               Jhotwara              Yes       
+115. 1120   Kapil jha                   +919680566327   Electrician           Mansarovar            Yes       
+116. 727    Kapil saini                 +919119123364   Car Washing           Jhotwara              Yes       
+117. 2045   Karan                       +917851994878   Cleaning Services     Mansarovar            Yes       
+118. 2295   Karan Kumar                 +919079156306   Cleaning Services     Raja Park             Yes       
+119. 1674   Karan sambhariya            +919549822090   Electrician           Jhotwara              Yes       
+120. 1094   Khemchand morya             +919929355079   Electrician           Kalwar                Yes       
+121. 1505   Komal yadav                 +919116669231   Electrician           Mansarovar            Yes       
+122. 1528   Komal yadav                 +919928895989   Salon And Spa         Mansarovar            Yes       
+123. 407    Krish                       +918440068569   Electrician           Mansarovar            Yes       
+124. 761    Kuldeep                     +919256698747   Professional Driver’s Mansarovar            Yes       
+125. 752    Kuldeep chulet              +917976993390   Professional Driver’s Pratap Nagar          Yes       
+126. 552    Kuldeppoonia                +917082286339   Electrician           Mansarovar            Yes       
+127. 1064   Ladulal meena               +917976010543   Professional Driver’s Sitapura              Yes       
+128. 525    Lakhan Singh                +918619368117   Electrician           Mansarovar            Yes       
+129. 667    Lalchand gurjar             +917850060020   Plumber               Shyam Nagar           Yes       
+130. 414    Laxman kashyap              +919829385868   -                     Mansarovar            Yes       
+131. 1079   Laxman saini                +919680572471   Electrician           Sitapura              Yes       
+132. 409    Laxmi kashyap               +919672345151   Salon And Spa         Mansarovar            Yes       
+133. 1665   Leelaram arya               +919352661757   Cleaning Services     Vaishali Nagar        Yes       
+134. 384    Lhhh                        +919632580963   Plumber               Pratap Nagar          Yes       
+135. 1750   Lokesh kumar                +919414935040   Electrician           Malviya Nagar         Yes       
+136. 2022   Lokesh kumar meena          +919413585586   Electrician           Sitapura              Yes       
+137. 1325   Lokesh kumar saini          +916367428680   Cleaning Services     Mansarovar            Yes       
+138. 378    Mac                         +917728841040   Electrician           Malviya Nagar         Yes       
+139. 1898   Madan Singh Rajput          +918595421930   Electrician           Mansarovar            Yes       
+140. 1579   Mahaveer Ghasil             +919694411410   Professional Driver’s Vaishali Nagar        Yes       
+141. 781    Mahendra                    +917014319642   Electrician           Raja Park             Yes       
+142. 1036   Mahendra Singh Gurjar       +916350235650   Salon And Spa         Jagat Pura            Yes       
+143. 2187   Mahesh kumar                +918619328820   Cleaning Services     Mansarovar            Yes       
+144. 916    Mahesh Kumar Rawat          +919216445232   -                     Mahesh Nagar          Yes       
+145. 1062   Mahesh Kumar saini          +918741071887   Professional Halbai   Vidhyadhar Nagar      Yes       
+146. 722    Mahesh Laxkar               +918947901987   Cleaning Services     Raja Park             Yes       
+147. 889    Mangal Badgurjar            +919784261030   Professional Driver’s Mansarovar            Yes       
+148. 1607   MANGILAL MEGHWAL            +917231828383   Electrician           Vaishali Nagar        Yes       
+149. 782    Manish                      +919057362127   Electrician           Sanganer              Yes       
+150. 542    Manish                      +918104674690   Electrician           Jhotwara              Yes       
+151. 431    Manish                      +919269173555   Electrician           Sanganer              Yes       
+152. 688    Mannu Rajak                 +917976905836   Contractor            Mansarovar            Yes       
+153. 1158   Manoj Kumar                 +919166861482   Cleaning Services     Pratap Nagar          Yes       
+154. 944    Manoj kumar                 +916350280916   Carpenter             Jhotwara              Yes       
+155. 785    Manoj singh Rajawat         +919057206737   Cleaning Services     Jagat Pura            Yes       
+156. 2156   Maya                        +918112270436   Cleaning Services     Vidhyadhar Nagar      Yes       
+157. 716    Mkprajapat                  +919636536613   Electrician           Kalwar                Yes       
+158. 791    Mohammad vahid              +917297026214   Mechanic              Pratap Nagar          Yes       
+159. 1139   Mohd Shadab Qadree          +918741971601   Professional Driver’s Raja Park             Yes       
+160. 1796   Mohit                       +918107335980   Contractor            Vidhyadhar Nagar      Yes       
+161. 2242   mohitkabra                  +918279110910   Cleaning Services     Bajaj Nagar           Yes       
+162. 731    Mon                         +917073899291   Salon And Spa         Sanganer              Yes       
+163. 771    Mosim khan                  +917412922194   Cleaning Services     Pratap Nagar          Yes       
+164. 523    Mukesh Chand                +919571291501   Cleaning Services     Mansarovar            Yes       
+165. 776    Mukesh jangid               +917204850365   Contractor            Vaishali Nagar        Yes       
+166. 2091   Mukesh Kumar yadav          +919772444460   Plumber               Kalwar                Yes       
+167. 2083   Mukesh yadav                +919799125006   Electrician           Mansarovar            Yes       
+168. 522    Nakhata Ram                 +919950239358   Electrician           Khatipura             Yes       
+169. 808    Nandkishor                  +918854884381   -                     Sanganer              Yes       
+170. 1937   Nandu singh                 +917878935235   Electrician           Jhotwara              Yes       
+171. 718    Narender Kumar              +918955542283   Electrician           Jagat Pura            Yes       
+172. 753    Naresh Bairwa               +918000267090   Professional Driver’s Sanganer              Yes       
+173. 1540   Naresh singh                +918005521043   Contractor            Vidhyadhar Nagar      Yes       
+174. 1531   Narpat jangid               +919983534003   Contractor            Vaishali Nagar        Yes       
+175. 1560   Naval Kumar godiwal         +918058000529   Cleaning Services     Mansarovar            Yes       
+176. 1575   Naveen                      +917082297299   Electrician           Vaishali Nagar        Yes       
+177. 1555   Naveen kumar Dabla          +918741872890   Cleaning Services     Kalwar                Yes       
+178. 2096   Neha Rajawat                +918619206277   Salon And Spa         Shyam Nagar           Yes       
+179. 736    NemiChand Prajapat          +919116483396   Plumber               Vidhyadhar Nagar      Yes       
+180. 1565   Niranjan sharma             +919549764857   Electrician           Pratap Nagar          Yes       
+181. 2059   Nitesh kumar                9549518414      Salon And Spa         Malviya Nagar         Yes       
+182. 773    Omi shankar meena           +919079473278   Electrician           Sanganer              Yes       
+183. 1650   Omprakash                   +919024592217   Electrician           Vaishali Nagar        Yes       
+184. 1656   Omprakash jangid            +917793057761   Carpenter             Jagat Pura            Yes       
+185. 810    Omprakash vaishnav          +919636974359   Electrician           Mansarovar            Yes       
+186. 2193   Palak                       +919518488273   Professional Doctors  Jagat Pura            Yes       
+187. 1138   Pankaj pal                  +919680086061   Electrician           Tilak Nagar           Yes       
+188. 1733   Paras kala                  +916367277591   Professional Driver’s Mansarovar            Yes       
+189. 829    Pavan sony                  +918426989054   Contractor            Mansarovar            Yes       
+190. 672    Pawan Kumar jangir          +918112289408   Electrician           Pratap Nagar          Yes       
+191. 691    PINTU SINGH GURJAR          +916377328041   Electrician           Gopal Pura            Yes       
+192. 677    Prabhu narayan Gurjar       +919829537980   Plumber               Raja Park             Yes       
+193. 1430   Pradeep                     +918739854028   Professional Compoun… Jagat Pura            Yes       
+194. 665    PRADEEP KUMAR TALREJA       +919828112535   Professional Photogr… Raja Park             Yes       
+195. 1040   Pradeep singh               +919602138757   Cleaning Services     Jhotwara              Yes       
+196. 2089   prakash kumar parish        8619945407      Electrician           Shyam Nagar           Yes       
+197. 694    Praveen Singh               +916378025793   Electrician           Pratap Nagar          Yes       
+198. 2157   Priyanka                    +918824397348   -                     Shyam Nagar           Yes       
+199. 2159   Puneet agarwal              +919116676608   -                     Mansarovar            Yes       
+200. 1378   Pushkar Singh               +919079705612   Electrician           Mansarovar            Yes       
+201. 2012   Rahul                       +917240161477   Electrician           Vaishali Nagar        Yes       
+202. 786    Raj girish saini            +919829484482   Professional Compoun… Sanganer              Yes       
+203. 2130   Raj Joshi                   +917300153219   Electrician           Raja Park             Yes       
+204. 1603   Raj Nishad                  +917851889077   Electrician           Pratap Nagar          Yes       
+205. 1047   Rajendra  Jangid            +919571720732   Carpenter             Jhotwara              Yes       
+206. 756    Rajendra Choudhary          +918003942795   Electrician           Sitapura              Yes       
+207. 1044   Rajendra Kumar Kumawat      +918302877047   Contractor            Kalwar                Yes       
+208. 729    Rajendra Prasad Jangid      +919987367983   Carpenter             Jagat Pura            Yes       
+209. 695    Rajesh Jangid               +919783258476   Professional Pandit … Murlipura             Yes       
+210. 719    Rajesh Kumar                +919649013439   -                     Sanganer              Yes       
+211. 1606   Rajesh Kumar Prajapat       +916376994520   Electrician           Pratap Nagar          Yes       
+212. 991    Rajkumar Kumawat            +919799281921   Cleaning Services     Jhotwara              Yes       
+213. 664    Raju bairwa                 6375571560      Electrician           Mansarovar            Yes       
+214. 1177   Raju6236                    +919929376236   Professional Driver’s Jhotwara              Yes       
+215. 681    Rakesh                      +919166800849   Plumber               Mansarovar            Yes       
+216. 683    Rakesh                      +919521904122   Electrician           Sanganer              Yes       
+217. 735    Rakesh                      +919413336525   Salon And Spa         Shyam Nagar           Yes       
+218. 717    RAKESH bairwa               +919875127210   Contractor            Pratap Nagar          Yes       
+219. 1463   Rakesh Jain                 +919414276281   -                     Mansarovar            Yes       
+220. 685    Rakesh Kumar                +919599025077   Electrician           Bani Park             Yes       
+221. 692    Rakesh Sharma               +917852009466   Car Washing           Raja Park             Yes       
+222. 877    Rakesh Ujjwal               +916376882923   Electrician           Vaishali Nagar        Yes       
+223. 502    Ram Babu Verma              +918114463122   Contractor            Bani Park             Yes       
+224. 504    Ram Singh                   +919549498907   Professional Halbai   Vaishali Nagar        Yes       
+225. 697    Ram Swaroop Singh           +919309299354   Electrician           Vidhyadhar Nagar      Yes       
+226. 775    Rambabu jaga                +918769166820   Car Washing           Mansarovar            Yes       
+227. 1961   Rambabu meena               +919784637683   Cleaning Services     Raja Park             Yes       
+228. 715    Ramdhan saini               +919929371659   Professional Driver’s Pratap Nagar          Yes       
+229. 1163   Ramkrishna joshi            +918690527731   Professional Pandit … Jhotwara              Yes       
+230. 661    Ramnaresh Vijay             +919024693820   Contractor            Mansarovar            Yes       
+231. 1156   Rampal                      +917014237749   Professional Driver’s Sanganer              Yes       
+232. 880    Ramprakash Mehta            +918947858812   -                     Sanganer              Yes       
+233. 1390   Ranjeet                     +919680103087   Car Washing           Vaishali Nagar        Yes       
+234. 1116   Ravikushwah                 +918955339979   Carpenter             Sanganer              Yes       
+235. 401    ROBIN VIJAY                 +919887173934   Electrician           Mansarovar            Yes       
+236. 1128   Rohan lal saini             +917611826796   -                     Shyam Nagar           Yes       
+237. 1095   Rohit                       +918690424415   Professional Compoun… Vaishali Nagar        Yes       
+238. 1622   Rohit                       +918233851004   Carpenter             Vidhyadhar Nagar      Yes       
+239. 687    Rohit                       +918094915859   Carpenter             Tonk Phatak           Yes       
+240. 1090   Rohit Kumar                 +918955304997   Carpenter             Raja Park             Yes       
+241. 1172   Rohit singh                 +916367556739   Cleaning Services     Civil Lines           Yes       
+242. 745    Roshan Yadav                +918058284791   Electrician           Jhotwara              Yes       
+243. 1696   Saba Abbasi                 +917231868513   -                     Civil Lines           Yes       
+244. 759    Sadakat husain              +919587216978   Electrician           Sanganer              Yes       
+245. 1130   Saddam Hussain              +919001666112   Electrician           Raja Park             Yes       
+246. 669    Sadul Singh                 +919660282562   Contractor            Mansarovar            Yes       
+247. 1197   Sahil Khan                  +918949525905   Electrician           Bani Park             Yes       
+248. 698    Saini Mukesh                +919928139730   Electrician           Vaishali Nagar        Yes       
+249. 704    Sajam saini                 +919783167033   -                     Sanganer              Yes       
+250. 721    salman                      +918003504720   Plumber               Sitapura              Yes       
+251. 2129   Sandeep pareek              +919887640915   -                     Jagat Pura            Yes       
+252. 826    Sandeep Singh               +917733029894   Professional Driver’s Jagat Pura            Yes       
+253. 1788   Sandeep Varma               +917357221592   Salon And Spa         Mansarovar            Yes       
+254. 2127   Sandeepan                   +919838642019   -                     Pratap Nagar          Yes       
+255. 795    Sanjay                      +919660447132   Electrician           Pratap Nagar          Yes       
+256. 1745   Sanjay                      +919785024166   Electrician           Mansarovar            Yes       
+257. 904    Sanjay Kumar jangir         +918302248610   Carpenter             Murlipura             Yes       
+258. 424    Sapna kashyap               +917410989823   Salon And Spa         Mansarovar            Yes       
+259. 1198   Satish                      +917410920128   Contractor            Vaishali Nagar        Yes       
+260. 1108   Satish Kumar                +916367167660   Professional Driver’s Vidhyadhar Nagar      Yes       
+261. 951    Satveer singh               +919887413724   Professional Driver’s Jhotwara              Yes       
+262. 921    Satya Prakash               +919322359634   Carpenter             Mansarovar            Yes       
+263. 1549   Satyanarayan Kumhar         +918949923973   Electrician           Vaishali Nagar        Yes       
+264. 713    Shahid khan                 +919782650879   Cleaning Services     Bani Park             Yes       
+265. 894    SHAHRUKH khan               +916377580774   Contractor            Sanganer              Yes       
+266. 853    SHAMBHU DAYAL JANGID        +919694380887   Carpenter             Mansarovar            Yes       
+267. 684    shan ali                    +917014883773   Electrician           Vaishali Nagar        Yes       
+268. 1999   Shankar Singh sirohiya      +918104550877   Electrician           Pratap Nagar          Yes       
+269. 891    Sharif                      +917014792112   Professional Driver’s Vidhyadhar Nagar      Yes       
+270. 573    Shersingh saini             +917691086952   Mechanic              Mansarovar            Yes       
+271. 2175   Shishpal                    +919057570565   Plumber               Vidhyadhar Nagar      Yes       
+272. 2131   Shiv Pratap Singh           +919460471477   -                     Sanganer              Yes       
+273. 2201   Shivom saini                +918278672932   Contractor            Mansarovar            Yes       
+274. 1041   Shoaib khan                 +919828525466   Cleaning Services     Raja Park             Yes       
+275. 837    Shoyab Khan                 +919358339894   -                     Raja Park             Yes       
+276. 620    Shree Ram                   +919351853264   Electrician           Sanganer              Yes       
+277. 1953   Shubh                       +919521048895   -                     Mansarovar            Yes       
+278. 689    Shyoji Ram gurjar           +919660078278   Professional Driver’s Bajaj Nagar           Yes       
+279. 1170   Sitaram sharma              +919660325952   Professional Driver’s Pratap Nagar          Yes       
+280. 764    Sohel                       +917231979066   -                     Vaishali Nagar        Yes       
+281. 1097   Somendra                    +918290042165   Electrician           Mansarovar            Yes       
+282. 911    Sonu                        +918619027520   Professional Driver’s Murlipura             Yes       
+283. 905    Sonusingh                   +919610412859   Car Washing           Mansarovar            Yes       
+284. 814    Subhash Verma               +917792960006   Carpenter             Jhotwara              Yes       
+285. 1658   Sujit sain                  +917611099237   Salon And Spa         Vaishali Nagar        Yes       
+286. 1369   sumit meena                 +918209037340   Electrician           Mansarovar            Yes       
+287. 929    Sunil                       +919509531552   -                     Tonk Phatak           Yes       
+288. 1091   Sunil bairwa                +919352535868   Contractor            Pratap Nagar          Yes       
+289. 2016   Sunil kumar                 +917690925775   Electrician           Vidhyadhar Nagar      Yes       
+290. 1553   Sunil Kumar bhardwaj        +919782520700   Professional Pandit … Mansarovar            Yes       
+291. 943    Sunil Kumhar                +917014604402   -                     Raja Park             Yes       
+292. 720    Suraj Kumar                 +919667908744   Contractor            Jagat Pura            Yes       
+293. 888    Surendra Tanwar             +919587223893   Car Washing           Mansarovar            Yes       
+294. 671    Surendra8764                +918764093977   Cleaning Services     Tonk Phatak           Yes       
+295. 476    suresh karwa                +919649089579   -                     Sanganer              Yes       
+296. 656    Suresh Kumar                +916352455677   Cleaning Services     Vaishali Nagar        Yes       
+297. 742    SURESH YADAV                +919667067342   -                     Raja Park             Yes       
+298. 1313   Sushma                      +917780030790   Salon And Spa         Pratap Nagar          Yes       
+299. 743    Tej pratap                  +917568420763   Electrician           Khatipura             Yes       
+300. 754    Tejram                      +919982010463   Cleaning Services     Mahesh Nagar          Yes       
+301. 1525   Test                        +919549828228   Car Washing           Mansarovar            Yes       
+302. 660    Tikuram                     +917357664077   Professional Photogr… Pratap Nagar          Yes       
+303. 821    Trilokchoudhary             +917073782083   Plumber               Mansarovar            Yes       
+304. 653    Tulshi Ram gurjar           +918003071800   Electrician           Jhotwara              Yes       
+305. 1569   Uttam Singh Meena           +917877969331   Salon And Spa         Pratap Nagar          Yes       
+306. 1604   Vicky rajput                +918003341389   Electrician           Murlipura             Yes       
+307. 1706   Vijendra                    +917062840633   Plumber               Malviya Nagar         Yes       
+308. 1280   Vijendra Kumar              +918824696931   Electrician           Jagat Pura            Yes       
+309. 1574   Vikash nehra                +918619724650   Professional Compoun… Vishwakarma Industri… Yes       
+310. 1739   Vikash Sharma               +919875787616   Electrician           Mansarovar            Yes       
+311. 426    Vikram Singh                +918949092489   Plumber               Mansarovar            Yes       
+312. 1949   Vikram Singh Gurjar         +916350266087   Salon And Spa         Civil Lines           Yes       
+313. 646    Vinay Sharma                +919549333624   Professional Pandit … Sanganer              Yes       
+314. 1568   Vinod kumar                 +919829136247   Professional Driver’s Murlipura             Yes       
+315. 416    Vinod Kumar                 +919777638797   Contractor            Mansarovar            Yes       
+316. 1608   Virendra Singh              +917976181637   Cleaning Services     Vaishali Nagar        Yes       
+317. 412    Vishal meena                +918529313134   Professional Driver’s Mansarovar            Yes       
+318. 792    Vishram Meena               +917733829407   Electrician           Pratap Nagar          Yes       
+319. 1150   Vishvendra singh            +919521579156   Salon And Spa         Vaishali Nagar        Yes       
+320. 1545   Vivek                       +919928268285   Professional Driver’s Vishwakarma Industri… Yes       
+321. 1014   Vivek Dixit                 +917849816407   Electrician           Pratap Nagar          Yes       
+322. 765    Yashwant Joshi              +919829359562   Professional Pandit … Malviya Nagar         Yes       
+323. 1293   Yogita nagar                +919024923827   -                     Vaishali Nagar        Yes       
+
+============================================================
+GRAND TOTAL: 372 Partners in Jaipur
+============================================================
