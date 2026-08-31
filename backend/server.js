@@ -73,7 +73,6 @@ server.use((req, res, next) => {
 // Serve uploaded images statically, falling back to default PNGs if files are deleted/missing from disk
 const fs = require('fs');
 const db = require('./db');
-const https = require('https');
 
 const avatarColors = [
   '0B5FA5', // Primary Blue
