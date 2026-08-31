@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-// Force redeploy 4 - fix: reduce connectionLimit to 3 to prevent BigRock IP block
+// Force redeploy 5 - revert to 10:00 AM DB settings
 const server = express();
 server.set('trust proxy', true);
 const PORT = process.env.PORT || 3000;
