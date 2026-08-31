@@ -5,6 +5,9 @@ require('dotenv').config();
 // NOTE: Environment variables take priority. If not set, falls back to BigRock remote database.
 // For LOCAL development: set DB_HOST=127.0.0.1, DB_USER=root, DB_PASSWORD= in your .env file
 // For RENDER/PRODUCTION: set DB_HOST=homefaciliti.com and other credentials in Render Dashboard
+// NOTE: connectionLimit MUST stay LOW (2-3) for BigRock shared hosting.
+// BigRock firewall blocks/blacklists IPs that open too many parallel TCP connections.
+// Higher values (e.g. 10+) will cause ETIMEDOUT errors on Render.
 const pool = mysql.createPool({
   host: process.env.DB_HOST !== undefined ? process.env.DB_HOST : 'homefaciliti.com',
   user: process.env.DB_USER !== undefined ? process.env.DB_USER : 'homef4fw_homefaci',
@@ -12,12 +15,11 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME !== undefined ? process.env.DB_NAME : 'homef4fw_homefaci',
   port: parseInt(process.env.DB_PORT !== undefined ? process.env.DB_PORT : '3306'),
   waitForConnections: true,
-  connectionLimit: 20,
-  queueLimit: 0,
-  connectTimeout: 30000,       // 30s connection timeout
-  acquireTimeout: 30000,       // 30s acquire timeout
+  connectionLimit: 3,          // LOW limit: BigRock blocks IPs with too many parallel connections
+  queueLimit: 50,              // Queue up to 50 requests before rejecting
+  connectTimeout: 60000,       // 60s connection timeout (Render -> BigRock can be slow)
   enableKeepAlive: true,       // keep connections alive (prevents ETIMEDOUT)
-  keepAliveInitialDelay: 10000 // ping every 10s
+  keepAliveInitialDelay: 30000 // ping every 30s to keep connection warm
 });
 
 const dbHost = process.env.DB_HOST !== undefined ? process.env.DB_HOST : 'homefaciliti.com';
