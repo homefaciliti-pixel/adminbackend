@@ -120,13 +120,20 @@ router.get(['/', '/banners'], async (req, res) => {
     }
     query += ' ORDER BY id DESC';
     const [rows] = await db.query(query, params);
+
+    const formatted = rows.map(r => ({
+      ...r,
+      image: formatImageUrl(r.image, req),
+      status: r.status === 1
+    }));
+
+    // Multi-key response to support all Flutter User App response models
     res.json({
       success: true,
-      data: rows.map(r => ({
-        ...r,
-        image: formatImageUrl(r.image, req),
-        status: r.status === 1
-      }))
+      status: true,
+      data: formatted,
+      banners: formatted,
+      result: formatted
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch banners', error: error.message });
