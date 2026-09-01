@@ -1,7 +1,7 @@
 <?php
 /**
  * HomeFaciliti Secure Database HTTPS Bridge
- * Auto-detects DB credentials from Laravel .env file for 100% guaranteed connection success.
+ * Encoded Base64 Password protection to prevent cPanel Code Editor variable stripping.
  */
 ob_start();
 error_reporting(0);
@@ -41,7 +41,7 @@ if (!$data || empty($data['sql'])) {
 // Auto-detect DB credentials from Laravel .env file if available
 $dbHost = '127.0.0.1';
 $dbUser = 'homef4fw_homefaci';
-$dbPass = 'Xnj3*t%' . chr(36) . 'F36RDK+!';
+$dbPass = base64_decode('WG5qMyp0JUYzNlJESysh');
 $dbName = 'homef4fw_homefaci';
 
 $envPaths = [
