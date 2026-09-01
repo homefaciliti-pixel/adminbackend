@@ -348,11 +348,11 @@ server.get('/', async (req, res) => {
   let isDbHealthy = true;
 
   try {
-    // Attempt database queries with a strict 3-second timeout
+    // Attempt database queries with a 10-second timeout (remote TCP handshake over internet can take ~3-4s)
     const queryWithTimeout = async (sql, params = []) => {
       return Promise.race([
         db.query(sql, params),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout (3s)')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout (10s)')), 10000))
       ]);
     };
 
