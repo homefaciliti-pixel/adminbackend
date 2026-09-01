@@ -108,8 +108,8 @@ function formatImageUrl(img, req) {
   return `${protocol}://${host}/uploads/${cleanFilename}`;
 }
 
-// GET all banners (with search)
-router.get('/banners', async (req, res) => {
+// GET all banners (supports /api/banners, /api/settings/banners, /api/user/banners)
+router.get(['/', '/banners'], async (req, res) => {
   try {
     const { title } = req.query;
     let query = 'SELECT * FROM banners';
