@@ -96,7 +96,7 @@ setImmediate(async () => {
   } catch (err) {
     console.error('❌ Failed to initialize AMC tables:', err.message);
   }
-})()
+});
 
 // ======================================================================
 // Helper Function: Populate Subscription Attributes

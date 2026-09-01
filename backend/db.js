@@ -110,6 +110,6 @@ setImmediate(async () => {
       console.warn('3. For development, you can run a local MySQL server and update your .env values to localhost.\n');
     }
   }
-})();
+});
 
 module.exports = pool;
