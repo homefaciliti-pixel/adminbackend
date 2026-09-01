@@ -68,7 +68,13 @@ function queryViaHttpsBridge(sql, params = []) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          const parsed = JSON.parse(data);
+          let cleanData = data;
+          const firstBrace = cleanData.indexOf('{');
+          const lastBrace = cleanData.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            cleanData = cleanData.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = JSON.parse(cleanData);
           if (parsed && parsed.success) {
             if (parsed.rows !== undefined) {
               resolve([parsed.rows, []]);
@@ -79,7 +85,7 @@ function queryViaHttpsBridge(sql, params = []) {
             reject(new Error((parsed && (parsed.error || parsed.message)) || 'HTTPS Bridge Error'));
           }
         } catch (e) {
-          reject(e);
+          reject(new Error(`JSON Parse Error on HTTPS Bridge response: ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
         }
       });
     });
