@@ -1,7 +1,7 @@
 <?php
 /**
  * HomeFaciliti Secure Database HTTPS Bridge
- * Clean Output Buffering to prevent BigRock cWatch HTML comment injection.
+ * Built with string concatenation to protect $ in password from cPanel Code Editor expansion.
  */
 ob_start();
 error_reporting(0);
@@ -38,7 +38,13 @@ if (!$data || empty($data['sql'])) {
     exit;
 }
 
-$conn = new mysqli('localhost', 'homef4fw_homefaci', 'Xnj3*t%F36RDK+!', 'homef4fw_homefaci');
+// Protected DB Password using chr(36) so cPanel Code Editor never expands $F36RDK
+$dbHost = 'localhost';
+$dbUser = 'homef4fw_homefaci';
+$dbPass = 'Xnj3*t%' . chr(36) . 'F36RDK+!';
+$dbName = 'homef4fw_homefaci';
+
+$conn = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
 
 if ($conn->connect_error) {
     ob_end_clean();
