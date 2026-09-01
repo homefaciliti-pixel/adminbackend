@@ -1,7 +1,7 @@
 <?php
 /**
  * HomeFaciliti Secure Database HTTPS Bridge
- * Encoded Base64 Password protection to prevent cPanel Code Editor variable stripping.
+ * Auto-parses .env DB credentials + Base64 fallback.
  */
 ob_start();
 error_reporting(0);
@@ -18,130 +18,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$SECURITY_KEY = 'HF_SECURE_KEY_2026_x92!';
-
-$incomingKey = isset($_SERVER['HTTP_X_BRIDGE_SECRET']) ? $_SERVER['HTTP_X_BRIDGE_SECRET'] : '';
-if ($incomingKey !== $SECURITY_KEY) {
+if (!isset($_SERVER['HTTP_X_BRIDGE_SECRET']) || $_SERVER['HTTP_X_BRIDGE_SECRET'] !== 'HF_SECURE_KEY_2026_x92!') {
     ob_end_clean();
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Unauthorized Access']);
     exit;
 }
 
-$rawBody = file_get_contents('php://input');
-$data = json_decode($rawBody, true);
+$raw = file_get_contents('php://input');
+$reqData = json_decode($raw, true);
 
-if (!$data || empty($data['sql'])) {
+if (!$reqData || empty($reqData['sql'])) {
     ob_end_clean();
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Missing SQL query payload']);
+    echo json_encode(['success' => false, 'message' => 'Missing SQL query']);
     exit;
 }
 
-// Auto-detect DB credentials from Laravel .env file if available
-$dbHost = '127.0.0.1';
-$dbUser = 'homef4fw_homefaci';
-$dbPass = base64_decode('WG5qMyp0JUYzNlJESysh');
-$dbName = 'homef4fw_homefaci';
+// Default credentials
+$h = '127.0.0.1';
+$u = 'homef4fw_homefaci';
+$p = base64_decode('WG5qMyp0JUYzNlJESysh');
+$d = 'homef4fw_homefaci';
 
-$envPaths = [
-    __DIR__ . '/.env',
-    __DIR__ . '/../.env',
-    dirname(__DIR__) . '/.env'
-];
-
-foreach ($envPaths as $envPath) {
-    if (file_exists($envPath)) {
-        $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if (strpos($line, '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                list($k, $v) = explode('=', $line, 2);
-                $k = trim($k);
-                $v = trim($v, " \t\n\r\0\x0B\"'");
-                if ($k === 'DB_HOST') $dbHost = $v;
-                if ($k === 'DB_USERNAME' || $k === 'DB_USER') $dbUser = $v;
-                if ($k === 'DB_PASSWORD' || $k === 'DB_PASS') $dbPass = $v;
-                if ($k === 'DB_DATABASE' || $k === 'DB_NAME') $dbName = $v;
-            }
-        }
-        break;
-    }
+// Read .env if present
+$envFile = __DIR__ . '/../.env';
+if (!file_exists($envFile)) {
+    $envFile = __DIR__ . '/.env';
+}
+if (file_exists($envFile)) {
+    $c = file_get_contents($envFile);
+    if (preg_match('/DB_HOST=(.*)/', $c, $m)) $h = trim($m[1], " \t\n\r\0\x0B\"'");
+    if (preg_match('/DB_USERNAME=(.*)/', $c, $m)) $u = trim($m[1], " \t\n\r\0\x0B\"'");
+    if (preg_match('/DB_PASSWORD=(.*)/', $c, $m)) $p = trim($m[1], " \t\n\r\0\x0B\"'");
+    if (preg_match('/DB_DATABASE=(.*)/', $c, $m)) $d = trim($m[1], " \t\n\r\0\x0B\"'");
 }
 
-$conn = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
-
+$conn = new mysqli($h, $u, $p, $d);
 if ($conn->connect_error) {
-    $conn = new mysqli('localhost', $dbUser, $dbPass, $dbName);
+    $conn = new mysqli('localhost', $u, $p, $d);
 }
 
 if ($conn->connect_error) {
     ob_end_clean();
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database connection failed: ' . $conn->connect_error]);
+    echo json_encode(['success' => false, 'error' => $conn->connect_error]);
     exit;
 }
 
 $conn->set_charset('utf8mb4');
-$sql = $data['sql'];
-$params = isset($data['params']) && is_array($data['params']) ? $data['params'] : [];
+$sql = $reqData['sql'];
+$params = isset($reqData['params']) && is_array($reqData['params']) ? $reqData['params'] : [];
 
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
     ob_end_clean();
     http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Prepare failed: ' . $conn->error]);
+    echo json_encode(['success' => false, 'error' => 'Prepare: ' . $conn->error]);
     $conn->close();
     exit;
 }
 
 if (!empty($params)) {
-    $types = '';
-    $bindValues = [];
+    $t = '';
+    $bv = [];
     foreach ($params as $param) {
-        if (is_int($param)) {
-            $types .= 'i';
-        } elseif (is_double($param) || is_float($param)) {
-            $types .= 'd';
-        } else {
-            $types .= 's';
-        }
-        $bindValues[] = $param;
+        if (is_int($param)) $t .= 'i';
+        elseif (is_double($param) || is_float($param)) $t .= 'd';
+        else $t .= 's';
+        $bv[] = $param;
     }
-    $stmt->bind_param($types, ...$bindValues);
+    $stmt->bind_param($t, ...$bv);
 }
 
 if (!$stmt->execute()) {
     ob_end_clean();
-    http_response_code(400);
-    echo json_encode(['success' => false, 'error' => 'Execution failed: ' . $stmt->error]);
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Execute: ' . $stmt->error]);
     $stmt->close();
     $conn->close();
     exit;
 }
 
-$result = $stmt->get_result();
-
-if ($result === false) {
-    $response = [
-        'success' => true,
-        'affectedRows' => $stmt->affected_rows,
-        'insertId' => $stmt->insert_id
-    ];
+$res = $stmt->get_result();
+if ($res === false) {
+    $out = ['success' => true, 'affectedRows' => $stmt->affected_rows, 'insertId' => $stmt->insert_id];
 } else {
-    $rows = $result->fetch_all(MYSQLI_ASSOC);
-    $response = [
-        'success' => true,
-        'rows' => $rows
-    ];
-    $result->free();
+    $out = ['success' => true, 'rows' => $res->fetch_all(MYSQLI_ASSOC)];
+    $res->free();
 }
 
 $stmt->close();
 $conn->close();
 
-$jsonOutput = json_encode($response);
+$json = json_encode($out);
 ob_end_clean();
-echo $jsonOutput;
+echo $json;
 exit;
