@@ -1,7 +1,7 @@
 <?php
 /**
- * HomeFaciliti Secure Database HTTPS Bridge
- * Auto-parses .env DB credentials + Base64 fallback.
+ * HomeFaciliti Ultra-Robust Secure Database HTTPS Bridge
+ * Iterates through all .env and fallback credentials across 127.0.0.1 & localhost.
  */
 ob_start();
 error_reporting(0);
@@ -35,34 +35,55 @@ if (!$reqData || empty($reqData['sql'])) {
     exit;
 }
 
-// Default credentials
-$h = '127.0.0.1';
-$u = 'homef4fw_homefaci';
-$p = base64_decode('WG5qMyp0JUYzNlJESysh');
-$d = 'homef4fw_homefaci';
+// Credentials candidates
+$hosts = ['127.0.0.1', 'localhost'];
+$users = ['homef4fw_homefaci'];
+$passes = [base64_decode('WG5qMyp0JUYzNlJESysh')];
 
-// Read .env if present
-$envFile = __DIR__ . '/../.env';
-if (!file_exists($envFile)) {
-    $envFile = __DIR__ . '/.env';
-}
-if (file_exists($envFile)) {
-    $c = file_get_contents($envFile);
-    if (preg_match('/DB_HOST=(.*)/', $c, $m)) $h = trim($m[1], " \t\n\r\0\x0B\"'");
-    if (preg_match('/DB_USERNAME=(.*)/', $c, $m)) $u = trim($m[1], " \t\n\r\0\x0B\"'");
-    if (preg_match('/DB_PASSWORD=(.*)/', $c, $m)) $p = trim($m[1], " \t\n\r\0\x0B\"'");
-    if (preg_match('/DB_DATABASE=(.*)/', $c, $m)) $d = trim($m[1], " \t\n\r\0\x0B\"'");
+// Try reading .env file
+$envCandidates = [
+    dirname(__DIR__) . '/.env',
+    __DIR__ . '/../.env',
+    __DIR__ . '/.env'
+];
+
+foreach ($envCandidates as $envFile) {
+    if (file_exists($envFile)) {
+        $lines = @file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines) {
+            foreach ($lines as $line) {
+                if (strpos(trim($line), 'DB_PASSWORD=') === 0) {
+                    $val = trim(substr(trim($line), 12), " \t\n\r\0\x0B\"'");
+                    if ($val) array_unshift($passes, $val);
+                }
+                if (strpos(trim($line), 'DB_USERNAME=') === 0) {
+                    $val = trim(substr(trim($line), 12), " \t\n\r\0\x0B\"'");
+                    if ($val) array_unshift($users, $val);
+                }
+            }
+        }
+    }
 }
 
-$conn = new mysqli($h, $u, $p, $d);
-if ($conn->connect_error) {
-    $conn = new mysqli('localhost', $u, $p, $d);
+$conn = null;
+$dbName = 'homef4fw_homefaci';
+
+foreach ($users as $u) {
+    foreach ($passes as $p) {
+        foreach ($hosts as $h) {
+            $testConn = @new mysqli($h, $u, $p, $dbName);
+            if (!$testConn->connect_error) {
+                $conn = $testConn;
+                break 3;
+            }
+        }
+    }
 }
 
-if ($conn->connect_error) {
+if (!$conn || $conn->connect_error) {
     ob_end_clean();
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $conn->connect_error]);
+    echo json_encode(['success' => false, 'error' => 'Database connection failed']);
     exit;
 }
 
