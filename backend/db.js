@@ -46,25 +46,94 @@ function prefixQuery(sql) {
   });
 }
 
-// Override query and execute to dynamically translate table references
+const https = require('https');
+let useHttpsBridgeFallback = false;
+
+function queryViaHttpsBridge(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({ sql, params: params || [] });
+    const req = https.request({
+      hostname: 'homefaciliti.com',
+      port: 443,
+      path: '/db_bridge.php',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: 15000
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && parsed.success) {
+            if (parsed.rows !== undefined) {
+              resolve([parsed.rows, []]);
+            } else {
+              resolve([{ affectedRows: parsed.affectedRows, insertId: parsed.insertId }, []]);
+            }
+          } else {
+            reject(new Error((parsed && (parsed.error || parsed.message)) || 'HTTPS Bridge Error'));
+          }
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('HTTPS Bridge Request Timeout'));
+    });
+    req.write(payload);
+    req.end();
+  });
+}
+
 const originalQuery = pool.query;
-pool.query = function (sql, values) {
-  if (typeof sql === 'string') {
-    sql = prefixQuery(sql);
-  } else if (sql && typeof sql.sql === 'string') {
-    sql.sql = prefixQuery(sql.sql);
+pool.query = async function (sql, values) {
+  let queryStr = typeof sql === 'string' ? sql : (sql && sql.sql ? sql.sql : '');
+  queryStr = prefixQuery(queryStr);
+
+  if (process.env.USE_HTTPS_BRIDGE === 'true' || useHttpsBridgeFallback) {
+    return queryViaHttpsBridge(queryStr, values);
   }
-  return originalQuery.call(this, sql, values);
+
+  try {
+    return await originalQuery.call(this, queryStr, values);
+  } catch (err) {
+    if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      console.warn(`⚠️ Direct TCP MySQL failed (${err.code}). Auto-switching to HTTPS Bridge over Port 443...`);
+      useHttpsBridgeFallback = true;
+      return queryViaHttpsBridge(queryStr, values);
+    }
+    throw err;
+  }
 };
 
 const originalExecute = pool.execute;
-pool.execute = function (sql, values) {
-  if (typeof sql === 'string') {
-    sql = prefixQuery(sql);
-  } else if (sql && typeof sql.sql === 'string') {
-    sql.sql = prefixQuery(sql.sql);
+pool.execute = async function (sql, values) {
+  let queryStr = typeof sql === 'string' ? sql : (sql && sql.sql ? sql.sql : '');
+  queryStr = prefixQuery(queryStr);
+
+  if (process.env.USE_HTTPS_BRIDGE === 'true' || useHttpsBridgeFallback) {
+    return queryViaHttpsBridge(queryStr, values);
   }
-  return originalExecute.call(this, sql, values);
+
+  try {
+    return await originalExecute.call(this, queryStr, values);
+  } catch (err) {
+    if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      console.warn(`⚠️ Direct TCP MySQL failed (${err.code}). Auto-switching to HTTPS Bridge over Port 443...`);
+      useHttpsBridgeFallback = true;
+      return queryViaHttpsBridge(queryStr, values);
+    }
+    throw err;
+  }
 };
 
 // Test connection and initialize tables on startup
