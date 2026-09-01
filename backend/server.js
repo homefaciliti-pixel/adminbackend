@@ -4,7 +4,7 @@ const path = require('path');
 const https = require('https');
 require('dotenv').config();
 
-// Force redeploy 9 - reset pool for IP 74.220.49.35
+// Force redeploy 10 - reset pool for IP 74.220.49.35 after cPanel add
 const server = express();
 server.set('trust proxy', true);
 const PORT = process.env.PORT || 3000;
