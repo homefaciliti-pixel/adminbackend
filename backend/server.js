@@ -337,49 +337,9 @@ server.get('/partner/join', async (req, res) => {
   `);
 });
 
-// Root Route / Health Check - Serving a premium dashboard landing page with database stats
-// Root Route / Health Check - Serving a premium dashboard landing page with database stats
-server.get('/', async (req, res) => {
-  let partnersCount = 'N/A';
-  let bookingsCount = 'N/A';
-  let completedCount = 'N/A';
-  let totalEarnings = 0;
-  let totalWithdrawals = 0;
-  let dbStatusMessage = 'Connected';
-  let isDbHealthy = true;
-
-  try {
-    // Attempt database queries with a 10-second timeout (remote TCP handshake over internet can take ~3-4s)
-    const queryWithTimeout = async (sql, params = []) => {
-      return Promise.race([
-        db.query(sql, params),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Query timeout (10s)')), 10000))
-      ]);
-    };
-
-    const [[partnersRow]] = await queryWithTimeout('SELECT COUNT(*) AS count FROM partners');
-    const [[bookingsRow]] = await queryWithTimeout('SELECT COUNT(*) AS count FROM orders_v2');
-    const [[completedRow]] = await queryWithTimeout("SELECT COUNT(*) AS count FROM orders_v2 WHERE status = 'completed'");
-    const [[earningsRow]] = await queryWithTimeout("SELECT SUM(totalEarnings) AS total FROM partners");
-    const [[withdrawalsRow]] = await queryWithTimeout("SELECT SUM(withdrawnAmount) AS total FROM partners");
-
-    partnersCount = partnersRow ? partnersRow.count : 0;
-    bookingsCount = bookingsRow ? bookingsRow.count : 0;
-    completedCount = completedRow ? completedRow.count : 0;
-    totalEarnings = earningsRow ? (earningsRow.total || 0) : 0;
-    totalWithdrawals = withdrawalsRow ? (withdrawalsRow.total || 0) : 0;
-  } catch (error) {
-    console.warn('⚠️ Database queries timed out or failed on root route:', error.message);
-    dbStatusMessage = `Disconnected (${error.message})`;
-    isDbHealthy = false;
-  }
-
-  const formatCurrency = (val) => {
-    if (val === 'N/A') return 'N/A';
-    return '₹' + Math.round(Number(val || 0)).toLocaleString('en-IN');
-  };
-
-  res.send(`
+// Root Route / Health Check - Instant 0ms response for Render port scanner
+server.get('/', (req, res) => {
+  res.status(200).send(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -404,7 +364,7 @@ server.get('/', async (req, res) => {
       background: #ffffff;
       border-radius: 16px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
-      border-top: 4px solid ${isDbHealthy ? '#10B981' : '#EF4444'};
+      border-top: 4px solid #10B981;
       padding: 40px;
       max-width: 850px;
       width: 100%;
@@ -414,8 +374,8 @@ server.get('/', async (req, res) => {
     .badge {
       display: inline-flex;
       align-items: center;
-      background-color: ${isDbHealthy ? '#D1FAE5' : '#FEE2E2'};
-      color: ${isDbHealthy ? '#059669' : '#DC2626'};
+      background-color: #D1FAE5;
+      color: #059669;
       font-size: 14px;
       font-weight: 500;
       padding: 6px 16px;
@@ -425,15 +385,15 @@ server.get('/', async (req, res) => {
     .badge-dot {
       width: 8px;
       height: 8px;
-      background-color: ${isDbHealthy ? '#10B981' : '#EF4444'};
+      background-color: #10B981;
       border-radius: 50%;
       margin-right: 8px;
       animation: pulse 2s infinite;
     }
     @keyframes pulse {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 ${isDbHealthy ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)'}; }
-      70% { transform: scale(1); box-shadow: 0 0 0 6px ${isDbHealthy ? 'rgba(16, 185, 129, 0)' : 'rgba(239, 68, 68, 0)'}; }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 ${isDbHealthy ? 'rgba(16, 185, 129, 0)' : 'rgba(239, 68, 68, 0)'}; }
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
     h1 {
       font-size: 32px;
@@ -447,43 +407,9 @@ server.get('/', async (req, res) => {
       line-height: 1.6;
       margin: 0 0 32px 0;
     }
-    .stats-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-    .stat-card {
-      background: #F8FAFC;
-      border: 1px solid #E2E8F0;
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-    }
-    .stat-number {
-      font-size: 32px;
-      font-weight: 700;
-      color: ${isDbHealthy ? '#10B981' : '#EF4444'};
-      margin-bottom: 8px;
-    }
-    .stat-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: #64748B;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .footnote {
-      color: #64748B;
-      font-size: 14px;
-      line-height: 1.5;
-      border-top: 1px solid #F1F5F9;
-      padding-top: 24px;
-      margin: 0;
-    }
     .code {
       background-color: #F1F5F9;
-      color: #EF4444;
+      color: #10B981;
       padding: 2px 6px;
       border-radius: 4px;
       font-family: monospace;
@@ -495,37 +421,11 @@ server.get('/', async (req, res) => {
   <div class="card">
     <div class="badge">
       <span class="badge-dot"></span>
-      Server Online | DB: ${dbStatusMessage}
+      Server Online | API Ready
     </div>
-    <p>The backend server for your Home Services Partner Flutter application is running successfully and connected to <strong>MySQL Database (homefaciliti.com)</strong>.</p>
-    <p style="background-color: #F8FAFC; border: 1px solid #E2E8F0; padding: 16px; border-radius: 12px; font-size: 14px; color: #334155; line-height: 1.6; margin-bottom: 24px;">
-      💡 <strong>IP Whitelisting Help:</strong> If the database status is "Disconnected" above, it means your database hosting provider (BigRock) is blocking connection requests from Render. To fix this, please log into your cPanel → <strong>Remote MySQL</strong> and whitelist this server's specific outbound IP address: <code style="background-color: #F1F5F9; color: #EF4444; padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 14px; font-weight: bold; border: 1px solid #E2E8F0; white-space: nowrap;">${serverPublicIp}</code>
-    </p>
-    
-    <div class="stats-container">
-      <div class="stat-card">
-         <div class="stat-number">${partnersCount}</div>
-         <div class="stat-label">Registered Partners</div>
-      </div>
-      <div class="stat-card">
-         <div class="stat-number">${bookingsCount}</div>
-         <div class="stat-label">Total Bookings</div>
-      </div>
-      <div class="stat-card">
-         <div class="stat-number">${completedCount}</div>
-         <div class="stat-label">Completed Bookings</div>
-      </div>
-      <div class="stat-card">
-         <div class="stat-number">${formatCurrency(totalEarnings)}</div>
-         <div class="stat-label">Total Earnings</div>
-      </div>
-      <div class="stat-card">
-         <div class="stat-number">${formatCurrency(totalWithdrawals)}</div>
-         <div class="stat-label">Total Settlements</div>
-      </div>
-    </div>
-    
-    <p class="footnote">Please refer to the <span class="code">api_list.txt</span> document in your project folder for a complete list of endpoints and request body schemas.</p>
+    <h1>Home Services Partner API</h1>
+    <p>The backend server for your Home Services Partner Flutter application is running successfully and healthy.</p>
+    <p class="code">Outbound Server IP: ${serverPublicIp}</p>
   </div>
 </body>
 </html>
