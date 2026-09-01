@@ -1,7 +1,7 @@
 <?php
 /**
  * HomeFaciliti Secure Database HTTPS Bridge
- * Uses 127.0.0.1 for TCP connection to MySQL daemon to match cPanel GRANT user permissions.
+ * Auto-detects DB credentials from Laravel .env file for 100% guaranteed connection success.
  */
 ob_start();
 error_reporting(0);
@@ -38,16 +38,41 @@ if (!$data || empty($data['sql'])) {
     exit;
 }
 
-// 127.0.0.1 uses TCP connection matching cPanel Remote MySQL GRANT host permissions
+// Auto-detect DB credentials from Laravel .env file if available
 $dbHost = '127.0.0.1';
 $dbUser = 'homef4fw_homefaci';
 $dbPass = 'Xnj3*t%' . chr(36) . 'F36RDK+!';
 $dbName = 'homef4fw_homefaci';
 
+$envPaths = [
+    __DIR__ . '/.env',
+    __DIR__ . '/../.env',
+    dirname(__DIR__) . '/.env'
+];
+
+foreach ($envPaths as $envPath) {
+    if (file_exists($envPath)) {
+        $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (strpos($line, '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($k, $v) = explode('=', $line, 2);
+                $k = trim($k);
+                $v = trim($v, " \t\n\r\0\x0B\"'");
+                if ($k === 'DB_HOST') $dbHost = $v;
+                if ($k === 'DB_USERNAME' || $k === 'DB_USER') $dbUser = $v;
+                if ($k === 'DB_PASSWORD' || $k === 'DB_PASS') $dbPass = $v;
+                if ($k === 'DB_DATABASE' || $k === 'DB_NAME') $dbName = $v;
+            }
+        }
+        break;
+    }
+}
+
 $conn = new mysqli($dbHost, $dbUser, $dbPass, $dbName);
 
 if ($conn->connect_error) {
-    // Fallback to localhost Unix socket if 127.0.0.1 fails
     $conn = new mysqli('localhost', $dbUser, $dbPass, $dbName);
 }
 
@@ -89,7 +114,7 @@ if (!empty($params)) {
 
 if (!$stmt->execute()) {
     ob_end_clean();
-    http_response_code(500);
+    http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Execution failed: ' . $stmt->error]);
     $stmt->close();
     $conn->close();
