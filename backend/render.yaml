@@ -5,10 +5,8 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: PORT
-        value: 3000
       - key: DB_HOST
-        value: homefaciliti.com
+        value: 162.241.116.166
       - key: DB_USER
         value: homef4fw_homefaci
       - key: DB_PASSWORD
