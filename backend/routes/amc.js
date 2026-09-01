@@ -3,7 +3,7 @@ const router = express.Router();
 const db = require('../db');
 
 // --- DATABASE TABLE INITIALIZATION & SCHEMA MIGRATION ---
-(async () => {
+setImmediate(async () => {
   try {
     // 1. node_amc_subscriptions
     await db.query(`

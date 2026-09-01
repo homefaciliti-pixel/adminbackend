@@ -39,7 +39,9 @@ async function seedPages() {
     console.error('Error seeding pages:', error.message);
   }
 }
-seedPages();
+setImmediate(() => {
+  seedPages().catch(err => console.error('Background page seed error:', err.message));
+});
 
 // GET all pages
 router.get('/', async (req, res) => {

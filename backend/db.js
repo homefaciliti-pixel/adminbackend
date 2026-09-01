@@ -68,7 +68,7 @@ pool.execute = function (sql, values) {
 };
 
 // Test connection and initialize tables on startup
-(async () => {
+setImmediate(async () => {
   try {
     const connection = await pool.getConnection();
     console.log('✅ Remote Database connected successfully through connection pool.');
