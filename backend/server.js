@@ -7,7 +7,8 @@ require('dotenv').config();
 // Force redeploy 11 - reset pool after BigRock support whitelisted IP
 const server = express();
 server.set('trust proxy', true);
-const PORT = process.env.PORT || 3000;
+const rawPort = process.env.PORT;
+const PORT = (rawPort && !isNaN(parseInt(rawPort))) ? parseInt(rawPort, 10) : 3000;
 
 let serverPublicIp = 'Fetching...';
 
