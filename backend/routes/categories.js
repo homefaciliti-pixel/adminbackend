@@ -2,6 +2,22 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+function formatImageUrl(img, req) {
+  if (!img) return '';
+  const host = req.get('host');
+  const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  
+  if (img.startsWith('http://') || img.startsWith('https://')) {
+    if (img.includes('localhost:') || img.includes('127.0.0.1')) {
+      const filename = img.split('/uploads/').pop();
+      return `${protocol}://${host}/uploads/${filename}`;
+    }
+    return img;
+  }
+  const cleanFilename = img.replace(/^uploads\//, '').replace(/^categories\//, '');
+  return `${protocol}://${host}/uploads/${cleanFilename}`;
+}
+
 // GET all categories (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
@@ -33,6 +49,7 @@ router.get('/', async (req, res) => {
     const mapped = rows.map(r => ({
       ...r,
       id: r.id,
+      image: formatImageUrl(r.image, req),
       parent: r.parent === null ? 'None' : r.parent,
       status: r.status === 1
     }));

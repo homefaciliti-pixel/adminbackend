@@ -35,7 +35,11 @@ async function saveFileToDb(filename, filepath, mimetype) {
  */
 async function loadFileFromDb(filename, destPath) {
   try {
-    const [rows] = await db.query('SELECT file_data, mime_type FROM uploaded_files WHERE filename = ?', [filename]);
+    const cleanBasename = path.basename(filename);
+    const [rows] = await db.query(
+      'SELECT file_data, mime_type FROM uploaded_files WHERE filename = ? OR filename = ? OR filename LIKE ?',
+      [filename, cleanBasename, `%/${cleanBasename}`]
+    );
     if (rows.length > 0) {
       const buffer = Buffer.from(rows[0].file_data, 'base64');
       

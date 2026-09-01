@@ -3599,10 +3599,17 @@ router.get('/partner/dashboard', authenticatePartner, async (req, res) => {
     const [bannersRes] = await db.query('SELECT image FROM banners WHERE status = 1');
     banners = bannersRes.map(b => {
       if (!b.image) return '';
+      const host = req.get('host');
+      const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
       if (b.image.startsWith('http://') || b.image.startsWith('https://')) {
+        if (b.image.includes('localhost:') || b.image.includes('127.0.0.1')) {
+          const filename = b.image.split('/uploads/').pop();
+          return `${protocol}://${host}/uploads/${filename}`;
+        }
         return b.image;
       }
-      return `${req.protocol}://${req.get('host')}/uploads/banners/${b.image}`;
+      const cleanFilename = b.image.replace(/^uploads\//, '').replace(/^banners\//, '');
+      return `${protocol}://${host}/uploads/${cleanFilename}`;
     }).filter(Boolean);
   } catch (err) {
     console.error('Error fetching banners:', err);

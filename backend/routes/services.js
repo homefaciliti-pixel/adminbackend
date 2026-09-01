@@ -2,13 +2,30 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-function mapServiceRow(r) {
+function formatImageUrl(img, req) {
+  if (!img) return '';
+  const host = req ? req.get('host') : 'adminbackend-1-h03r.onrender.com';
+  const protocol = req && (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https') ? 'https' : 'http';
+  
+  if (img.startsWith('http://') || img.startsWith('https://')) {
+    if (img.includes('localhost:') || img.includes('127.0.0.1')) {
+      const filename = img.split('/uploads/').pop();
+      return `${protocol}://${host}/uploads/${filename}`;
+    }
+    return img;
+  }
+  const cleanFilename = img.replace(/^uploads\//, '').replace(/^services\//, '');
+  return `${protocol}://${host}/uploads/${cleanFilename}`;
+}
+
+function mapServiceRow(r, req) {
   if (!r) return null;
   const dbPrice = parseFloat(r.price);
   const discountVal = r.discount !== null && r.discount !== undefined ? parseFloat(r.discount) : 0.00;
   
   const item = {
     ...r,
+    image: formatImageUrl(r.image, req),
     price: dbPrice,
     cutPrice: dbPrice,
     discount: discountVal,

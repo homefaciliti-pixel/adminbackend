@@ -91,6 +91,23 @@ async function handleBannerUpload(file) {
 // 1. BANNERS API
 // ==========================================
 
+// Helper function to format image URLs consistently as full absolute URLs
+function formatImageUrl(img, req) {
+  if (!img) return '';
+  const host = req.get('host');
+  const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  
+  if (img.startsWith('http://') || img.startsWith('https://')) {
+    if (img.includes('localhost:') || img.includes('127.0.0.1')) {
+      const filename = img.split('/uploads/').pop();
+      return `${protocol}://${host}/uploads/${filename}`;
+    }
+    return img;
+  }
+  const cleanFilename = img.replace(/^uploads\//, '').replace(/^banners\//, '');
+  return `${protocol}://${host}/uploads/${cleanFilename}`;
+}
+
 // GET all banners (with search)
 router.get('/banners', async (req, res) => {
   try {
@@ -105,7 +122,11 @@ router.get('/banners', async (req, res) => {
     const [rows] = await db.query(query, params);
     res.json({
       success: true,
-      data: rows.map(r => ({ ...r, status: r.status === 1 }))
+      data: rows.map(r => ({
+        ...r,
+        image: formatImageUrl(r.image, req),
+        status: r.status === 1
+      }))
     });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch banners', error: error.message });
