@@ -14,9 +14,10 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,
-  connectTimeout: 30000,       // 30s connection timeout
+  connectTimeout: 10000,       // 10s connection timeout
   enableKeepAlive: true,       // keep connections alive (prevents ETIMEDOUT)
-  keepAliveInitialDelay: 10000 // ping every 10s
+  keepAliveInitialDelay: 10000,// ping every 10s
+  ssl: false                   // disable TLS handshake on cPanel shared hosting
 });
 
 const dbHost = process.env.DB_HOST !== undefined ? process.env.DB_HOST : 'homefaciliti.com';
