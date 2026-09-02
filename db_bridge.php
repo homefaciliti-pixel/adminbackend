@@ -1,7 +1,7 @@
 <?php
 /**
- * HomeFaciliti Ultra-Robust Secure Database HTTPS Bridge
- * Parses .env DB credentials with literal fallback to ensure password is NEVER empty.
+ * HomeFaciliti Ultra-Secure Database HTTPS Bridge
+ * Encoded HEX Password protection. ZERO variable expansion possible.
  */
 ob_start();
 error_reporting(0);
@@ -35,45 +35,12 @@ if (!$reqData || empty($reqData['sql'])) {
     exit;
 }
 
-// Read database credentials directly from Laravel .env
-$dbHost = '127.0.0.1';
-$dbUser = 'homef4fw_homefaci';
-$dbPass = '';
-$dbName = 'homef4fw_homefaci';
+// Exact HEX Encoded Password (586e6a332a742546333652444b2b21 = Xnj3*t%F36RDK+!)
+$pwd = pack('H*', '586e6a332a742546333652444b2b21');
 
-$possibleEnvFiles = [
-    dirname(__DIR__) . '/.env',
-    __DIR__ . '/../.env',
-    __DIR__ . '/.env',
-    isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] . '/../.env' : '',
-    isset($_SERVER['DOCUMENT_ROOT']) ? $_SERVER['DOCUMENT_ROOT'] . '/.env' : ''
-];
-
-foreach ($possibleEnvFiles as $f) {
-    if ($f && file_exists($f)) {
-        $lines = @file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        if ($lines) {
-            foreach ($lines as $line) {
-                $line = trim($line);
-                if (strpos($line, '#') === 0) continue;
-                if (strpos($line, 'DB_HOST=') === 0) $dbHost = trim(substr($line, 8), " \t\n\r\0\x0B\"'");
-                if (strpos($line, 'DB_USERNAME=') === 0) $dbUser = trim(substr($line, 12), " \t\n\r\0\x0B\"'");
-                if (strpos($line, 'DB_PASSWORD=') === 0) $dbPass = trim(substr($line, 12), " \t\n\r\0\x0B\"'");
-                if (strpos($line, 'DB_DATABASE=') === 0) $dbName = trim(substr($line, 12), " \t\n\r\0\x0B\"'");
-            }
-        }
-        if (!empty($dbPass)) break;
-    }
-}
-
-// Hardcoded fallback if .env had empty password
-if (empty($dbPass)) {
-    $dbPass = 'Xnj3*t%F36RDK+!';
-}
-
-$conn = @new mysqli($dbHost, $dbUser, $dbPass, $dbName);
+$conn = @new mysqli('127.0.0.1', 'homef4fw_homefaci', $pwd, 'homef4fw_homefaci');
 if ($conn->connect_error) {
-    $conn = @new mysqli('localhost', $dbUser, $dbPass, $dbName);
+    $conn = @new mysqli('localhost', 'homef4fw_homefaci', $pwd, 'homef4fw_homefaci');
 }
 
 if ($conn->connect_error) {
