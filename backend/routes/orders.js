@@ -99,18 +99,18 @@ async function getAllOrders(req) {
 
   // Fetch all orders, partners, and users maps in parallel to reduce sequential database network roundtrip times
   const [
-    [partners],
-    [laravelPartners],
-    [v2Users],
-    [nodeOrders],
-    [nodeV2Orders],
-    [laravelOrders]
+    [partners = []],
+    [laravelPartners = []],
+    [v2Users = []],
+    [nodeOrders = []],
+    [nodeV2Orders = []],
+    [laravelOrders = []]
   ] = await Promise.all([
-    db.query('SELECT id, name, mobile FROM partners'),
-    db.query(`SELECT id, name, mobile_number FROM \`${dbName}\`.\`users\` WHERE role_id = 2`),
-    db.query("SELECT phone, name FROM node_users_v2 WHERE phone IS NOT NULL AND phone != ''"),
-    db.query('SELECT * FROM orders'),
-    db.query('SELECT * FROM node_orders_v2'),
+    db.query('SELECT id, name, mobile FROM partners').catch(err => { console.warn('Order fetch partners error:', err.message); return [[]]; }),
+    db.query(`SELECT id, name, mobile_number FROM \`${dbName}\`.\`users\` WHERE role_id = 2`).catch(err => { console.warn('Order fetch laravel partners error:', err.message); return [[]]; }),
+    db.query("SELECT phone, name FROM node_users_v2 WHERE phone IS NOT NULL AND phone != ''").catch(err => { console.warn('Order fetch v2Users error:', err.message); return [[]]; }),
+    db.query('SELECT * FROM orders').catch(err => { console.warn('Order fetch orders error:', err.message); return [[]]; }),
+    db.query('SELECT * FROM node_orders_v2').catch(err => { console.warn('Order fetch nodeV2Orders error:', err.message); return [[]]; }),
     db.query(`
       SELECT 
         oi.id, 
@@ -129,7 +129,7 @@ async function getAllOrders(req) {
       FROM \`${dbName}\`.\`order_items\` oi
       LEFT JOIN \`${dbName}\`.\`orders\` o ON oi.order_id = o.id
       LEFT JOIN \`${dbName}\`.\`users\` u ON o.user_id = u.id
-    `)
+    `).catch(err => { console.warn('Order fetch laravelOrders error:', err.message); return [[]]; })
   ]);
 
   const partnerMobileMap = {};
