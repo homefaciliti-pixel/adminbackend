@@ -14,8 +14,8 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,
-  connectTimeout: 10000,       // 10s connection timeout
-  enableKeepAlive: true,       // keep connections alive (prevents ETIMEDOUT)
+  connectTimeout: 2500,        // Fast 2.5s connection timeout for quick auto-failover
+  enableKeepAlive: true,       // keep connections alive
   keepAliveInitialDelay: 10000,// ping every 10s
   ssl: false                   // disable TLS handshake on cPanel shared hosting
 });
@@ -52,51 +52,75 @@ let useHttpsBridgeFallback = false;
 function queryViaHttpsBridge(sql, params = []) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
-    const req = https.request({
-      hostname: 'homefaciliti.com',
-      port: 443,
-      path: '/db_bridge.php',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
-        'Content-Length': Buffer.byteLength(payload)
-      },
-      timeout: 15000
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          let cleanData = data;
-          const firstBrace = cleanData.indexOf('{');
-          const lastBrace = cleanData.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            cleanData = cleanData.substring(firstBrace, lastBrace + 1);
-          }
-          const parsed = JSON.parse(cleanData);
-          if (parsed && parsed.success) {
-            if (parsed.rows !== undefined) {
-              resolve([parsed.rows, []]);
-            } else {
-              resolve([{ affectedRows: parsed.affectedRows, insertId: parsed.insertId }, []]);
+    
+    const sendRequest = (bridgePath) => {
+      const req = https.request({
+        hostname: 'homefaciliti.com',
+        port: 443,
+        path: bridgePath,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: 10000
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            let cleanData = data;
+            const firstBrace = cleanData.indexOf('{');
+            const lastBrace = cleanData.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+              cleanData = cleanData.substring(firstBrace, lastBrace + 1);
             }
-          } else {
-            reject(new Error((parsed && (parsed.error || parsed.message)) || 'HTTPS Bridge Error'));
+            const parsed = JSON.parse(cleanData);
+            if (parsed && parsed.success) {
+              if (parsed.rows !== undefined) {
+                resolve([parsed.rows, []]);
+              } else {
+                resolve([{ affectedRows: parsed.affectedRows, insertId: parsed.insertId }, []]);
+              }
+            } else if (bridgePath === '/public/db_bridge.php') {
+              // Retry with root bridgePath if /public/ returns failure
+              sendRequest('/db_bridge.php');
+            } else {
+              reject(new Error((parsed && (parsed.error || parsed.message)) || 'HTTPS Bridge Error'));
+            }
+          } catch (e) {
+            if (bridgePath === '/public/db_bridge.php') {
+              sendRequest('/db_bridge.php');
+            } else {
+              reject(new Error(`JSON Parse Error on HTTPS Bridge response: ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
+            }
           }
-        } catch (e) {
-          reject(new Error(`JSON Parse Error on HTTPS Bridge response: ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
+        });
+      });
+
+      req.on('error', (err) => {
+        if (bridgePath === '/public/db_bridge.php') {
+          sendRequest('/db_bridge.php');
+        } else {
+          reject(err);
         }
       });
-    });
 
-    req.on('error', (err) => reject(err));
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('HTTPS Bridge Request Timeout'));
-    });
-    req.write(payload);
-    req.end();
+      req.on('timeout', () => {
+        req.destroy();
+        if (bridgePath === '/public/db_bridge.php') {
+          sendRequest('/db_bridge.php');
+        } else {
+          reject(new Error('HTTPS Bridge Request Timeout'));
+        }
+      });
+
+      req.write(payload);
+      req.end();
+    };
+
+    sendRequest('/public/db_bridge.php');
   });
 }
 
@@ -112,12 +136,9 @@ pool.query = async function (sql, values) {
   try {
     return await originalQuery.call(this, queryStr, values);
   } catch (err) {
-    if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
-      console.warn(`⚠️ Direct TCP MySQL failed (${err.code}). Auto-switching to HTTPS Bridge over Port 443...`);
-      useHttpsBridgeFallback = true;
-      return queryViaHttpsBridge(queryStr, values);
-    }
-    throw err;
+    console.warn(`⚠️ Direct TCP MySQL failed (${err.code || err.message}). Auto-switching to HTTPS Bridge over Port 443...`);
+    useHttpsBridgeFallback = true;
+    return queryViaHttpsBridge(queryStr, values);
   }
 };
 
@@ -133,12 +154,9 @@ pool.execute = async function (sql, values) {
   try {
     return await originalExecute.call(this, queryStr, values);
   } catch (err) {
-    if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
-      console.warn(`⚠️ Direct TCP MySQL failed (${err.code}). Auto-switching to HTTPS Bridge over Port 443...`);
-      useHttpsBridgeFallback = true;
-      return queryViaHttpsBridge(queryStr, values);
-    }
-    throw err;
+    console.warn(`⚠️ Direct TCP MySQL failed (${err.code || err.message}). Auto-switching to HTTPS Bridge over Port 443...`);
+    useHttpsBridgeFallback = true;
+    return queryViaHttpsBridge(queryStr, values);
   }
 };
 
@@ -148,7 +166,6 @@ setImmediate(async () => {
     const connection = await pool.getConnection();
     console.log('✅ Remote Database connected successfully through connection pool.');
     
-    // Create node_uploaded_files table if not exists
     const createTableSql = `
       CREATE TABLE IF NOT EXISTS \`${tablePrefix}uploaded_files\` (
         \`id\` INT AUTO_INCREMENT PRIMARY KEY,
@@ -177,13 +194,7 @@ setImmediate(async () => {
   } catch (error) {
     console.error('❌ Database connection/initialization failed on startup:');
     console.error(error.message);
-    if (error.code === 'ER_ACCESS_DENIED_ERROR' || error.code === 'ETIMEDOUT') {
-      console.warn('\n⚠️  FIREWALL WARNING: Remote MySQL connections are likely restricted on this server.');
-      console.warn('To resolve this, please choose one of the following:');
-      console.warn('1. Deploy this backend to the homefaciliti.com web server itself (where DB host is local).');
-      console.warn('2. Log into your BigRock / Hostgator cPanel -> "Remote MySQL" and add your current IP address.');
-      console.warn('3. For development, you can run a local MySQL server and update your .env values to localhost.\n');
-    }
+    useHttpsBridgeFallback = true;
   }
 });
 
