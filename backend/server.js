@@ -4,7 +4,7 @@ const path = require('path');
 const https = require('https');
 require('dotenv').config();
 
-// Force redeploy 11 - reset pool after BigRock support whitelisted IP
+// Force redeploy: 2026-09-04 15:19:04
 const server = express();
 server.set('trust proxy', true);
 const rawPort = process.env.PORT;
