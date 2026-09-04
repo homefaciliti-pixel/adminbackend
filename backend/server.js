@@ -437,6 +437,30 @@ server.get('/api/system/ip', (req, res) => {
   res.json({ success: true, ip: serverPublicIp });
 });
 
+// DB connectivity test — hit this to check if MySQL is reachable from Render
+server.get('/api/system/dbtest', async (req, res) => {
+  const start = Date.now();
+  try {
+    const db = require('./db');
+    const [rows] = await db.query('SELECT COUNT(*) as cnt FROM categories');
+    res.json({
+      success: true,
+      serverIp: serverPublicIp,
+      categoriesCount: rows[0].cnt,
+      queryTimeMs: Date.now() - start,
+      message: 'Direct MySQL working!'
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      serverIp: serverPublicIp,
+      error: err.message,
+      queryTimeMs: Date.now() - start,
+      message: 'MySQL connection failed — whitelist this IP in BigRock Remote MySQL'
+    });
+  }
+});
+
 const dashboardRouter = require('./routes/dashboard');
 const usersRouter = require('./routes/users');
 const categoriesRouter = require('./routes/categories');
