@@ -55,11 +55,16 @@ const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 2, timeout: 80
 
 // In-Memory Query Cache for fast read access
 const queryCache = new Map();
-const CACHE_TTL_MS = 15000; // 15 seconds cache for SELECT queries
+const CACHE_TTL_MS = 30000; // 30 seconds cache for SELECT queries
 
 function invalidateCache() {
   queryCache.clear();
+  inFlightQueries.clear();
 }
+
+// In-flight deduplication: if the same SELECT is already queued/running,
+// return the same Promise instead of firing another HTTP request to the bridge
+const inFlightQueries = new Map();
 
 let bridgeQueue = Promise.resolve();
 
@@ -70,11 +75,17 @@ function queryViaHttpsBridge(sql, params = []) {
   const isSelect = typeof sql === 'string' && sql.trim().toUpperCase().startsWith('SELECT');
   const cacheKey = isSelect ? `${sql}::${JSON.stringify(params)}` : null;
 
+  // 1. Return from cache if fresh
   if (cacheKey && queryCache.has(cacheKey)) {
     const cached = queryCache.get(cacheKey);
     if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
       return Promise.resolve(cached.data);
     }
+  }
+
+  // 2. Deduplicate in-flight: if an identical SELECT is already queued, share its Promise
+  if (isSelect && cacheKey && inFlightQueries.has(cacheKey)) {
+    return inFlightQueries.get(cacheKey);
   }
 
   if (!isSelect) {
@@ -182,6 +193,13 @@ function queryViaHttpsBridge(sql, params = []) {
   }));
 
   bridgeQueue = task.catch(() => {});
+
+  // Register this task as in-flight so duplicate callers share it
+  if (cacheKey) {
+    inFlightQueries.set(cacheKey, task);
+    task.finally(() => inFlightQueries.delete(cacheKey));
+  }
+
   return task;
 }
 

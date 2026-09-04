@@ -2,10 +2,26 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// --- DATABASE TABLE INITIALIZATION & SCHEMA MIGRATION ---
-setImmediate(async () => {
+
+// Helper: safely add a column if it doesn't already exist
+async function safeAddCol(table, column, definition) {
   try {
-    // 1. node_amc_subscriptions
+    await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  } catch (e) {
+    // Column already exists (error 1060) — safe to ignore
+    if (!e.message.includes('1060') && !e.message.includes('Duplicate column')) {
+      console.warn(`safeAddCol(${table}.${column}): ${e.message}`);
+    }
+  }
+}
+
+// Lazy init: runs ONCE on the first AMC API call, not at server startup
+// This prevents 9+ bridge calls flooding BigRock's WAF on every cold start
+let amcTablesReady = false;
+async function ensureAmcTables() {
+  if (amcTablesReady) return;
+  amcTablesReady = true;
+  try {
     await db.query(`
       CREATE TABLE IF NOT EXISTS \`node_amc_subscriptions\` (
         \`amcId\` VARCHAR(50) PRIMARY KEY,
@@ -29,10 +45,6 @@ setImmediate(async () => {
         \`razorpayPaymentId\` VARCHAR(100)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
-
-
-
-    // 2. node_amc_visits
     await db.query(`
       CREATE TABLE IF NOT EXISTS \`node_amc_visits\` (
         \`id\` INT AUTO_INCREMENT PRIMARY KEY,
@@ -54,12 +66,6 @@ setImmediate(async () => {
         \`createdAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
-
-    await safeAddCol('node_amc_visits', 'bookingCode', 'VARCHAR(50)');
-    await safeAddCol('node_amc_visits', 'notes', 'TEXT');
-    await safeAddCol('node_amc_visits', 'rating', 'INT DEFAULT 5');
-
-    // 3. node_amc_partner_payments
     await db.query(`
       CREATE TABLE IF NOT EXISTS \`node_amc_partner_payments\` (
         \`id\` INT AUTO_INCREMENT PRIMARY KEY,
@@ -70,21 +76,19 @@ setImmediate(async () => {
         \`amount\` DECIMAL(10,2) NOT NULL,
         \`status\` VARCHAR(20) DEFAULT 'pending',
         \`releasedAt\` TIMESTAMP NULL,
-        \`createdAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        \`createdAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        \`razorpayPaymentId\` VARCHAR(100),
+        \`razorpayOrderId\` VARCHAR(100)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
-
-    await safeAddCol('node_amc_partner_payments', 'razorpayPaymentId', 'VARCHAR(100)');
-    await safeAddCol('node_amc_partner_payments', 'razorpayOrderId', 'VARCHAR(100)');
-
-    // 4. node_orders_v2 column check
-    await safeAddCol('node_orders_v2', 'partnerPhone', 'VARCHAR(20)');
-
-    console.log('✅ AMC module database tables initialized successfully.');
+    console.log('✅ AMC tables verified/created on first request.');
   } catch (err) {
-    console.error('❌ Failed to initialize AMC tables:', err.message);
+    console.error('❌ AMC lazy table init failed:', err.message);
+    amcTablesReady = false; // Allow retry on next request
   }
-});
+}
+
+
 
 // ======================================================================
 // Helper Function: Populate Subscription Attributes
@@ -153,6 +157,7 @@ async function populateSubscriptionData(sub) {
 
 // GET /api/amc/dashboard - Summary stats
 router.get('/dashboard', async (req, res) => {
+  await ensureAmcTables();
   try {
     const [[subStats]] = await db.query(`
       SELECT 
