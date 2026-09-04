@@ -7,11 +7,12 @@ function formatImageUrl(img, req) {
   const host = req.get('host');
   const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
   
+  if (img.includes('/uploads/')) {
+    const filename = img.split('/uploads/').pop();
+    return `${protocol}://${host}/uploads/${filename}`;
+  }
+
   if (img.startsWith('http://') || img.startsWith('https://')) {
-    if (img.includes('localhost:') || img.includes('127.0.0.1')) {
-      const filename = img.split('/uploads/').pop();
-      return `${protocol}://${host}/uploads/${filename}`;
-    }
     return img;
   }
   const cleanFilename = img.replace(/^uploads\//, '').replace(/^categories\//, '');
@@ -55,7 +56,9 @@ router.get('/', async (req, res) => {
     }));
     res.json({
       success: true,
-      data: mapped
+      data: mapped,
+      categories: mapped,
+      result: mapped
     });
   } catch (error) {
     console.error('Error fetching categories:', error);
@@ -79,10 +82,11 @@ router.get('/search', async (req, res) => {
     const mapped = rows.map(r => ({
       ...r,
       id: r.id,
+      image: formatImageUrl(r.image, req),
       parent: r.parent === null ? 'None' : r.parent,
       status: r.status === 1
     }));
-    res.json({ success: true, data: mapped });
+    res.json({ success: true, data: mapped, categories: mapped, result: mapped });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Search failed', error: error.message });
   }
@@ -178,15 +182,18 @@ router.put('/:id', async (req, res) => {
 
     // Retrieve updated category
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    const updatedCategory = {
+      ...rows[0],
+      id: rows[0].id,
+      image: formatImageUrl(rows[0].image, req),
+      parent: rows[0].parent === null ? 'None' : rows[0].parent,
+      status: rows[0].status === 1
+    };
     res.json({
       success: true,
       message: 'Category updated successfully',
-      data: {
-        ...rows[0],
-        id: rows[0].id,
-        parent: rows[0].parent === null ? 'None' : rows[0].parent,
-        status: rows[0].status === 1
-      }
+      data: updatedCategory,
+      category: updatedCategory
     });
   } catch (error) {
     console.error('Error updating category:', error);
