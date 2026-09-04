@@ -2,10 +2,99 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+function parseDateString(str) {
+  if (!str) return null;
+  const parts = str.split(/[\/\-]/);
+  if (parts.length < 3) return null;
+  const day = parseInt(parts[0]);
+  const month = parseInt(parts[1]);
+  const year = parseInt(parts[2]);
+  return `${day}-${month}-${year}`;
+}
+
+function formatDateToCompare(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]);
+    const d = parseInt(parts[2]);
+    return `${d}-${m}-${y}`;
+  }
+  return parseDateString(dateStr);
+}
+
+async function getUsersMap() {
+  try {
+    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+
+    // 1. Fetch from node_users_v2
+    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender, countryCode FROM node_users_v2");
+    
+    // 2. Fetch from node_users (translated to node_users by prefixQuery)
+    const [nodeRows] = await db.query("SELECT id, name, email, mobile, address FROM users");
+    
+    // 3. Fetch from original users
+    const [laravelRows] = await db.query(`SELECT id, name, email, mobile_number as mobile, gender, address FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`);
+
+    const usersMap = new Map();
+
+    // Map node_users_v2
+    nodeV2Rows.forEach((r, idx) => {
+      const numericPhone = parseInt(r.mobile);
+      const finalId = isNaN(numericPhone) ? (2000000000 + idx) : numericPhone;
+      usersMap.set(finalId, {
+        id: finalId,
+        name: r.name || 'Guest User',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        address: r.address || '',
+        gender: r.gender || '',
+        source: 'User App (MySQL v2)',
+        countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
+      });
+    });
+
+    // Map node_users
+    nodeRows.forEach(r => {
+      usersMap.set(r.id, {
+        id: r.id,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        address: r.address || '',
+        gender: '',
+        source: 'Admin User (MySQL)',
+        countryCode: '+91'
+      });
+    });
+
+    // Map laravel users
+    laravelRows.forEach(r => {
+      const lId = r.id + 10000000;
+      usersMap.set(lId, {
+        id: lId,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        address: r.address || '',
+        gender: r.gender || '',
+        source: 'App User (Laravel)',
+        countryCode: '+91'
+      });
+    });
+
+    return usersMap;
+  } catch (error) {
+    console.error('Error in getUsersMap:', error);
+    return new Map();
+  }
+}
+
 // GET all booking earnings (with search & aggregates)
 router.get('/bookings', async (req, res) => {
   try {
-    const { query: searchQuery, transactionId, paymentMethod, orderDate } = req.query;
+    const { query: searchQuery, transactionId, paymentMethod, orderDate, userId } = req.query;
 
     // 1. Overall stats
     const [overallRes] = await db.query('SELECT SUM(totalAmount) as totalAmount, COUNT(*) as totalCount FROM booking_earnings');
@@ -32,17 +121,57 @@ router.get('/bookings', async (req, res) => {
       queryStr += ' AND orderDate LIKE ?';
       params.push(`%${orderDate}%`);
     }
+    if (userId) {
+      queryStr += ' AND userId = ?';
+      params.push(parseInt(userId));
+    }
 
     queryStr += ' ORDER BY id DESC';
     const [rows] = await db.query(queryStr, params);
 
+    // Fetch completed V2 orders to build a fallback matching map
+    const [v2Orders] = await db.query("SELECT id, userPhone, price, date FROM node_orders_v2 WHERE status = 'Completed'");
+    const ordersMap = new Map();
+    v2Orders.forEach(o => {
+      const formattedDate = formatDateToCompare(o.date);
+      if (formattedDate) {
+        const key = `${formattedDate}_${parseFloat(o.price)}`;
+        if (!ordersMap.has(key)) {
+          ordersMap.set(key, []);
+        }
+        ordersMap.get(key).push(o);
+      }
+    });
+
+    // Fetch user details map
+    const usersMap = await getUsersMap();
+
     // Mapped results
-    const mapped = rows.map(r => ({
-      ...r,
-      serviceAmount: parseFloat(r.serviceAmount),
-      extraServiceAmount: parseFloat(r.extraServiceAmount),
-      totalAmount: parseFloat(r.totalAmount)
-    }));
+    const mapped = rows.map(r => {
+      let uId = r.userId ? parseInt(r.userId) : null;
+      
+      // Fallback: If userId is null, try to match by date and amount with completed orders
+      if (!uId && r.orderDate) {
+        const formattedEarningDate = formatDateToCompare(r.orderDate);
+        const key = `${formattedEarningDate}_${parseFloat(r.totalAmount)}`;
+        const matches = ordersMap.get(key) || [];
+        if (matches.length > 0 && matches[0].userPhone) {
+          const parsed = parseInt(matches[0].userPhone);
+          if (!isNaN(parsed)) {
+            uId = parsed;
+          }
+        }
+      }
+
+      return {
+        ...r,
+        userId: uId,
+        serviceAmount: parseFloat(r.serviceAmount),
+        extraServiceAmount: parseFloat(r.extraServiceAmount),
+        totalAmount: parseFloat(r.totalAmount),
+        userDetails: uId ? (usersMap.get(uId) || null) : null
+      };
+    });
 
     // Filtered stats
     const filteredBookingEarnings = mapped.reduce((sum, r) => sum + r.totalAmount, 0);
@@ -64,7 +193,7 @@ router.get('/bookings', async (req, res) => {
 
 // POST add booking earning
 router.post('/bookings', async (req, res) => {
-  const { transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate } = req.body;
+  const { userId, transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate } = req.body;
   
   if (!transactionId || serviceAmount === undefined || !paymentMethod || totalAmount === undefined || !orderDate) {
     return res.status(400).json({ success: false, message: 'Missing transaction details' });
@@ -74,13 +203,14 @@ router.post('/bookings', async (req, res) => {
   const eAmt = parseFloat(extraServiceAmount || 0);
   const tAmt = parseFloat(totalAmount);
   const ePayMethod = extraServicePaymentMethod || '-';
+  const uId = userId ? parseInt(userId) : null;
 
   try {
     const [result] = await db.query(
       `INSERT INTO booking_earnings 
-      (transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [transactionId, sAmt, paymentMethod, eAmt, ePayMethod, tAmt, orderDate]
+      (userId, transactionId, serviceAmount, paymentMethod, extraServiceAmount, extraServicePaymentMethod, totalAmount, orderDate) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uId, transactionId, sAmt, paymentMethod, eAmt, ePayMethod, tAmt, orderDate]
     );
 
     res.status(201).json({
@@ -88,6 +218,7 @@ router.post('/bookings', async (req, res) => {
       message: 'Booking transaction logged successfully',
       data: {
         id: result.insertId,
+        userId: uId,
         transactionId,
         serviceAmount: sAmt,
         paymentMethod,
@@ -103,10 +234,95 @@ router.post('/bookings', async (req, res) => {
   }
 });
 
+async function getPartnersMap(req) {
+  try {
+    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    // 1. Fetch Node partners
+    const [nodeRows] = await db.query('SELECT id, name, email, mobile, city, state, image, status, isApproved FROM partners');
+    
+    // 2. Fetch Laravel partners
+    const [laravelRows] = await db.query(`
+      SELECT 
+        u.id, 
+        u.name, 
+        u.email, 
+        u.mobile_number AS mobile, 
+        s.name AS state, 
+        c.name AS city, 
+        u.image, 
+        u.status, 
+        u.is_approval AS isApproved,
+        u.category_id
+      FROM \`${dbName}\`.\`users\` u
+      LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
+      LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
+      WHERE u.role_id = 2
+    `);
+
+    // Fetch categories for title mapping
+    const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
+    const catMap = {};
+    catRows.forEach(row => {
+      catMap[row.id] = row.title;
+    });
+
+    const partnerMap = new Map();
+    const partnerByNameMap = new Map();
+
+    const addPartnerToMaps = (id, partnerDetails) => {
+      partnerMap.set(id, partnerDetails);
+      const nameKey = (partnerDetails.name || '').toLowerCase().trim();
+      if (nameKey) {
+        partnerByNameMap.set(nameKey, partnerDetails);
+      }
+    };
+
+    nodeRows.forEach(r => {
+      addPartnerToMaps(r.id, {
+        id: r.id,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        city: r.city || '',
+        state: r.state || '',
+        category: '',
+        image: r.image ? (r.image.startsWith('http') ? r.image : `${baseUrl}/uploads/${r.image}`) : '',
+        status: r.status === 1 || r.status === true,
+        isApproved: r.isApproved === 1 || r.isApproved === true,
+        source: 'Admin Partner (MySQL)'
+      });
+    });
+
+    laravelRows.forEach(r => {
+      const lId = r.id + 10000000;
+      addPartnerToMaps(lId, {
+        id: lId,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        city: r.city || '',
+        state: r.state || '',
+        category: catMap[r.category_id] || '',
+        image: r.image ? (r.image.startsWith('http') ? r.image : `${baseUrl}/uploads/${r.image}`) : '',
+        status: r.status === 1 || r.status === true,
+        isApproved: r.isApproved === 1 || r.isApproved === true,
+        source: 'App Partner (Laravel)'
+      });
+    });
+
+    return { partnerMap, partnerByNameMap };
+  } catch (error) {
+    console.error('Error in getPartnersMap:', error);
+    return { partnerMap: new Map(), partnerByNameMap: new Map() };
+  }
+}
+
 // GET all subscription earnings (with search & aggregates)
 router.get('/subscriptions', async (req, res) => {
   try {
-    const { query: searchQuery, partnerName, paymentMethod, status, purchaseDate } = req.query;
+    const { query: searchQuery, partnerName, paymentMethod, status, purchaseDate, partnerId } = req.query;
 
     // 1. Overall stats
     const [overallRes] = await db.query('SELECT SUM(amount) as totalAmount, COUNT(*) as totalCount FROM subscription_earnings');
@@ -137,15 +353,38 @@ router.get('/subscriptions', async (req, res) => {
       queryStr += ' AND purchaseDate LIKE ?';
       params.push(`%${purchaseDate}%`);
     }
+    if (partnerId) {
+      queryStr += ' AND partnerId = ?';
+      params.push(parseInt(partnerId));
+    }
 
     queryStr += ' ORDER BY id DESC';
     const [rows] = await db.query(queryStr, params);
 
+    // Fetch partner details map
+    const { partnerMap, partnerByNameMap } = await getPartnersMap(req);
+
     // Mapped results
-    const mapped = rows.map(r => ({
-      ...r,
-      amount: parseFloat(r.amount)
-    }));
+    const mapped = rows.map(r => {
+      let pId = r.partnerId ? parseInt(r.partnerId) : null;
+      let partnerDetails = pId ? (partnerMap.get(pId) || null) : null;
+      
+      // Fallback: If partnerId is null or not found, try to look up by name
+      if (!partnerDetails && r.partnerName) {
+        const nameKey = r.partnerName.toLowerCase().trim();
+        partnerDetails = partnerByNameMap.get(nameKey) || null;
+        if (partnerDetails) {
+          pId = partnerDetails.id;
+        }
+      }
+
+      return {
+        ...r,
+        partnerId: pId,
+        amount: parseFloat(r.amount),
+        partnerDetails
+      };
+    });
 
     // Filtered stats
     const filteredSubscriptionsEarnings = mapped.reduce((sum, r) => sum + r.amount, 0);
@@ -167,20 +406,21 @@ router.get('/subscriptions', async (req, res) => {
 
 // POST add subscription earning
 router.post('/subscriptions', async (req, res) => {
-  const { partnerName, amount, paymentMethod, purchaseDate, status } = req.body;
+  const { partnerId, partnerName, amount, paymentMethod, purchaseDate, status } = req.body;
   
   if (!partnerName || amount === undefined || !paymentMethod || !purchaseDate || !status) {
     return res.status(400).json({ success: false, message: 'Missing subscription details' });
   }
 
   const amt = parseFloat(amount);
+  const pId = partnerId ? parseInt(partnerId) : null;
 
   try {
     const [result] = await db.query(
       `INSERT INTO subscription_earnings 
-      (partnerName, amount, paymentMethod, purchaseDate, status) 
-      VALUES (?, ?, ?, ?, ?)`,
-      [partnerName, amt, paymentMethod, purchaseDate, status]
+      (partnerId, partnerName, amount, paymentMethod, purchaseDate, status) 
+      VALUES (?, ?, ?, ?, ?, ?)`,
+      [pId, partnerName, amt, paymentMethod, purchaseDate, status]
     );
 
     res.status(201).json({
@@ -188,6 +428,7 @@ router.post('/subscriptions', async (req, res) => {
       message: 'Subscription purchase logged successfully',
       data: {
         id: result.insertId,
+        partnerId: pId,
         partnerName,
         amount: amt,
         paymentMethod,

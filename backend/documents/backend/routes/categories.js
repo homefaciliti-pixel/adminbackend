@@ -2,6 +2,22 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+function formatImageUrl(img, req) {
+  if (!img) return '';
+  const host = req.get('host');
+  const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  
+  if (img.startsWith('http://') || img.startsWith('https://')) {
+    if (img.includes('localhost:') || img.includes('127.0.0.1')) {
+      const filename = img.split('/uploads/').pop();
+      return `${protocol}://${host}/uploads/${filename}`;
+    }
+    return img;
+  }
+  const cleanFilename = img.replace(/^uploads\//, '').replace(/^categories\//, '');
+  return `${protocol}://${host}/uploads/${cleanFilename}`;
+}
+
 // GET all categories (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
@@ -32,6 +48,8 @@ router.get('/', async (req, res) => {
     const [rows] = await db.query(query, params);
     const mapped = rows.map(r => ({
       ...r,
+      id: r.id,
+      image: formatImageUrl(r.image, req),
       parent: r.parent === null ? 'None' : r.parent,
       status: r.status === 1
     }));
@@ -45,6 +63,31 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /search - search categories
+router.get('/search', async (req, res) => {
+  const q = req.query.q || req.query.query || '';
+  try {
+    let rows;
+    if (q.trim() === '') {
+      [rows] = await db.query('SELECT * FROM categories ORDER BY id DESC');
+    } else {
+      [rows] = await db.query(
+        'SELECT * FROM categories WHERE title LIKE ? OR parent LIKE ? ORDER BY id DESC',
+        [`%${q}%`, `%${q}%`]
+      );
+    }
+    const mapped = rows.map(r => ({
+      ...r,
+      id: r.id,
+      parent: r.parent === null ? 'None' : r.parent,
+      status: r.status === 1
+    }));
+    res.json({ success: true, data: mapped });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Search failed', error: error.message });
+  }
+});
+
 // POST create category
 router.post('/', async (req, res) => {
   const titleVal = req.body.title || req.body.categoryName;
@@ -52,17 +95,22 @@ router.post('/', async (req, res) => {
   const imageVal = req.body.image || '';
   const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
   
-  if (!titleVal || !parentVal) {
-    return res.status(400).json({ success: false, message: 'Category Name (title) and Main Category (parent) are required' });
+  if (!titleVal) {
+    return res.status(400).json({ success: false, message: 'Category Name (title) is required' });
   }
   
   const statusInt = statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0;
   const dbParentVal = parentVal === 'None' || !parentVal ? null : parentVal;
+  
+  const slug = titleVal.trim().toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
 
   try {
     const [result] = await db.query(
-      'INSERT INTO categories (title, parent, image, status) VALUES (?, ?, ?, ?)',
-      [titleVal, dbParentVal, imageVal, statusInt]
+      'INSERT INTO categories (title, slug, parent, image, status) VALUES (?, ?, ?, ?, ?)',
+      [titleVal, slug, dbParentVal, imageVal, statusInt]
     );
     res.status(201).json({
       success: true,
@@ -84,6 +132,11 @@ router.post('/', async (req, res) => {
 // PUT update category
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+
   const titleVal = req.body.title || req.body.categoryName;
   const parentVal = req.body.parent || req.body.mainCategory;
   const imageVal = req.body.image;
@@ -111,10 +164,11 @@ router.put('/:id', async (req, res) => {
     }
 
     if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: 'No fields to update' });
+      const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+      return res.json({ success: true, message: 'Update successful (no changes made)', data: rows[0] });
     }
 
-    values.push(id);
+    values.push(numericId);
     const query = `UPDATE categories SET ${fields.join(', ')} WHERE id = ?`;
     const [result] = await db.query(query, values);
 
@@ -123,12 +177,13 @@ router.put('/:id', async (req, res) => {
     }
 
     // Retrieve updated category
-    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
     res.json({
       success: true,
       message: 'Category updated successfully',
       data: {
         ...rows[0],
+        id: rows[0].id,
         parent: rows[0].parent === null ? 'None' : rows[0].parent,
         status: rows[0].status === 1
       }
@@ -142,9 +197,14 @@ router.put('/:id', async (req, res) => {
 // DELETE category
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+
   try {
     // Fetch category title first to perform programmatic cascade delete of sub-categories
-    const [rows] = await db.query('SELECT title FROM categories WHERE id = ?', [id]);
+    const [rows] = await db.query('SELECT title FROM categories WHERE id = ?', [numericId]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
@@ -154,7 +214,7 @@ router.delete('/:id', async (req, res) => {
     await db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]);
 
     // Delete parent category
-    await db.query('DELETE FROM categories WHERE id = ?', [id]);
+    await db.query('DELETE FROM categories WHERE id = ?', [numericId]);
 
     res.json({
       success: true,
@@ -163,6 +223,75 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting category:', error);
     res.status(500).json({ success: false, message: 'Failed to delete category', error: error.message });
+  }
+});
+
+// PUT/PATCH toggle category status
+router.put('/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+
+  const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
+  if (statusVal === undefined) {
+    return res.status(400).json({ success: false, message: 'Status is required' });
+  }
+  const statusInt = (statusVal === true || statusVal === 1 || statusVal === 'true') ? 1 : 0;
+  try {
+    const [result] = await db.query('UPDATE categories SET status = ? WHERE id = ?', [statusInt, numericId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    res.json({
+      success: true,
+      message: `Category status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
+      data: {
+        ...rows[0],
+        id: rows[0].id,
+        parent: rows[0].parent === null ? 'None' : rows[0].parent,
+        status: rows[0].status === 1
+      }
+    });
+  } catch (error) {
+    console.error('Error toggling category status:', error);
+    res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
+  }
+});
+
+router.patch('/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+
+  const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
+  if (statusVal === undefined) {
+    return res.status(400).json({ success: false, message: 'Status is required' });
+  }
+  const statusInt = (statusVal === true || statusVal === 1 || statusVal === 'true') ? 1 : 0;
+  try {
+    const [result] = await db.query('UPDATE categories SET status = ? WHERE id = ?', [statusInt, numericId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    res.json({
+      success: true,
+      message: `Category status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
+      data: {
+        ...rows[0],
+        id: rows[0].id,
+        parent: rows[0].parent === null ? 'None' : rows[0].parent,
+        status: rows[0].status === 1
+      }
+    });
+  } catch (error) {
+    console.error('Error toggling category status:', error);
+    res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
   }
 });
 
