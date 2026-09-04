@@ -68,6 +68,7 @@ function queryViaHttpsBridge(sql, params = []) {
           'Accept': 'application/json, text/plain, */*',
           'X-Requested-With': 'XMLHttpRequest',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Cookie': 'humans_21909=1',
           'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
           'Content-Length': Buffer.byteLength(payload)
         },
