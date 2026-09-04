@@ -50,7 +50,8 @@ const https = require('https');
 let useHttpsBridgeFallback = true;
 
 // Connection Agent for keep-alive HTTPS connections
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 10, timeout: 4000 });
+// maxSockets: 2 prevents concurrent floods that trigger 429 on BigRock hosting
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 2, timeout: 8000 });
 
 // In-Memory Query Cache for fast read access
 const queryCache = new Map();
@@ -61,6 +62,9 @@ function invalidateCache() {
 }
 
 let bridgeQueue = Promise.resolve();
+
+// Minimum delay between sequential bridge calls to avoid flooding BigRock's WAF
+const BRIDGE_INTER_REQUEST_DELAY_MS = 300;
 
 function queryViaHttpsBridge(sql, params = []) {
   const isSelect = typeof sql === 'string' && sql.trim().toUpperCase().startsWith('SELECT');
@@ -80,6 +84,10 @@ function queryViaHttpsBridge(sql, params = []) {
   const task = bridgeQueue.then(() => new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
 
+    // Exponential backoff: 1s, 2s, 4s, 8s between retries
+    // This is critical for 429 (rate-limited) responses from BigRock's WAF
+    const getBackoffMs = (attempt) => Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+
     const sendRequest = (attempt = 1) => {
       const req = https.request({
         hostname: 'homefaciliti.com',
@@ -96,14 +104,15 @@ function queryViaHttpsBridge(sql, params = []) {
           'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
           'Content-Length': Buffer.byteLength(payload)
         },
-        timeout: 4000
+        timeout: 8000
       }, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
           const isHtml = data.trim().startsWith('<') || data.includes('<!DOCTYPE');
           if ((res.statusCode === 429 || res.statusCode >= 500 || isHtml) && attempt <= 4) {
-            const backoffMs = attempt * 250;
+            const backoffMs = getBackoffMs(attempt);
+            console.warn(`⚠️ Bridge HTTP ${res.statusCode} on attempt ${attempt}. Retrying in ${backoffMs}ms...`);
             setTimeout(() => sendRequest(attempt + 1), backoffMs);
             return;
           }
@@ -127,9 +136,10 @@ function queryViaHttpsBridge(sql, params = []) {
               if (cacheKey) {
                 queryCache.set(cacheKey, { timestamp: Date.now(), data: resultData });
               }
-              setTimeout(() => resolve(resultData), 20);
+              // Small delay after success to space out the next queued request
+              setTimeout(() => resolve(resultData), BRIDGE_INTER_REQUEST_DELAY_MS);
             } else if (attempt <= 4) {
-              setTimeout(() => sendRequest(attempt + 1), attempt * 250);
+              setTimeout(() => sendRequest(attempt + 1), getBackoffMs(attempt));
             } else {
               reject(new Error((parsed && (parsed.error || parsed.message)) || 'Bridge Error'));
             }
@@ -145,7 +155,9 @@ function queryViaHttpsBridge(sql, params = []) {
 
       req.on('error', (err) => {
         if (attempt <= 4) {
-          setTimeout(() => sendRequest(attempt + 1), attempt * 250);
+          const backoffMs = getBackoffMs(attempt);
+          console.warn(`⚠️ Bridge network error on attempt ${attempt}: ${err.message}. Retrying in ${backoffMs}ms...`);
+          setTimeout(() => sendRequest(attempt + 1), backoffMs);
         } else {
           reject(err);
         }
@@ -154,9 +166,11 @@ function queryViaHttpsBridge(sql, params = []) {
       req.on('timeout', () => {
         req.destroy();
         if (attempt <= 4) {
-          setTimeout(() => sendRequest(attempt + 1), attempt * 250);
+          const backoffMs = getBackoffMs(attempt);
+          console.warn(`⚠️ Bridge timeout on attempt ${attempt}. Retrying in ${backoffMs}ms...`);
+          setTimeout(() => sendRequest(attempt + 1), backoffMs);
         } else {
-          reject(new Error('Bridge Request Timeout'));
+          reject(new Error('Bridge Request Timeout after 4 attempts'));
         }
       });
 
@@ -207,41 +221,11 @@ pool.execute = async function (sql, values) {
   }
 };
 
-// Test connection and initialize tables on startup
-setImmediate(async () => {
-  try {
-    const connection = await pool.getConnection();
-    console.log('✅ Remote Database connected successfully through connection pool.');
-    
-    const createTableSql = `
-      CREATE TABLE IF NOT EXISTS \`${tablePrefix}uploaded_files\` (
-        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
-        \`filename\` VARCHAR(255) NOT NULL UNIQUE,
-        \`file_data\` LONGTEXT NOT NULL,
-        \`mime_type\` VARCHAR(100) NOT NULL,
-        \`created_at\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `;
-    await connection.query(createTableSql);
-    console.log(`✅ Table "${tablePrefix}uploaded_files" verified/created successfully.`);
-    
-    const createAdminsSql = `
-      CREATE TABLE IF NOT EXISTS \`${tablePrefix}admin_accounts\` (
-        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
-        \`email\` VARCHAR(255) NOT NULL UNIQUE,
-        \`username\` VARCHAR(100) NOT NULL UNIQUE,
-        \`password\` VARCHAR(255) NOT NULL,
-        \`lastGeneratedAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `;
-    await connection.query(createAdminsSql);
-    console.log(`✅ Table "${tablePrefix}admin_accounts" verified/created successfully.`);
-
-    connection.release();
-  } catch (error) {
-    console.warn('⚠️ Direct TCP MySQL connection unavailable on startup. Switching to HTTPS Bridge.');
-    useHttpsBridgeFallback = true;
-  }
-});
+// NOTE: Startup DB initialization removed — tables (uploaded_files, admin_accounts)
+// already exist in production. Running CREATE TABLE on every boot wastes 2 bridge slots
+// and contributes to 429 rate-limit bursts during cold starts on Render.
+// If tables need to be re-created, do so via a one-time migration script.
+console.log('✅ DB module loaded. Bridge queue ready. Tables expected to exist already.');
+useHttpsBridgeFallback = true; // Always use HTTPS bridge on Render
 
 module.exports = pool;

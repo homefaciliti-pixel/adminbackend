@@ -556,7 +556,9 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`⚡ Available endpoints under: http://localhost:${PORT}/api/`);
 
   // Automatically ensure correct version settings exist in DB on startup (non-blocking)
-  setImmediate(async () => {
+  // Delay 5s before startup DB writes to let Render's port scanner pass
+  // and avoid collision with the first incoming API requests on the bridge queue
+  setTimeout(async () => {
     try {
       const db = require('./db');
       console.log('[Startup] Ensuring app version settings in database...');
@@ -572,7 +574,7 @@ server.listen(PORT, '0.0.0.0', () => {
     } catch (err) {
       console.error('[Startup] Failed to ensure app version settings in DB:', err.message);
     }
-  });
+  }, 5000);
 });
 
 module.exports = server;
