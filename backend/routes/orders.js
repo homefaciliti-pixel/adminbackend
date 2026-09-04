@@ -164,6 +164,7 @@ async function getAllOrders(req) {
 
     list.push({
       id: r.id,
+      createdTimestamp: r.createdAt ? new Date(r.createdAt).getTime() : 0,
       serviceRequestNumber: reqNum,
       serviceName: r.serviceName || '',
       serviceAmount: parseFloat(r.serviceAmount || 0),
@@ -231,6 +232,7 @@ async function getAllOrders(req) {
 
     list.push({
       id: r.id, // Raw database ID directly
+      createdTimestamp: typeof r.createdAt === 'number' ? r.createdAt : (r.createdAt ? new Date(r.createdAt).getTime() : 0),
       serviceRequestNumber: reqNum,
       serviceName: r.serviceName || '',
       serviceAmount: parseFloat(r.price || 0),
@@ -282,6 +284,7 @@ async function getAllOrders(req) {
 
     list.push({
       id: r.id, // Raw database ID directly
+      createdTimestamp: r.created_at ? new Date(r.created_at).getTime() : 0,
       serviceRequestNumber: reqNum,
       serviceName: r.service_name || '',
       serviceAmount: parseFloat(r.total_amount || 0),
@@ -312,8 +315,28 @@ async function getAllOrders(req) {
   });
 
 
-  // Sort by ID descending
-  list.sort((a, b) => b.id - a.id);
+// Helper: Safely parse timestamp from order item for descending sort
+function parseOrderTimestamp(item) {
+  if (item.createdTimestamp) return item.createdTimestamp;
+  if (typeof item.createdAt === 'number') return item.createdAt;
+  if (item.createdAt) {
+    const parsed = Date.parse(item.createdAt);
+    if (!isNaN(parsed)) return parsed;
+  }
+  if (item.serviceDate) {
+    const parsed = Date.parse(item.serviceDate);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return item.id || 0;
+}
+
+  // Sort by Creation Timestamp descending so newest orders always appear at the top
+  list.sort((a, b) => {
+    const timeA = parseOrderTimestamp(a);
+    const timeB = parseOrderTimestamp(b);
+    if (timeB !== timeA) return timeB - timeA;
+    return b.id - a.id;
+  });
 
   return list;
 }
