@@ -46,87 +46,36 @@ function prefixQuery(sql) {
   });
 }
 
+const http = require('http');
 const https = require('https');
 let useHttpsBridgeFallback = false;
-let bridgeCookie = 'humans_21909=1';
-let sessionEstablished = false;
 
-function performHandshake() {
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'homefaciliti.com',
-      port: 443,
-      path: '/public/db_bridge.php',
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Cookie': bridgeCookie
-      },
-      timeout: 5000
-    };
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        const matchCookie = data.match(/document\.cookie\s*=\s*["']([^"']+)["']/i);
-        if (matchCookie && matchCookie[1]) {
-          bridgeCookie = matchCookie[1].split(';')[0];
-          console.log(`🍪 Handshake extracted anti-bot cookie: "${bridgeCookie}"`);
-        }
-        sessionEstablished = true;
-        resolve();
-      });
-    });
-    req.on('error', () => resolve());
-    req.on('timeout', () => { req.destroy(); resolve(); });
-    req.end();
-  });
-}
-
-async function queryViaHttpsBridge(sql, params = []) {
-  await performHandshake();
-
+function queryViaHttpsBridge(sql, params = []) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
-    let attempts = 0;
     
-    const sendRequest = async () => {
-      attempts++;
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/plain, */*',
-        'X-Requested-With': 'XMLHttpRequest',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
-        'Referer': 'https://homefaciliti.com/public/db_bridge.php',
-        'Content-Length': Buffer.byteLength(payload)
-      };
-      if (bridgeCookie) {
-        headers['Cookie'] = bridgeCookie;
-      }
-
-      const req = https.request({
+    const sendRequest = (useHttps = false) => {
+      const protocol = useHttps ? https : http;
+      const port = useHttps ? 443 : 80;
+      
+      const req = protocol.request({
         hostname: 'homefaciliti.com',
-        port: 443,
+        port: port,
         path: '/public/db_bridge.php',
         method: 'POST',
-        headers: headers,
-        timeout: 10000
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/plain, */*',
+          'X-Requested-With': 'XMLHttpRequest',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: 8000
       }, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
-        res.on('end', async () => {
-          // Check for anti-bot cookie challenge in response
-          const matchCookie = data.match(/document\.cookie\s*=\s*["']([^"']+)["']/i);
-          if (matchCookie && matchCookie[1] && attempts < 3) {
-            bridgeCookie = matchCookie[1].split(';')[0];
-            sessionEstablished = false;
-            console.log(`🍪 Extracted BigRock anti-bot cookie (attempt ${attempts}): "${bridgeCookie}". Retrying handshake & request...`);
-            await performHandshake();
-            return sendRequest();
-          }
-
+        res.on('end', () => {
           try {
             let cleanData = data;
             const firstBrace = cleanData.indexOf('{');
@@ -141,37 +90,37 @@ async function queryViaHttpsBridge(sql, params = []) {
               } else {
                 resolve([{ affectedRows: parsed.affectedRows, insertId: parsed.insertId }, []]);
               }
+            } else if (!useHttps) {
+              sendRequest(true);
             } else {
-              reject(new Error((parsed && (parsed.error || parsed.message)) || 'HTTPS Bridge Error'));
+              reject(new Error((parsed && (parsed.error || parsed.message)) || 'Bridge Error'));
             }
           } catch (e) {
-            if (attempts < 3) {
-              console.log(`Retry attempt ${attempts} for /public/db_bridge.php due to parse error...`);
-              sessionEstablished = false;
-              await performHandshake();
-              return sendRequest();
+            if (!useHttps) {
+              sendRequest(true);
+            } else {
+              reject(new Error(`JSON Parse Error on Bridge response: ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
             }
-            reject(new Error(`JSON Parse Error on HTTPS Bridge response: ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
           }
         });
       });
 
       req.on('error', (err) => {
-        if (attempts < 3) return sendRequest();
-        reject(err);
+        if (!useHttps) sendRequest(true);
+        else reject(err);
       });
 
       req.on('timeout', () => {
         req.destroy();
-        if (attempts < 3) return sendRequest();
-        reject(new Error('HTTPS Bridge Request Timeout'));
+        if (!useHttps) sendRequest(true);
+        else reject(new Error('Bridge Request Timeout'));
       });
 
       req.write(payload);
       req.end();
     };
 
-    sendRequest();
+    sendRequest(false);
   });
 }
 
