@@ -39,9 +39,13 @@ async function seedPages() {
     console.error('Error seeding pages:', error.message);
   }
 }
-setImmediate(() => {
-  seedPages().catch(err => console.error('Background page seed error:', err.message));
-});
+// Lazy seed: seedPages will run on first GET /api/pages request if table is empty
+let isPagesSeeded = false;
+async function ensurePagesSeeded() {
+  if (isPagesSeeded) return;
+  isPagesSeeded = true;
+  await seedPages();
+}
 
 // GET all pages
 router.get('/', async (req, res) => {
