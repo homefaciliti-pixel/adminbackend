@@ -48,28 +48,42 @@ function prefixQuery(sql) {
 
 const https = require('https');
 let useHttpsBridgeFallback = false;
+let bridgeCookie = 'humans_21909=1';
 
 function queryViaHttpsBridge(sql, params = []) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
     
-    const sendRequest = (bridgePath) => {
+    const sendRequest = (bridgePath, retriedWithCookie = false) => {
+      const headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
+        'Content-Length': Buffer.byteLength(payload)
+      };
+      if (bridgeCookie) {
+        headers['Cookie'] = bridgeCookie;
+      }
+
       const req = https.request({
         hostname: 'homefaciliti.com',
         port: 443,
         path: bridgePath,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
-          'Content-Length': Buffer.byteLength(payload)
-        },
+        headers: headers,
         timeout: 10000
       }, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
+          // Check for anti-bot cookie challenge in response
+          const matchCookie = data.match(/document\.cookie\s*=\s*["']([^"']+)["']/i);
+          if (matchCookie && matchCookie[1] && !retriedWithCookie) {
+            bridgeCookie = matchCookie[1].split(';')[0];
+            console.log(`🍪 Extracted BigRock anti-bot cookie: "${bridgeCookie}". Retrying HTTPS Bridge request...`);
+            return sendRequest(bridgePath, true);
+          }
+
           try {
             let cleanData = data;
             const firstBrace = cleanData.indexOf('{');
