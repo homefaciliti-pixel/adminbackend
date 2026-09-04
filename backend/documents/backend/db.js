@@ -11,7 +11,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 20,
   queueLimit: 0,
-  connectTimeout: 2000,        // Fast 2s connection timeout for quick auto-failover
+  connectTimeout: 1000,        // Fast 1s connection timeout for instant auto-failover
   enableKeepAlive: true,       // keep connections alive
   keepAliveInitialDelay: 10000,// ping every 10s
   ssl: false                   // disable TLS handshake on cPanel shared hosting
@@ -45,11 +45,12 @@ function prefixQuery(sql) {
 
 const http = require('http');
 const https = require('https');
-let useHttpsBridgeFallback = false;
 
-// Connection Agents for keep-alive HTTPS/HTTP connections
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 5, timeout: 5000 });
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 5, timeout: 5000 });
+// Default to HTTPS Bridge fallback for Render environments where direct MySQL 3306 is blocked
+let useHttpsBridgeFallback = true;
+
+// Connection Agent for keep-alive HTTPS connections
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 10, timeout: 4000 });
 
 // In-Memory Query Cache for fast read access
 const queryCache = new Map();
@@ -79,17 +80,13 @@ function queryViaHttpsBridge(sql, params = []) {
   const task = bridgeQueue.then(() => new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
 
-    const sendRequest = (useHttps = true, attempt = 1) => {
-      const protocol = useHttps ? https : http;
-      const port = useHttps ? 443 : 80;
-      const agent = useHttps ? httpsAgent : httpAgent;
-
-      const req = protocol.request({
+    const sendRequest = (attempt = 1) => {
+      const req = https.request({
         hostname: 'homefaciliti.com',
-        port: port,
+        port: 443,
         path: '/public/db_bridge.php',
         method: 'POST',
-        agent: agent,
+        agent: httpsAgent,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json, text/plain, */*',
@@ -99,15 +96,15 @@ function queryViaHttpsBridge(sql, params = []) {
           'X-Bridge-Secret': 'HF_SECURE_KEY_2026_x92!',
           'Content-Length': Buffer.byteLength(payload)
         },
-        timeout: 5000
+        timeout: 4000
       }, (res) => {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
           const isHtml = data.trim().startsWith('<') || data.includes('<!DOCTYPE');
           if ((res.statusCode === 429 || res.statusCode >= 500 || isHtml) && attempt <= 4) {
-            const backoffMs = attempt * 300;
-            setTimeout(() => sendRequest(!useHttps, attempt + 1), backoffMs);
+            const backoffMs = attempt * 250;
+            setTimeout(() => sendRequest(attempt + 1), backoffMs);
             return;
           }
 
@@ -130,15 +127,15 @@ function queryViaHttpsBridge(sql, params = []) {
               if (cacheKey) {
                 queryCache.set(cacheKey, { timestamp: Date.now(), data: resultData });
               }
-              setTimeout(() => resolve(resultData), 30);
+              setTimeout(() => resolve(resultData), 20);
             } else if (attempt <= 4) {
-              setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 300);
+              setTimeout(() => sendRequest(attempt + 1), attempt * 250);
             } else {
               reject(new Error((parsed && (parsed.error || parsed.message)) || 'Bridge Error'));
             }
           } catch (e) {
             if (attempt <= 4) {
-              setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 300);
+              setTimeout(() => sendRequest(attempt + 1), attempt * 250);
             } else {
               reject(new Error(`JSON Parse Error on Bridge response (HTTP ${res.statusCode}): ${e.message}`));
             }
@@ -148,7 +145,7 @@ function queryViaHttpsBridge(sql, params = []) {
 
       req.on('error', (err) => {
         if (attempt <= 4) {
-          setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 300);
+          setTimeout(() => sendRequest(attempt + 1), attempt * 250);
         } else {
           reject(err);
         }
@@ -157,7 +154,7 @@ function queryViaHttpsBridge(sql, params = []) {
       req.on('timeout', () => {
         req.destroy();
         if (attempt <= 4) {
-          setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 300);
+          setTimeout(() => sendRequest(attempt + 1), attempt * 250);
         } else {
           reject(new Error('Bridge Request Timeout'));
         }
@@ -167,7 +164,7 @@ function queryViaHttpsBridge(sql, params = []) {
       req.end();
     };
 
-    sendRequest(true, 1);
+    sendRequest(1);
   }));
 
   bridgeQueue = task.catch(() => {});
@@ -242,8 +239,7 @@ setImmediate(async () => {
 
     connection.release();
   } catch (error) {
-    console.error('❌ Database connection/initialization failed on startup:');
-    console.error(error.message);
+    console.warn('⚠️ Direct TCP MySQL connection unavailable on startup. Switching to HTTPS Bridge.');
     useHttpsBridgeFallback = true;
   }
 });
