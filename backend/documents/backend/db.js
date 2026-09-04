@@ -48,40 +48,42 @@ const https = require('https');
 let useHttpsBridgeFallback = false;
 
 // HTTP/HTTPS Connection Agents with strict socket limits to prevent Apache 429 rate limits
-const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 3, timeout: 10000 });
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 3, timeout: 10000 });
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 2, timeout: 10000 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 2, timeout: 10000 });
 
 // In-Memory Query Cache for fast read access and reduced HTTP traffic
 const queryCache = new Map();
-const CACHE_TTL_MS = 10000; // 10 seconds cache for SELECT queries
+const CACHE_TTL_MS = 15000; // 15 seconds cache for SELECT queries
 
 function invalidateCache() {
   queryCache.clear();
 }
 
+let bridgeQueue = Promise.resolve();
+
 function queryViaHttpsBridge(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    const isSelect = typeof sql === 'string' && sql.trim().toUpperCase().startsWith('SELECT');
-    const cacheKey = isSelect ? `${sql}::${JSON.stringify(params)}` : null;
+  const isSelect = typeof sql === 'string' && sql.trim().toUpperCase().startsWith('SELECT');
+  const cacheKey = isSelect ? `${sql}::${JSON.stringify(params)}` : null;
 
-    if (cacheKey && queryCache.has(cacheKey)) {
-      const cached = queryCache.get(cacheKey);
-      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
-        return resolve(cached.data);
-      }
+  if (cacheKey && queryCache.has(cacheKey)) {
+    const cached = queryCache.get(cacheKey);
+    if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return Promise.resolve(cached.data);
     }
+  }
 
-    if (!isSelect) {
-      invalidateCache();
-    }
+  if (!isSelect) {
+    invalidateCache();
+  }
 
+  const task = bridgeQueue.then(() => new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
-    
+
     const sendRequest = (useHttps = false, attempt = 1) => {
       const protocol = useHttps ? https : http;
       const port = useHttps ? 443 : 80;
       const agent = useHttps ? httpsAgent : httpAgent;
-      
+
       const req = protocol.request({
         hostname: 'homefaciliti.com',
         port: port,
@@ -102,10 +104,9 @@ function queryViaHttpsBridge(sql, params = []) {
         let data = '';
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
-          // Handle Rate Limiting (429) or HTML Error pages with exponential retry
           const isHtml = data.trim().startsWith('<') || data.includes('<!DOCTYPE');
-          if ((res.statusCode === 429 || res.statusCode >= 500 || isHtml) && attempt <= 4) {
-            const backoffMs = attempt * 350;
+          if ((res.statusCode === 429 || res.statusCode >= 500 || isHtml) && attempt <= 5) {
+            const backoffMs = attempt * 500;
             setTimeout(() => sendRequest(!useHttps, attempt + 1), backoffMs);
             return;
           }
@@ -129,25 +130,25 @@ function queryViaHttpsBridge(sql, params = []) {
               if (cacheKey) {
                 queryCache.set(cacheKey, { timestamp: Date.now(), data: resultData });
               }
-              resolve(resultData);
-            } else if (attempt <= 4) {
-              setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 350);
+              setTimeout(() => resolve(resultData), 50);
+            } else if (attempt <= 5) {
+              setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 500);
             } else {
               reject(new Error((parsed && (parsed.error || parsed.message)) || 'Bridge Error'));
             }
           } catch (e) {
-            if (attempt <= 4) {
-              setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 350);
+            if (attempt <= 5) {
+              setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 500);
             } else {
-              reject(new Error(`JSON Parse Error on Bridge response (HTTP ${res.statusCode}): ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
+              reject(new Error(`JSON Parse Error on Bridge response (HTTP ${res.statusCode}): ${e.message}`));
             }
           }
         });
       });
 
       req.on('error', (err) => {
-        if (attempt <= 4) {
-          setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 350);
+        if (attempt <= 5) {
+          setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 500);
         } else {
           reject(err);
         }
@@ -155,8 +156,8 @@ function queryViaHttpsBridge(sql, params = []) {
 
       req.on('timeout', () => {
         req.destroy();
-        if (attempt <= 4) {
-          setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 350);
+        if (attempt <= 5) {
+          setTimeout(() => sendRequest(!useHttps, attempt + 1), attempt * 500);
         } else {
           reject(new Error('Bridge Request Timeout'));
         }
@@ -167,7 +168,10 @@ function queryViaHttpsBridge(sql, params = []) {
     };
 
     sendRequest(false, 1);
-  });
+  }));
+
+  bridgeQueue = task.catch(() => {});
+  return task;
 }
 
 const originalQuery = pool.query;
