@@ -548,33 +548,13 @@ server.use((err, req, res, next) => {
   });
 });
 
-// Force redeploy 12 - non-blocking startup to fix Render port scan timeout
 // Start listening for incoming network requests
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API Server running on port ${PORT}`);
   console.log(`🔗 Health Check: http://localhost:${PORT}/`);
   console.log(`⚡ Available endpoints under: http://localhost:${PORT}/api/`);
-
-  // Automatically ensure correct version settings exist in DB on startup (non-blocking)
-  // Delay 5s before startup DB writes to let Render's port scanner pass
-  // and avoid collision with the first incoming API requests on the bridge queue
-  setTimeout(async () => {
-    try {
-      const db = require('./db');
-      console.log('[Startup] Ensuring app version settings in database...');
-      
-      await db.query(`
-        INSERT INTO settings_config (\`key\`, \`value\`) VALUES 
-        ('android_latest_version', '1.0.4'),
-        ('android_force_update', 'true')
-        ON DUPLICATE KEY UPDATE \`value\` = VALUES(\`value\`)
-      `);
-      
-      console.log('[Startup] Successfully verified/updated app version settings in DB.');
-    } catch (err) {
-      console.error('[Startup] Failed to ensure app version settings in DB:', err.message);
-    }
-  }, 5000);
+  // NOTE: No startup DB calls — all initialization is on-demand via API requests.
+  // This prevents 429 rate-limit floods on the BigRock PHP bridge during cold starts.
 });
 
 module.exports = server;

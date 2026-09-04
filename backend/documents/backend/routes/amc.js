@@ -3,90 +3,22 @@ const router = express.Router();
 const db = require('../db');
 
 
-// Helper: safely add a column if it doesn't already exist
+// Helper: safely add a column if it doesn't already exist (for manual migrations only)
 async function safeAddCol(table, column, definition) {
   try {
     await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
   } catch (e) {
-    // Column already exists (error 1060) — safe to ignore
     if (!e.message.includes('1060') && !e.message.includes('Duplicate column')) {
       console.warn(`safeAddCol(${table}.${column}): ${e.message}`);
     }
   }
 }
 
-// Lazy init: runs ONCE on the first AMC API call, not at server startup
-// This prevents 9+ bridge calls flooding BigRock's WAF on every cold start
-let amcTablesReady = false;
-async function ensureAmcTables() {
-  if (amcTablesReady) return;
-  amcTablesReady = true;
-  try {
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS \`node_amc_subscriptions\` (
-        \`amcId\` VARCHAR(50) PRIMARY KEY,
-        \`userPhone\` VARCHAR(20) NOT NULL,
-        \`category\` VARCHAR(100) NOT NULL,
-        \`areaSqFt\` INT NOT NULL DEFAULT 1200,
-        \`floors\` INT NOT NULL DEFAULT 1,
-        \`houseType\` VARCHAR(50) DEFAULT 'Villa',
-        \`address\` VARCHAR(255) DEFAULT 'Jaipur',
-        \`planName\` VARCHAR(100) DEFAULT 'Premium AMC',
-        \`totalVisits\` INT DEFAULT 12,
-        \`price\` DECIMAL(10,2) NOT NULL,
-        \`status\` VARCHAR(20) DEFAULT 'active',
-        \`startDate\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        \`endDate\` TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00',
-        \`photoUrl\` VARCHAR(500),
-        \`pdfUrl\` VARCHAR(500),
-        \`note\` TEXT,
-        \`fileUrl\` VARCHAR(500),
-        \`razorpayOrderId\` VARCHAR(100),
-        \`razorpayPaymentId\` VARCHAR(100)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS \`node_amc_visits\` (
-        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
-        \`amcId\` VARCHAR(50) NOT NULL,
-        \`bookingCode\` VARCHAR(50),
-        \`userPhone\` VARCHAR(20) NOT NULL,
-        \`scheduledDate\` DATE NOT NULL,
-        \`timeSlot\` VARCHAR(50) NOT NULL,
-        \`status\` VARCHAR(20) DEFAULT 'pending',
-        \`partnerName\` VARCHAR(100),
-        \`partnerPhone\` VARCHAR(20),
-        \`serviceName\` VARCHAR(255) NOT NULL,
-        \`description\` TEXT,
-        \`notes\` TEXT,
-        \`rating\` INT DEFAULT 5,
-        \`images\` TEXT,
-        \`otp\` VARCHAR(6),
-        \`completedAt\` TIMESTAMP NULL,
-        \`createdAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS \`node_amc_partner_payments\` (
-        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
-        \`visitId\` INT NOT NULL,
-        \`amcId\` VARCHAR(50) NOT NULL,
-        \`partnerPhone\` VARCHAR(20) NOT NULL,
-        \`partnerName\` VARCHAR(100) NOT NULL,
-        \`amount\` DECIMAL(10,2) NOT NULL,
-        \`status\` VARCHAR(20) DEFAULT 'pending',
-        \`releasedAt\` TIMESTAMP NULL,
-        \`createdAt\` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        \`razorpayPaymentId\` VARCHAR(100),
-        \`razorpayOrderId\` VARCHAR(100)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-    console.log('✅ AMC tables verified/created on first request.');
-  } catch (err) {
-    console.error('❌ AMC lazy table init failed:', err.message);
-    amcTablesReady = false; // Allow retry on next request
-  }
-}
+// Tables already exist in production — this is a permanent no-op.
+// Do NOT add CREATE TABLE calls here; they cause 429 floods on BigRock's WAF.
+// Run migrations manually via a one-time script if schema changes are needed.
+const amcTablesReady = true;
+async function ensureAmcTables() { /* no-op — tables exist */ }
 
 
 

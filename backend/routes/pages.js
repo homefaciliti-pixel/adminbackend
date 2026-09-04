@@ -2,50 +2,14 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// Auto-create pages table if it doesn't exist (handles remote DB where node_pages may be missing)
-async function seedPages() {
-  try {
-    // Ensure the table exists (safe for both local and remote DB)
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS \`pages\` (
-        \`id\` INT AUTO_INCREMENT PRIMARY KEY,
-        \`title\` VARCHAR(255) NOT NULL,
-        \`description\` TEXT NOT NULL
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
+// NOTE: pages table exists in production — seeding is a no-op.
+// Do NOT run CREATE TABLE here; it causes 429 floods on the BigRock PHP bridge.
+// If the table needs to be recreated, run a one-time manual migration script.
+async function seedPages() { /* no-op — table and rows exist in production */ }
 
-    // Seed default pages if table is empty
-    const [existing] = await db.query('SELECT COUNT(*) as cnt FROM pages');
-    if (existing[0].cnt === 0) {
-      await db.query(`
-        INSERT INTO pages (title, description) VALUES
-        ('About Us', 'We provide the best on-demand home services including cleaning, plumbing, AC repair, and electrical work right at your doorstep.'),
-        ('Terms and Conditions', 'Please read these terms carefully. By using our services you agree to comply with all safety and payment guidelines.'),
-        ('Privacy Policy', 'We value your privacy. We collect your location and contact details only to provide services and we never share them with third parties.'),
-        ('Refund and Cancellation Policy', 'We offer a full refund if the service request is cancelled at least 24 hours before the scheduled time slot. For cancellations within 24 hours, a processing fee may apply.')
-      `);
-      console.log('✅ Seeded 4 default pages.');
-    } else {
-      // Ensure Refund page exists even in non-empty table
-      const [rows] = await db.query("SELECT id FROM pages WHERE title LIKE '%Refund%'");
-      if (rows.length === 0) {
-        await db.query(
-          "INSERT INTO pages (title, description) VALUES ('Refund and Cancellation Policy', 'We offer a full refund if the service request is cancelled at least 24 hours before the scheduled time slot. For cancellations within 24 hours, a processing fee may apply.')"
-        );
-        console.log('✅ Seeded Refund & Cancellation Policy page.');
-      }
-    }
-  } catch (error) {
-    console.error('Error seeding pages:', error.message);
-  }
-}
-// Lazy seed: seedPages will run on first GET /api/pages request if table is empty
-let isPagesSeeded = false;
-async function ensurePagesSeeded() {
-  if (isPagesSeeded) return;
-  isPagesSeeded = true;
-  await seedPages();
-}
+// Kept for compatibility but is always a no-op
+let isPagesSeeded = true;
+async function ensurePagesSeeded() { /* no-op */ }
 
 // GET all pages
 router.get('/', async (req, res) => {
