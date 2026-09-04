@@ -61,13 +61,15 @@ function mapServiceRow(r, req) {
 }
 
 // GET all services
-router.get('/', async (req, res) => {
+router.get(['/', '/services'], async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
-    const mapped = rows.map(mapServiceRow);
+    const mapped = rows.map(r => mapServiceRow(r, req));
     res.json({
       success: true,
-      data: mapped
+      data: mapped,
+      services: mapped,
+      result: mapped
     });
   } catch (error) {
     console.error('Error fetching services:', error);
