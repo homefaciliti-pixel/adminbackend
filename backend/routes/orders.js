@@ -829,40 +829,32 @@ router.put('/:id/assign', async (req, res) => {
 // POST /api/orders  — Create new order with optional auto-assign
 // ─────────────────────────────────────────────
 router.post('/', async (req, res) => {
-  const {
-    serviceRequestNumber,
-    serviceName,
-    serviceAmount,
-    slotTime,
-    serviceDate,
-    city,
-    locality,
-    status,
-    vendorName,
-    address,
-    createdAt,
-    latitude,
-    longitude,
-    lat,
-    lon,
-    lng
-  } = req.body;
+  const now = new Date();
+  const year = now.getFullYear();
+  const todayStr = `${year}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  if (!serviceRequestNumber || !serviceName || serviceAmount === undefined || !slotTime || !serviceDate || !city || !locality || !status || !address) {
-    return res.status(400).json({ success: false, message: 'Missing required order fields' });
-  }
+  const serviceName = req.body.serviceName || req.body.title || req.body.name || req.body.productId || 'Home Service';
+  const serviceAmount = parseFloat(req.body.serviceAmount || req.body.price || req.body.amount || 0);
+  const slotTime = req.body.slotTime || req.body.timeSlot || req.body.time || '10:00 AM - 12:00 PM';
+  const serviceDate = req.body.serviceDate || req.body.date || todayStr;
+  const city = req.body.city || 'Jaipur';
+  const locality = req.body.locality || '';
+  const status = req.body.status || 'Pending';
+  const address = typeof req.body.address === 'object' ? JSON.stringify(req.body.address) : (req.body.address || '');
+  const userPhone = req.body.userPhone || req.body.phone || req.body.mobile || req.body.customerMobile || '';
+  const serviceRequestNumber = req.body.serviceRequestNumber || `#REQ ${year}-${Date.now().toString().slice(-6)}`;
 
-  const amt = parseFloat(serviceAmount);
-  const rawVendorName = vendorName || '-';
+  const rawVendorName = req.body.vendorName || req.body.partnerName || '-';
   let dbVendorName = rawVendorName === '-' ? null : rawVendorName;
-  let dbVendorMobile = req.body.vendorMobile || req.body.vendorPhone || null;
+  let dbVendorMobile = req.body.vendorMobile || req.body.vendorPhone || req.body.partnerPhone || null;
   let assignedStatus = status;
 
-  const orderLat = parseFloat(latitude || lat);
-  const orderLon = parseFloat(longitude || lon || lng);
+  const orderLat = parseFloat(req.body.latitude || req.body.lat);
+  const orderLon = parseFloat(req.body.longitude || req.body.lon || req.body.lng);
   const hasCoordinates = !isNaN(orderLat) && !isNaN(orderLon);
 
-  const cTime = createdAt || new Date().toLocaleString();
+  const cTime = req.body.createdAt || now.toLocaleString('en-US');
+  const nowTs = Date.now();
 
   try {
     if (hasCoordinates && !dbVendorName) {
@@ -910,7 +902,7 @@ router.post('/', async (req, res) => {
       (serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, vendorMobile, address, createdAt, latitude, longitude)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        serviceRequestNumber, serviceName, amt, slotTime, serviceDate,
+        serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate,
         city, locality, assignedStatus, dbVendorName, dbVendorMobile,
         address, cTime,
         hasCoordinates ? orderLat.toString() : null,
@@ -918,13 +910,36 @@ router.post('/', async (req, res) => {
       ]
     );
 
+    // Also insert into node_orders_v2 for real-time Flutter User App & Admin Panel synchronization
+    await db.query(
+      `INSERT INTO node_orders_v2 
+      (userPhone, serviceName, price, date, status, bookingStatus, partnerName, partnerPhone, productId, description, timeSlot, address, payment, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userPhone,
+        serviceName,
+        serviceAmount.toFixed(2),
+        serviceDate,
+        assignedStatus,
+        assignedStatus === 'Assigned' ? 'assigned' : 'searching',
+        dbVendorName,
+        dbVendorMobile,
+        serviceName,
+        req.body.description || '',
+        slotTime,
+        address,
+        JSON.stringify({ paymentMethod: req.body.paymentMethod || 'COD', amountPaid: serviceAmount }),
+        nowTs
+      ]
+    ).catch(err => console.warn('Failed to insert into node_orders_v2:', err.message));
+
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
       data: {
         id: result.insertId,
         serviceRequestNumber, serviceName,
-        serviceAmount: amt, slotTime, serviceDate,
+        serviceAmount, slotTime, serviceDate,
         city, locality,
         status: assignedStatus,
         vendorName: dbVendorName || '-',
