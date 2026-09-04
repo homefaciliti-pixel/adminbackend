@@ -53,8 +53,10 @@ let bridgeCookie = 'humans_21909=1';
 function queryViaHttpsBridge(sql, params = []) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
+    let attempts = 0;
     
-    const sendRequest = (bridgePath, retriedWithCookie = false) => {
+    const sendRequest = () => {
+      attempts++;
       const headers = {
         'Content-Type': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -68,7 +70,7 @@ function queryViaHttpsBridge(sql, params = []) {
       const req = https.request({
         hostname: 'homefaciliti.com',
         port: 443,
-        path: bridgePath,
+        path: '/public/db_bridge.php',
         method: 'POST',
         headers: headers,
         timeout: 10000
@@ -78,10 +80,10 @@ function queryViaHttpsBridge(sql, params = []) {
         res.on('end', () => {
           // Check for anti-bot cookie challenge in response
           const matchCookie = data.match(/document\.cookie\s*=\s*["']([^"']+)["']/i);
-          if (matchCookie && matchCookie[1] && !retriedWithCookie) {
+          if (matchCookie && matchCookie[1] && attempts < 3) {
             bridgeCookie = matchCookie[1].split(';')[0];
-            console.log(`🍪 Extracted BigRock anti-bot cookie: "${bridgeCookie}". Retrying HTTPS Bridge request...`);
-            return sendRequest(bridgePath, true);
+            console.log(`🍪 Extracted BigRock anti-bot cookie (attempt ${attempts}): "${bridgeCookie}". Retrying /public/db_bridge.php...`);
+            return sendRequest();
           }
 
           try {
@@ -98,44 +100,35 @@ function queryViaHttpsBridge(sql, params = []) {
               } else {
                 resolve([{ affectedRows: parsed.affectedRows, insertId: parsed.insertId }, []]);
               }
-            } else if (bridgePath === '/public/db_bridge.php') {
-              // Retry with root bridgePath if /public/ returns failure
-              sendRequest('/db_bridge.php');
             } else {
               reject(new Error((parsed && (parsed.error || parsed.message)) || 'HTTPS Bridge Error'));
             }
           } catch (e) {
-            if (bridgePath === '/public/db_bridge.php') {
-              sendRequest('/db_bridge.php');
-            } else {
-              reject(new Error(`JSON Parse Error on HTTPS Bridge response: ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
+            if (attempts < 3) {
+              console.log(`Retry attempt ${attempts} for /public/db_bridge.php due to parse error...`);
+              return sendRequest();
             }
+            reject(new Error(`JSON Parse Error on HTTPS Bridge response: ${e.message} (Raw snippet: ${data.substring(0, 100)})`));
           }
         });
       });
 
       req.on('error', (err) => {
-        if (bridgePath === '/public/db_bridge.php') {
-          sendRequest('/db_bridge.php');
-        } else {
-          reject(err);
-        }
+        if (attempts < 3) return sendRequest();
+        reject(err);
       });
 
       req.on('timeout', () => {
         req.destroy();
-        if (bridgePath === '/public/db_bridge.php') {
-          sendRequest('/db_bridge.php');
-        } else {
-          reject(new Error('HTTPS Bridge Request Timeout'));
-        }
+        if (attempts < 3) return sendRequest();
+        reject(new Error('HTTPS Bridge Request Timeout'));
       });
 
       req.write(payload);
       req.end();
     };
 
-    sendRequest('/public/db_bridge.php');
+    sendRequest();
   });
 }
 
