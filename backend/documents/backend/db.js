@@ -85,9 +85,7 @@ function performHandshake() {
 }
 
 async function queryViaHttpsBridge(sql, params = []) {
-  if (!sessionEstablished) {
-    await performHandshake();
-  }
+  await performHandshake();
 
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify({ sql, params: params || [] });
