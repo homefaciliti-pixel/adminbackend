@@ -30,19 +30,7 @@ setImmediate(async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // Ensure columns exist on existing table
-    const safeAddCol = async (tbl, col, def) => {
-      try {
-        await db.query(`ALTER TABLE \`${tbl}\` ADD COLUMN ${col} ${def}`);
-      } catch (e) {
-        // ignore duplicate column errors
-      }
-    };
 
-    await safeAddCol('node_amc_subscriptions', 'houseType', "VARCHAR(50) DEFAULT 'Villa'");
-    await safeAddCol('node_amc_subscriptions', 'address', "VARCHAR(255) DEFAULT 'Jaipur'");
-    await safeAddCol('node_amc_subscriptions', 'planName', "VARCHAR(100) DEFAULT 'Premium AMC'");
-    await safeAddCol('node_amc_subscriptions', 'totalVisits', "INT DEFAULT 12");
 
     // 2. node_amc_visits
     await db.query(`

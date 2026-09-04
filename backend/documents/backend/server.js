@@ -561,21 +561,12 @@ server.listen(PORT, '0.0.0.0', () => {
       const db = require('./db');
       console.log('[Startup] Ensuring app version settings in database...');
       
-      // android_latest_version
-      const [rows1] = await db.query("SELECT * FROM settings_config WHERE `key` = 'android_latest_version'");
-      if (rows1.length > 0) {
-        await db.query("UPDATE settings_config SET `value` = '1.0.4' WHERE `key` = 'android_latest_version'");
-      } else {
-        await db.query("INSERT INTO settings_config (`key`, `value`) VALUES ('android_latest_version', '1.0.4')");
-      }
-
-      // android_force_update
-      const [rows2] = await db.query("SELECT * FROM settings_config WHERE `key` = 'android_force_update'");
-      if (rows2.length > 0) {
-        await db.query("UPDATE settings_config SET `value` = 'true' WHERE `key` = 'android_force_update'");
-      } else {
-        await db.query("INSERT INTO settings_config (`key`, `value`) VALUES ('android_force_update', 'true')");
-      }
+      await db.query(`
+        INSERT INTO settings_config (\`key\`, \`value\`) VALUES 
+        ('android_latest_version', '1.0.4'),
+        ('android_force_update', 'true')
+        ON DUPLICATE KEY UPDATE \`value\` = VALUES(\`value\`)
+      `);
       
       console.log('[Startup] Successfully verified/updated app version settings in DB.');
     } catch (err) {
