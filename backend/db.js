@@ -49,18 +49,35 @@ function prefixQuery(sql) {
   return sql.replace(regex, (match, keyword, tableName) => `${keyword} \`${tablePrefix}${tableName}\``);
 }
 
-// Wrap pool.query to auto-prefix table names
+// Helper function to retry queries automatically if the connection is lost (BigRock aggressive timeout)
+async function withRetry(operation, queryStr, values, maxRetries = 2) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation(queryStr, values);
+    } catch (err) {
+      const isConnectionLost = err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET' || err.message.includes('Connection lost') || err.message.includes('socket hang up');
+      if (isConnectionLost && attempt < maxRetries) {
+        console.warn(`[DB] Connection lost on query, retrying attempt ${attempt + 1}/${maxRetries}...`);
+        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // wait before retry
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+// Wrap pool.query to auto-prefix table names and auto-retry
 const _query = pool.query.bind(pool);
 pool.query = async function (sql, values) {
   const queryStr = prefixQuery(typeof sql === 'string' ? sql : (sql?.sql || ''));
-  return _query(queryStr, values);
+  return withRetry(_query, queryStr, values);
 };
 
-// Wrap pool.execute to auto-prefix table names
+// Wrap pool.execute to auto-prefix table names and auto-retry
 const _execute = pool.execute.bind(pool);
 pool.execute = async function (sql, values) {
   const queryStr = prefixQuery(typeof sql === 'string' ? sql : (sql?.sql || ''));
-  return _execute(queryStr, values);
+  return withRetry(_execute, queryStr, values);
 };
 
 // Verify connection on startup (non-blocking, just for logging)
