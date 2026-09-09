@@ -19,11 +19,7 @@ async function getAllPartners() {
     [laravelRows]
   ] = await Promise.all([
     db.query(`
-      SELECT 
-        id, name, email, mobile, city, state, locality, image, status, 
-        isApproved, isPaid, latitude, longitude, locationTime, createdAt, 
-        category, subCategory 
-      FROM partners
+      SELECT * FROM partners
     `),
     db.query(`
       SELECT 
@@ -40,7 +36,20 @@ async function getAllPartners() {
         u.status, 
         u.is_approval AS isApproved, 
         u.created_at AS createdAt,
-        u.payment_status AS isPaid
+        u.payment_status AS isPaid,
+        u.gender, 
+        u.experience, 
+        u.service_id AS services, 
+        u.aadhaar_number AS aadhaarNumber, 
+        u.aadhaar_front_image AS aadharFront, 
+        u.aadhaar_back_image AS aadharBack, 
+        u.pan_number AS panNumber, 
+        u.pan_image AS panImage, 
+        u.bank_name AS bankName, 
+        u.account_number AS accountNumber, 
+        u.ifsc_code AS ifscCode,
+        u.do_you_have_vehicle AS hasVehicle,
+        u.account_holder_name AS accountHolder
       FROM \`${dbName}\`.\`users\` u
       LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
       LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
@@ -55,29 +64,14 @@ async function getAllPartners() {
 
   nodeRows.forEach(r => {
     all.push({
-      id: r.id,
-      name: r.name || '',
-      email: r.email || '',
-      mobile: r.mobile || '',
-      city: r.city || '',
-      state: r.state || '',
-      locality: r.locality || '',
-      image: r.image || '',
-      status: r.status === 1 || r.status === true,
-      isApproved: r.isApproved === 1 || r.isApproved === true,
-      isPaid: (r.isPaid === 1 || r.isPaid === true || r.isPaid === 'Paid') ? 1 : 0,
-      latitude: r.latitude,
-      longitude: r.longitude,
-      locationTime: r.locationTime || '',
-      createdAt: r.createdAt || '',
-      category: r.category || '',
-      subCategory: r.subCategory || '',
+      ...r,
       source: 'Admin Partner (MySQL)'
     });
   });
 
   laravelRows.forEach(r => {
     all.push({
+      ...r,
       id: r.id + 10000000, // Offset Laravel IDs by 10,000,000
       name: r.name || '',
       email: r.email || '',
