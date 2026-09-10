@@ -388,7 +388,7 @@ router.put('/:id/approve', async (req, res) => {
 
     if (rawId >= 10000000) {
       const originalId = rawId - 10000000;
-      query = `UPDATE \`${dbName}\`.\`users\` SET is_approval = '1', status = 1, payment_status = '1' WHERE id = ?`;
+      query = `UPDATE \`${dbName}\`.\`users\` SET is_approval = '1', status = 1, payment_status = '1', account_status = 'APPROVED', partner_status = 'approved', kyc_status = 'approved' WHERE id = ?`;
       params = [originalId];
 
       const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
@@ -1218,15 +1218,27 @@ router.put('/:id', async (req, res) => {
         if (keyMap[key]) {
           let val = body[key];
           if (key === 'isApproved') {
-            val = (val === true || val === 1 || val === 'true') ? '1' : '0';
+            const isApp = (val === true || val === 1 || val === 'true');
+            fields.push('`is_approval` = ?', '`status` = ?', '`account_status` = ?', '`partner_status` = ?', '`kyc_status` = ?');
+            values.push(isApp ? '1' : '0', isApp ? 1 : 0, isApp ? 'APPROVED' : 'REJECTED', isApp ? 'approved' : 'rejected', isApp ? 'approved' : 'rejected');
+            if (isApp) {
+              fields.push('`payment_status` = ?');
+              values.push('1');
+            }
           } else if (key === 'status' || key === 'isPaid') {
             val = (val === true || val === 1 || val === 'true') ? 1 : 0;
+            fields.push(`\`${keyMap[key]}\` = ?`);
+            values.push(val);
           } else if (key === 'hasVehicle') {
             val = (val === 'Yes' || val === '1' || val === 1 || val === true) ? 1 : 0;
+            fields.push(`\`${keyMap[key]}\` = ?`);
+            values.push(val);
+          } else {
+            fields.push(`\`${keyMap[key]}\` = ?`);
+            values.push(val);
           }
-          fields.push(`\`${keyMap[key]}\` = ?`);
-          values.push(val);
         }
+      }
       }
 
       if (body.category !== undefined) {
@@ -1376,15 +1388,32 @@ router.put('/:id', async (req, res) => {
         let val = body[key];
         if (key === 'services' || key === 'documents') {
           if (Array.isArray(val)) val = val.join(',');
-        } else if (key === 'status' || key === 'isApproved') {
+          fields.push(`\`${key}\` = ?`);
+          values.push(val);
+        } else if (key === 'isApproved') {
+          const isApp = (val === true || val === 1 || val === 'true');
+          fields.push('`isApproved` = ?', '`status` = ?');
+          values.push(isApp ? 1 : 0, isApp ? 1 : 0);
+          if (isApp) {
+            fields.push('`isPaid` = ?');
+            values.push(1);
+          }
+        } else if (key === 'status') {
           val = (val === true || val === 1 || val === 'true') ? 1 : 0;
+          fields.push('`status` = ?');
+          values.push(val);
         } else if (['walletBalance', 'totalEarnings', 'withdrawnAmount', 'rating'].includes(key)) {
           val = parseFloat(val);
+          fields.push(`\`${key}\` = ?`);
+          values.push(val);
         } else if (['totalBookings', 'completedBookings', 'cancelledBookings', 'pendingBookings', 'totalReviews'].includes(key)) {
           val = parseInt(val);
+          fields.push(`\`${key}\` = ?`);
+          values.push(val);
+        } else {
+          fields.push(`\`${key}\` = ?`);
+          values.push(val);
         }
-        fields.push(`\`${key}\` = ?`);
-        values.push(val);
       });
 
       if (fields.length === 0) {
