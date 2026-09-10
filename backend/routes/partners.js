@@ -1239,7 +1239,6 @@ router.put('/:id', async (req, res) => {
           }
         }
       }
-      }
 
       if (body.category !== undefined) {
         const [rows] = await db.query(`SELECT id FROM \`${dbName}\`.\`categories\` WHERE title = ?`, [body.category]);
