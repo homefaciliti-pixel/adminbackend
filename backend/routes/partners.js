@@ -239,8 +239,24 @@ router.get('/', async (req, res) => {
     // Order by ID descending
     list.sort((a, b) => b.id - a.id);
 
+    const pageNum = parseInt(req.query.page || '1') || 1;
+    const limitNum = parseInt(req.query.limit || '0') || 0;
+
+    if (limitNum > 0) {
+      const startIndex = (pageNum - 1) * limitNum;
+      const paginatedList = list.slice(startIndex, startIndex + limitNum);
+      return res.json({
+        success: true,
+        total: list.length,
+        page: pageNum,
+        limit: limitNum,
+        data: paginatedList.map(p => mapPartner(p, req))
+      });
+    }
+
     res.json({
       success: true,
+      total: list.length,
       data: list.map(p => mapPartner(p, req))
     });
   } catch (error) {
