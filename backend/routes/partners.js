@@ -10,6 +10,26 @@ const laravelFields = [
   'cancelledBookings', 'pendingBookings', 'rating', 'totalReviews'
 ];
 
+let partnersCache = null;
+let partnersCacheTime = 0;
+const CACHE_TTL = 30000;
+
+function invalidatePartnerCache() {
+  partnersCache = null;
+  partnersCacheTime = 0;
+}
+
+async function getCachedPartners() {
+  const now = Date.now();
+  if (partnersCache && (now - partnersCacheTime < CACHE_TTL)) {
+    return partnersCache;
+  }
+  const all = await getAllPartners();
+  partnersCache = all;
+  partnersCacheTime = now;
+  return all;
+}
+
 async function getAllPartners() {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
   
@@ -156,7 +176,7 @@ function mapPartner(r, req) {
 router.get('/', async (req, res) => {
   try {
     const { name, mobile, city, state, date, status, isApproved, search, category, locality, paymentStatus, isPaid, payment } = req.query;
-    let list = await getAllPartners();
+    let list = await getCachedPartners();
 
     // 1. General search (Search Name / Mobile / Partner ID)
     const searchVal = (search || req.query.q || req.query.query || '').trim().toLowerCase();
@@ -1517,6 +1537,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Partner not found' });
     }
 
+    invalidatePartnerCache();
     res.json({
       success: true,
       message: 'Partner updated successfully',
