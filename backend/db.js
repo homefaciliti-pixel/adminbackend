@@ -2,10 +2,7 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 // ============================================================
-// DIRECT MySQL CONNECTION — No PHP bridge needed
-// BigRock allows external MySQL connections from any IP.
-// Direct connection is faster, more reliable, and has no
-// rate-limiting issues unlike the HTTP bridge approach.
+// DIRECT MySQL CONNECTION — BigRock Remote MySQL
 // ============================================================
 
 const pool = mysql.createPool({
@@ -17,10 +14,12 @@ const pool = mysql.createPool({
 
   waitForConnections: true,
   connectionLimit:    10,
+  maxIdle:            2,        // Limit idle connections to prevent stale socket accumulation
+  idleTimeout:        20000,    // 20s - close idle connections before BigRock drops them
   queueLimit:         0,
-  connectTimeout:     15000,   // 15s — enough for cold BigRock connection
+  connectTimeout:     10000,    // 10s
   enableKeepAlive:    true,
-  keepAliveInitialDelay: 30000,
+  keepAliveInitialDelay: 10000, // 10s TCP keep-alive
   ssl: false
 });
 
@@ -36,29 +35,39 @@ if (tablePrefix) {
 
 // Auto-prefix table names in SQL queries
 function prefixQuery(sql) {
+  if (!sql) return sql;
+
   if (!tablePrefix) return sql;
 
   const tables = [
     'users', 'categories', 'services', 'orders', 'orders_v2', 'pages', 'partners',
     'booking_earnings', 'subscription_earnings', 'banners', 'states',
     'cities', 'localities', 'notifications', 'reviews', 'settings_config',
-    'support_tickets', 'uploaded_files', 'admin_accounts'
+    'support_tickets', 'uploaded_files', 'admin_accounts', 'city_pricing_rules'
   ];
 
   const regex = new RegExp(`\\b(FROM|JOIN|INTO|UPDATE|DESCRIBE|TABLE)\\s+\`?(${tables.join('|')})\`?\\b`, 'gi');
   return sql.replace(regex, (match, keyword, tableName) => `${keyword} \`${tablePrefix}${tableName}\``);
 }
 
-// Helper function to retry queries automatically if the connection is lost (BigRock aggressive timeout)
+// Helper function to retry queries automatically if connection is lost
 async function withRetry(operation, queryStr, values, maxRetries = 2) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await operation(queryStr, values);
     } catch (err) {
-      const isConnectionLost = err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET' || err.message.includes('Connection lost') || err.message.includes('socket hang up');
+      const errCode = err.code || '';
+      const errMsg = err.message || '';
+      const isConnectionLost = errCode === 'PROTOCOL_CONNECTION_LOST' ||
+                               errCode === 'ECONNRESET' ||
+                               errCode === 'EPIPE' ||
+                               errCode === 'ETIMEDOUT' ||
+                               errMsg.includes('Connection lost') ||
+                               errMsg.includes('socket hang up') ||
+                               errMsg.includes('closed');
+
       if (isConnectionLost && attempt < maxRetries) {
-        console.warn(`[DB] Connection lost on query, retrying attempt ${attempt + 1}/${maxRetries}...`);
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // wait before retry
+        await new Promise(resolve => setTimeout(resolve, 50));
       } else {
         throw err;
       }
@@ -88,7 +97,20 @@ pool.getConnection()
   })
   .catch(err => {
     console.error('⚠️ MySQL direct connection error on startup:', err.message);
-    console.error('   Check that BigRock Remote MySQL is enabled for this server IP.');
   });
+
+// Periodic heartbeat keepalive ping every 15 seconds to keep connection warm
+const heartbeatTimer = setInterval(async () => {
+  try {
+    const rawQuery = _query.bind(pool);
+    await rawQuery('SELECT 1');
+  } catch (err) {
+    // Ignore heartbeat errors; pool auto-reconnects on next request
+  }
+}, 15000);
+
+if (heartbeatTimer.unref) {
+  heartbeatTimer.unref();
+}
 
 module.exports = pool;
