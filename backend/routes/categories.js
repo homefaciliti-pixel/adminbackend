@@ -4,19 +4,61 @@ const db = require('../db');
 
 function formatImageUrl(img, req) {
   if (!img) return '';
-  const host = req.get('host');
-  const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
   
-  if (img.includes('/uploads/')) {
-    const filename = img.split('/uploads/').pop();
-    return `${protocol}://${host}/uploads/${filename}`;
+  const host = (req && req.get) ? (req.get('host') || 'adminbackend-1-h03r.onrender.com') : 'adminbackend-1-h03r.onrender.com';
+  const isHttps = host.includes('onrender.com') || (req && (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || req.headers['x-forwarded-ssl'] === 'on'));
+  const protocol = isHttps ? 'https' : 'http';
+  
+  let cleanFilename = img;
+  if (cleanFilename.includes('/uploads/')) {
+    cleanFilename = cleanFilename.split('/uploads/').pop();
+  } else if (cleanFilename.startsWith('http://') || cleanFilename.startsWith('https://')) {
+    if (isHttps && cleanFilename.startsWith('http://')) {
+      return cleanFilename.replace('http://', 'https://');
+    }
+    return cleanFilename;
+  } else {
+    cleanFilename = cleanFilename.replace(/^\/?uploads\//, '').replace(/^\/?categories\//, '');
   }
 
-  if (img.startsWith('http://') || img.startsWith('https://')) {
-    return img;
-  }
-  const cleanFilename = img.replace(/^uploads\//, '').replace(/^categories\//, '');
   return `${protocol}://${host}/uploads/${cleanFilename}`;
+}
+
+function mapCategory(r, req) {
+  const formattedImg = formatImageUrl(r.image, req);
+  const titleVal = r.title || r.categoryName || r.name || '';
+  const parentVal = (r.parent === null || r.parent === 'None' || !r.parent) ? 'Main Category' : r.parent;
+
+  return {
+    ...r,
+    id: r.id,
+    title: titleVal,
+    name: titleVal,
+    categoryName: titleVal,
+    category_name: titleVal,
+    
+    // Icon and Image field variations for all Flutter app versions & Admin Panel
+    image: formattedImg,
+    img: formattedImg,
+    icon: formattedImg,
+    icon_3d: formattedImg,
+    icon3d: formattedImg,
+    imageUrl: formattedImg,
+    image_url: formattedImg,
+    cat_image: formattedImg,
+    cat_icon: formattedImg,
+    categoryImage: formattedImg,
+    categoryIcon: formattedImg,
+    category_icon: formattedImg,
+    category_image: formattedImg,
+    iconUrl: formattedImg,
+    banner: formattedImg,
+
+    parent: parentVal,
+    mainCategory: parentVal === 'Main Category',
+    isMain: parentVal === 'Main Category',
+    status: r.status === 1 || r.status === true
+  };
 }
 
 // GET all categories (with optional search/filtering)
@@ -28,14 +70,18 @@ router.get('/', async (req, res) => {
 
     const searchTitle = title || categoryName;
     if (searchTitle) {
-      query += ' AND title LIKE ?';
-      params.push(`%${searchTitle}%`);
+      query += ' AND (title LIKE ? OR name_hi LIKE ?)';
+      params.push(`%${searchTitle}%`, `%${searchTitle}%`);
     }
 
     const searchParent = parent || mainCategory;
     if (searchParent) {
-      query += ' AND parent LIKE ?';
-      params.push(`%${searchParent}%`);
+      if (searchParent === 'Main Category' || searchParent === 'main' || searchParent === 'true') {
+        query += " AND (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category')";
+      } else {
+        query += ' AND parent LIKE ?';
+        params.push(`%${searchParent}%`);
+      }
     }
 
     const searchStatus = status !== undefined ? status : emailStatus;
@@ -47,13 +93,8 @@ router.get('/', async (req, res) => {
 
     query += ' ORDER BY id DESC';
     const [rows] = await db.query(query, params);
-    const mapped = rows.map(r => ({
-      ...r,
-      id: r.id,
-      image: formatImageUrl(r.image, req),
-      parent: r.parent === null ? 'None' : r.parent,
-      status: r.status === 1
-    }));
+    const mapped = rows.map(r => mapCategory(r, req));
+
     res.json({
       success: true,
       data: mapped,
@@ -63,6 +104,17 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
+  }
+});
+
+// GET /main - get main categories
+router.get('/main', async (req, res) => {
+  try {
+    const [rows] = await db.query("SELECT * FROM categories WHERE (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category') AND status = 1 ORDER BY id DESC");
+    const mapped = rows.map(r => mapCategory(r, req));
+    res.json({ success: true, data: mapped, categories: mapped, result: mapped });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch main categories', error: error.message });
   }
 });
 
@@ -79,24 +131,38 @@ router.get('/search', async (req, res) => {
         [`%${q}%`, `%${q}%`]
       );
     }
-    const mapped = rows.map(r => ({
-      ...r,
-      id: r.id,
-      image: formatImageUrl(r.image, req),
-      parent: r.parent === null ? 'None' : r.parent,
-      status: r.status === 1
-    }));
+    const mapped = rows.map(r => mapCategory(r, req));
     res.json({ success: true, data: mapped, categories: mapped, result: mapped });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Search failed', error: error.message });
   }
 });
 
+// GET /:id - single category
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  if (id === 'main' || id === 'search') return; // Handled by specific routes
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+  try {
+    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+    const mapped = mapCategory(rows[0], req);
+    res.json({ success: true, data: mapped, category: mapped });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch category', error: error.message });
+  }
+});
+
 // POST create category
 router.post('/', async (req, res) => {
-  const titleVal = req.body.title || req.body.categoryName;
+  const titleVal = req.body.title || req.body.categoryName || req.body.name;
   const parentVal = req.body.parent || req.body.mainCategory;
-  const imageVal = req.body.image || '';
+  const imageVal = req.body.image || req.body.icon || req.body.icon_3d || req.body.imageUrl || '';
   const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
   
   if (!titleVal) {
@@ -104,7 +170,7 @@ router.post('/', async (req, res) => {
   }
   
   const statusInt = statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0;
-  const dbParentVal = parentVal === 'None' || !parentVal ? null : parentVal;
+  const dbParentVal = parentVal === 'None' || !parentVal ? 'Main Category' : parentVal;
   
   const slug = titleVal.trim().toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -116,16 +182,15 @@ router.post('/', async (req, res) => {
       'INSERT INTO categories (title, slug, parent, image, status) VALUES (?, ?, ?, ?, ?)',
       [titleVal, slug, dbParentVal, imageVal, statusInt]
     );
+
+    const [newRows] = await db.query('SELECT * FROM categories WHERE id = ?', [result.insertId]);
+    const createdCategory = mapCategory(newRows[0] || { id: result.insertId, title: titleVal, parent: dbParentVal, image: imageVal, status: statusInt }, req);
+
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
-      data: {
-        id: result.insertId,
-        title: titleVal,
-        parent: parentVal,
-        image: imageVal,
-        status: statusInt === 1
-      }
+      data: createdCategory,
+      category: createdCategory
     });
   } catch (error) {
     console.error('Error creating category:', error);
@@ -141,9 +206,9 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
   }
 
-  const titleVal = req.body.title || req.body.categoryName;
+  const titleVal = req.body.title || req.body.categoryName || req.body.name;
   const parentVal = req.body.parent || req.body.mainCategory;
-  const imageVal = req.body.image;
+  const imageVal = req.body.image || req.body.icon || req.body.icon_3d || req.body.imageUrl;
   const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
   
   try {
@@ -156,7 +221,7 @@ router.put('/:id', async (req, res) => {
     }
     if (parentVal !== undefined) {
       fields.push('`parent` = ?');
-      values.push(parentVal === 'None' || !parentVal ? null : parentVal);
+      values.push(parentVal === 'None' || !parentVal ? 'Main Category' : parentVal);
     }
     if (imageVal !== undefined) {
       fields.push('`image` = ?');
@@ -169,7 +234,8 @@ router.put('/:id', async (req, res) => {
 
     if (fields.length === 0) {
       const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-      return res.json({ success: true, message: 'Update successful (no changes made)', data: rows[0] });
+      const mapped = mapCategory(rows[0], req);
+      return res.json({ success: true, message: 'Update successful (no changes made)', data: mapped, category: mapped });
     }
 
     values.push(numericId);
@@ -182,13 +248,8 @@ router.put('/:id', async (req, res) => {
 
     // Retrieve updated category
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    const updatedCategory = {
-      ...rows[0],
-      id: rows[0].id,
-      image: formatImageUrl(rows[0].image, req),
-      parent: rows[0].parent === null ? 'None' : rows[0].parent,
-      status: rows[0].status === 1
-    };
+    const updatedCategory = mapCategory(rows[0], req);
+
     res.json({
       success: true,
       message: 'Category updated successfully',
@@ -210,17 +271,13 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-    // Fetch category title first to perform programmatic cascade delete of sub-categories
     const [rows] = await db.query('SELECT title FROM categories WHERE id = ?', [numericId]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
     const categoryTitle = rows[0].title;
 
-    // Delete sub-categories referencing this category title as parent
     await db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]);
-
-    // Delete parent category
     await db.query('DELETE FROM categories WHERE id = ?', [numericId]);
 
     res.json({
@@ -252,15 +309,11 @@ router.put('/:id/status', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    const mapped = mapCategory(rows[0], req);
     res.json({
       success: true,
       message: `Category status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
-      data: {
-        ...rows[0],
-        id: rows[0].id,
-        parent: rows[0].parent === null ? 'None' : rows[0].parent,
-        status: rows[0].status === 1
-      }
+      data: mapped
     });
   } catch (error) {
     console.error('Error toggling category status:', error);
@@ -286,15 +339,11 @@ router.patch('/:id/status', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    const mapped = mapCategory(rows[0], req);
     res.json({
       success: true,
       message: `Category status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
-      data: {
-        ...rows[0],
-        id: rows[0].id,
-        parent: rows[0].parent === null ? 'None' : rows[0].parent,
-        status: rows[0].status === 1
-      }
+      data: mapped
     });
   } catch (error) {
     console.error('Error toggling category status:', error);
