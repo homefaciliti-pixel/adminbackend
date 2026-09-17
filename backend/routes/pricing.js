@@ -117,37 +117,44 @@ router.get('/categories', async (req, res) => {
 
 // -------------------------------------------------------------
 // GET /api/pricing/services
-// Query params: ?category_ids=1,5,7 or ?categories=Cleaning,Electrician
-// Returns services for selected categories for step 4 selection grid
+// Query params: ?category_ids=1,5,7 or ?categories=Cleaning,Electrician or ?category_name=Cleaning
+// Returns services belonging ONLY to the selected categories
 // -------------------------------------------------------------
 router.get('/services', async (req, res) => {
   try {
-    const { category_ids, category_id, categories } = req.query;
+    const { category_ids, category_id, categories, category_name, category_names, category, cat } = req.query;
 
-    let whereClause = "WHERE status = 1";
-    let params = [];
+    const catParam = category_ids || category_id;
+    const catNameParam = categories || category_name || category_names || category || cat;
 
-    if (category_ids || category_id) {
-      const idsRaw = (category_ids || category_id).toString().split(',').map(i => parseInt(i.trim())).filter(i => !isNaN(i));
-      if (idsRaw.length > 0) {
-        whereClause += " AND category_id IN (?)";
-        params.push(idsRaw);
-      }
-    } else if (categories) {
-      const names = categories.toString().split(',').map(n => n.trim()).filter(n => n);
+    let targetCatIds = [];
+
+    if (catParam) {
+      targetCatIds = catParam.toString().split(',').map(i => parseInt(i.trim())).filter(i => !isNaN(i));
+    }
+
+    if (catNameParam && targetCatIds.length === 0) {
+      const names = catNameParam.toString().split(',').map(n => n.trim()).filter(n => n);
       if (names.length > 0) {
-        // Find category IDs by titles
-        const [cats] = await db.query("SELECT id FROM categories WHERE title IN (?)", [names]);
-        const catIds = cats.map(c => c.id);
-        if (catIds.length > 0) {
-          whereClause += " AND category_id IN (?)";
-          params.push(catIds);
-        }
+        const [cats] = await db.query("SELECT id FROM categories WHERE title IN (?) OR name_hi IN (?)", [names, names]);
+        targetCatIds = cats.map(c => c.id);
       }
     }
 
+    let whereClause = "WHERE s.status = 1";
+    let params = [];
+
+    if (targetCatIds.length > 0) {
+      whereClause += " AND s.category_id IN (?)";
+      params.push(targetCatIds);
+    }
+
     const [rows] = await db.query(
-      `SELECT id, title, price, category_id FROM services ${whereClause} ORDER BY title ASC`,
+      `SELECT s.id, s.title, s.price, s.category_id, c.title as category_name
+       FROM services s
+       LEFT JOIN categories c ON s.category_id = c.id
+       ${whereClause}
+       ORDER BY c.title ASC, s.title ASC`,
       params
     );
 
@@ -156,11 +163,14 @@ router.get('/services', async (req, res) => {
       title: r.title,
       name: r.title,
       price: parseFloat(r.price) || 0,
-      category_id: r.category_id
+      category_id: r.category_id,
+      category_name: r.category_name || 'General'
     }));
 
     res.json({
       success: true,
+      filter_applied: targetCatIds.length > 0,
+      target_category_ids: targetCatIds,
       total: services.length,
       services: services
     });
