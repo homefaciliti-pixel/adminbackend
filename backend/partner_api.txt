@@ -1524,3 +1524,179 @@ Response Example (Status 200 OK):
   }
 }
 
+----------------------------------------------------------------------
+14. CITY PRICING MANAGEMENT
+----------------------------------------------------------------------
+
+14.1 GET PRICING DASHBOARD STATS
+--------------------------------
+Endpoint: GET /api/pricing/stats
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "stats": {
+    "total_states": 39,
+    "total_cities": 703,
+    "total_services": 293,
+    "active_rules": 5
+  },
+  "states": ["Rajasthan", "Gujarat", "Maharashtra"]
+}
+
+14.2 GET CITIES WITH PRICING RULES BY STATE
+-------------------------------------------
+Endpoint: GET /api/pricing/cities
+Query Params: state=Rajasthan (or state_id=29)
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "state": "Rajasthan",
+  "total": 59,
+  "cities": [
+    {
+      "id": 62,
+      "cityName": "Jaipur",
+      "stateName": "Rajasthan",
+      "status": 1,
+      "pricing_rule": {
+        "id": 1,
+        "category_ids": "7",
+        "category_names": "Cleaning",
+        "service_ids": "38",
+        "service_names": "Bathroom Cleaning",
+        "action_type": "percentage_increase",
+        "value": 10,
+        "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]",
+        "updated_at": "2026-09-17T12:30:00.000Z"
+      }
+    }
+  ]
+}
+
+14.3 GET CATEGORIES FOR PRICING STEP 3
+--------------------------------------
+Endpoint: GET /api/pricing/categories
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "total": 25,
+  "categories": [
+    { "id": 7, "title": "Cleaning", "name": "Cleaning" },
+    { "id": 3, "title": "Electrician", "name": "Electrician" },
+    { "id": 1, "title": "Plumber", "name": "Plumber" }
+  ]
+}
+
+14.4 GET SERVICES FOR PRICING STEP 4
+------------------------------------
+Endpoint: GET /api/pricing/services
+Query Params: category_ids=7,3 (or categories=Cleaning,Electrician)
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "total": 12,
+  "services": [
+    { "id": 38, "title": "Bathroom Cleaning", "name": "Bathroom Cleaning", "price": 600, "category_id": 7 },
+    { "id": 39, "title": "Sofa Cleaning", "name": "Sofa Cleaning", "price": 800, "category_id": 7 }
+  ]
+}
+
+14.5 SAVE / UPDATE CITY PRICING RULES
+-------------------------------------
+Endpoint: POST /api/pricing/save-rules (or POST /api/pricing/rules)
+Request Body:
+{
+  "state_name": "Rajasthan",
+  "city_ids": [62],
+  "category_ids": [7],
+  "category_names": ["Cleaning"],
+  "service_ids": [38],
+  "service_names": ["Bathroom Cleaning"],
+  "action_type": "percentage_increase",
+  "value": 10
+}
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "message": "Successfully updated pricing rule for 1 cities.",
+  "updated_count": 1,
+  "rule": {
+    "category_ids": "7",
+    "category_names": "Cleaning",
+    "service_ids": "38",
+    "service_names": "Bathroom Cleaning",
+    "action_type": "percentage_increase",
+    "value": 10,
+    "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]"
+  }
+}
+
+14.6 GET ALL ACTIVE PRICING RULES
+---------------------------------
+Endpoint: GET /api/pricing/rules
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "count": 1,
+  "rules": [
+    {
+      "id": 1,
+      "state_id": null,
+      "state_name": "Rajasthan",
+      "city_id": 62,
+      "city_name": "Jaipur",
+      "category_ids": "7",
+      "category_names": "Cleaning",
+      "service_ids": "38",
+      "service_names": "Bathroom Cleaning",
+      "action_type": "percentage_increase",
+      "value": 10,
+      "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]",
+      "created_at": "2026-09-17T12:30:00.000Z",
+      "updated_at": "2026-09-17T12:30:00.000Z"
+    }
+  ]
+}
+
+14.7 PRICING CALCULATION PREVIEW
+--------------------------------
+Endpoint: GET /api/pricing/preview
+Query Params: price=600&service_name=Bathroom%20Cleaning&category_name=Cleaning&action_type=percentage_increase&value=10
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "category_name": "Cleaning",
+  "service_name": "Bathroom Cleaning",
+  "base_price": 600,
+  "action_type": "percentage_increase",
+  "value": 10,
+  "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]",
+  "calculated_price": 660,
+  "difference": "+₹60",
+  "preview_text": "Bathroom Cleaning (Cleaning) Base ₹600 -> ₹660"
+}
+
+14.8 CALCULATE CITY-SPECIFIC SERVICE PRICE
+------------------------------------------
+Endpoint: GET /api/pricing/service-price
+Query Params: service_id=38&city=Jaipur&state=Rajasthan
+Response Example (Status 200 OK):
+{
+  "success": true,
+  "service_id": 38,
+  "title": "Bathroom Cleaning",
+  "base_price": 600,
+  "effective_price": 660,
+  "has_city_pricing": true,
+  "applied_rule": {
+    "city_name": "Jaipur",
+    "state_name": "Rajasthan",
+    "category_names": "Cleaning",
+    "service_names": "Bathroom Cleaning",
+    "action_type": "percentage_increase",
+    "value": 10,
+    "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]"
+  }
+}
+
+

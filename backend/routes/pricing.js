@@ -3,22 +3,33 @@ const router = express.Router();
 const db = require('../db');
 
 // Helper to format rule readable text
-function formatRuleText(actionType, value) {
+function formatRuleText(actionType, value, categoryNames, serviceNames) {
   const val = parseFloat(value) || 0;
+  let ruleText = '';
   switch (actionType) {
     case 'percentage_increase':
-      return `Current +${val}%`;
+      ruleText = `Current +${val}%`;
+      break;
     case 'percentage_decrease':
-      return `Current -${val}%`;
+      ruleText = `Current -${val}%`;
+      break;
     case 'fixed_increase':
-      return `Current +₹${val}`;
+      ruleText = `Current +₹${val}`;
+      break;
     case 'fixed_price':
-      return `Fixed ₹${val}`;
+      ruleText = `Fixed ₹${val}`;
+      break;
     case 'reset':
-      return `Base Price`;
+      ruleText = `Base Price`;
+      break;
     default:
-      return `Base Price`;
+      ruleText = `Base Price`;
+      break;
   }
+
+  const catText = categoryNames ? ` (${categoryNames})` : '';
+  const servText = serviceNames ? ` [${serviceNames}]` : '';
+  return `${ruleText}${catText}${servText}`;
 }
 
 // Calculate price based on rule
@@ -26,7 +37,7 @@ function calculateEffectivePrice(basePrice, actionType, value) {
   const price = parseFloat(basePrice) || 0;
   const val = parseFloat(value) || 0;
 
-  switch (actionType) {                 
+  switch (actionType) {
     case 'percentage_increase':
       return Math.round(price * (1 + val / 100));
     case 'percentage_decrease':
@@ -45,10 +56,8 @@ function calculateEffectivePrice(basePrice, actionType, value) {
 // GET /api/pricing/stats
 // Returns summary statistics & list of active states
 // -------------------------------------------------------------
-
 router.get('/stats', async (req, res) => {
   try {
-    // Run all 5 queries concurrently in parallel
     const [
       [statesCount],
       [citiesCount],
@@ -80,6 +89,88 @@ router.get('/stats', async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// GET /api/pricing/categories
+// Returns list of active categories for step 3 selection grid
+// -------------------------------------------------------------
+router.get('/categories', async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      "SELECT id, title, title as name FROM categories WHERE status = 1 ORDER BY title ASC"
+    );
+
+    const categories = rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      name: r.title
+    }));
+
+    res.json({
+      success: true,
+      total: categories.length,
+      categories: categories
+    });
+  } catch (err) {
+    console.error('Error fetching categories for pricing:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// GET /api/pricing/services
+// Query params: ?category_ids=1,5,7 or ?categories=Cleaning,Electrician
+// Returns services for selected categories for step 4 selection grid
+// -------------------------------------------------------------
+router.get('/services', async (req, res) => {
+  try {
+    const { category_ids, category_id, categories } = req.query;
+
+    let whereClause = "WHERE status = 1";
+    let params = [];
+
+    if (category_ids || category_id) {
+      const idsRaw = (category_ids || category_id).toString().split(',').map(i => parseInt(i.trim())).filter(i => !isNaN(i));
+      if (idsRaw.length > 0) {
+        whereClause += " AND category_id IN (?)";
+        params.push(idsRaw);
+      }
+    } else if (categories) {
+      const names = categories.toString().split(',').map(n => n.trim()).filter(n => n);
+      if (names.length > 0) {
+        // Find category IDs by titles
+        const [cats] = await db.query("SELECT id FROM categories WHERE title IN (?)", [names]);
+        const catIds = cats.map(c => c.id);
+        if (catIds.length > 0) {
+          whereClause += " AND category_id IN (?)";
+          params.push(catIds);
+        }
+      }
+    }
+
+    const [rows] = await db.query(
+      `SELECT id, title, price, category_id FROM services ${whereClause} ORDER BY title ASC`,
+      params
+    );
+
+    const services = rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      name: r.title,
+      price: parseFloat(r.price) || 0,
+      category_id: r.category_id
+    }));
+
+    res.json({
+      success: true,
+      total: services.length,
+      services: services
+    });
+  } catch (err) {
+    console.error('Error fetching services for pricing:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // GET /api/pricing/cities
 // Query: ?state=Rajasthan or ?state_id=29
 // Returns cities in state with their current pricing rule
@@ -96,7 +187,6 @@ router.get('/cities', async (req, res) => {
       whereClause += " AND stateName = ?";
       params.push(stateName);
     } else if (stateId) {
-      // Find state name by ID first or join
       const [st] = await db.query("SELECT name FROM states WHERE id = ?", [stateId]);
       if (st.length > 0) {
         whereClause += " AND stateName = ?";
@@ -105,9 +195,8 @@ router.get('/cities', async (req, res) => {
     }
 
     const [cities] = await db.query(`SELECT id, cityName, stateName, status FROM cities ${whereClause} ORDER BY cityName ASC`, params);
-
-    // Fetch all pricing rules for these cities
     const [rules] = await db.query("SELECT * FROM city_pricing_rules WHERE status = 1");
+
     const ruleMap = new Map();
     rules.forEach(r => {
       const key = `${r.city_name}_${r.state_name}`.toLowerCase();
@@ -115,7 +204,6 @@ router.get('/cities', async (req, res) => {
     });
 
     const enrichedCities = cities.map(city => {
-
       const key = `${city.cityName}_${city.stateName}`.toLowerCase();
       const existingRule = ruleMap.get(key);
 
@@ -126,9 +214,13 @@ router.get('/cities', async (req, res) => {
         status: city.status,
         pricing_rule: existingRule ? {
           id: existingRule.id,
+          category_ids: existingRule.category_ids,
+          category_names: existingRule.category_names,
+          service_ids: existingRule.service_ids,
+          service_names: existingRule.service_names,
           action_type: existingRule.action_type,
           value: parseFloat(existingRule.value),
-          formatted_rule: formatRuleText(existingRule.action_type, existingRule.value),
+          formatted_rule: formatRuleText(existingRule.action_type, existingRule.value, existingRule.category_names, existingRule.service_names),
           updated_at: existingRule.updated_at
         } : null
       };
@@ -147,12 +239,22 @@ router.get('/cities', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// POST /api/pricing/save-rules
-// Bulk save or update pricing rules for selected cities
+// POST /api/pricing/save-rules (or POST /api/pricing/rules)
+// Bulk save or update pricing rules with category & service filters
 // -------------------------------------------------------------
 router.post('/save-rules', async (req, res) => {
   try {
-    const { state_name, city_ids, cities, action_type, value } = req.body;
+    const {
+      state_name,
+      city_ids,
+      cities,
+      category_ids,
+      category_names,
+      service_ids,
+      service_names,
+      action_type,
+      value
+    } = req.body;
 
     if (!action_type) {
       return res.status(400).json({ success: false, error: 'action_type is required' });
@@ -161,15 +263,12 @@ router.post('/save-rules', async (req, res) => {
     const val = parseFloat(value) || 0;
     let targetCities = [];
 
-    // Parse target cities list
     if (Array.isArray(cities) && cities.length > 0) {
       targetCities = cities;
     } else if (Array.isArray(city_ids) && city_ids.length > 0) {
-      // Fetch city details from DB
       const [dbCities] = await db.query("SELECT id, cityName, stateName FROM cities WHERE id IN (?)", [city_ids]);
       targetCities = dbCities;
     } else if (state_name) {
-      // All cities in state if no specific city selected
       const [dbCities] = await db.query("SELECT id, cityName, stateName FROM cities WHERE stateName = ?", [state_name]);
       targetCities = dbCities;
     }
@@ -178,80 +277,61 @@ router.post('/save-rules', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No valid target cities selected' });
     }
 
-    // Replaced the sequential loop with concurrent execution using Promise.all
-    const promises = targetCities.map(async (city) => {
+    // Format category_ids and category_names strings/JSON
+    const catIdsStr = Array.isArray(category_ids) ? category_ids.join(',') : (category_ids || null);
+    const catNamesStr = Array.isArray(category_names) ? category_names.join(', ') : (category_names || null);
+    const servIdsStr = Array.isArray(service_ids) ? service_ids.join(',') : (service_ids || null);
+    const servNamesStr = Array.isArray(service_names) ? service_names.join(', ') : (service_names || null);
+
+    let updatedCount = 0;
+
+    for (const city of targetCities) {
       const cName = city.cityName || city.city_name;
       const sName = city.stateName || city.state_name || state_name;
       const cId = city.id || city.city_id || null;
       const sId = city.state_id || null;
 
-      if (!cName || !sName) return;
+      if (!cName || !sName) continue;
 
       if (action_type === 'reset') {
-        // Delete or set action_type='reset'
         await db.query(
           "DELETE FROM city_pricing_rules WHERE LOWER(city_name) = LOWER(?) AND LOWER(state_name) = LOWER(?)",
           [cName, sName]
         );
       } else {
-        // Upsert rule into city_pricing_rules
         await db.query(`
-          INSERT INTO city_pricing_rules (state_id, state_name, city_id, city_name, action_type, value, status)
-          VALUES (?, ?, ?, ?, ?, ?, 1)
+          INSERT INTO city_pricing_rules (
+            state_id, state_name, city_id, city_name,
+            category_ids, category_names, service_ids, service_names,
+            action_type, value, status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
           ON DUPLICATE KEY UPDATE
+            category_ids = VALUES(category_ids),
+            category_names = VALUES(category_names),
+            service_ids = VALUES(service_ids),
+            service_names = VALUES(service_names),
             action_type = VALUES(action_type),
             value = VALUES(value),
             status = 1,
             updated_at = CURRENT_TIMESTAMP
-        `, [sId, sName, cId, cName, action_type, val]);
+        `, [sId, sName, cId, cName, catIdsStr, catNamesStr, servIdsStr, servNamesStr, action_type, val]);
       }
-    });
-
-    // Wait for all database operations to finish simultaneously
-    await Promise.all(promises);
-    const updatedCount = targetCities.length;
-
-
-    // let updatedCount = 0;
-
-    // for (const city of targetCities) {
-    //   const cName = city.cityName || city.city_name;
-    //   const sName = city.stateName || city.state_name || state_name;
-    //   const cId = city.id || city.city_id || null;
-    //   const sId = city.state_id || null;
- 
-    //   if (!cName || !sName) continue;
-
-    //   if (action_type === 'reset') {
-    //     // Delete or set action_type='reset'
-    //     await db.query(
-    //       "DELETE FROM city_pricing_rules WHERE LOWER(city_name) = LOWER(?) AND LOWER(state_name) = LOWER(?)",
-    //       [cName, sName]
-    //     );
-    //   } else {
-    //     // Upsert rule into city_pricing_rules
-    //     await db.query(`
-    //       INSERT INTO city_pricing_rules (state_id, state_name, city_id, city_name, action_type, value, status)
-    //       VALUES (?, ?, ?, ?, ?, ?, 1)
-    //       ON DUPLICATE KEY UPDATE
-    //         action_type = VALUES(action_type),
-    //         value = VALUES(value),
-    //         status = 1,
-    //         updated_at = CURRENT_TIMESTAMP
-    //     `, [sId, sName, cId, cName, action_type, val]);
-    //   }
-    //   updatedCount++;
-    // }
-
+      updatedCount++;
+    }
 
     res.json({
       success: true,
       message: `Successfully updated pricing rule for ${updatedCount} cities.`,
       updated_count: updatedCount,
       rule: {
+        category_ids: catIdsStr,
+        category_names: catNamesStr,
+        service_ids: servIdsStr,
+        service_names: servNamesStr,
         action_type,
         value: val,
-        formatted_rule: formatRuleText(action_type, val)
+        formatted_rule: formatRuleText(action_type, val, catNamesStr, servNamesStr)
       }
     });
   } catch (err) {
@@ -262,7 +342,6 @@ router.post('/save-rules', async (req, res) => {
 
 // Alias route: POST /api/pricing/rules
 router.post('/rules', async (req, res) => {
-  // Forward to /save-rules handler logic
   req.url = '/save-rules';
   router.handle(req, res);
 });
@@ -271,20 +350,23 @@ router.post('/rules', async (req, res) => {
 // GET /api/pricing/rules
 // Fetch all active pricing rules
 // -------------------------------------------------------------
-
 router.get('/rules', async (req, res) => {
   try {
     const [rules] = await db.query("SELECT * FROM city_pricing_rules WHERE status = 1 ORDER BY state_name ASC, city_name ASC");
-    
+
     const formattedRules = rules.map(r => ({
       id: r.id,
       state_id: r.state_id,
       state_name: r.state_name,
       city_id: r.city_id,
       city_name: r.city_name,
+      category_ids: r.category_ids,
+      category_names: r.category_names,
+      service_ids: r.service_ids,
+      service_names: r.service_names,
       action_type: r.action_type,
       value: parseFloat(r.value),
-      formatted_rule: formatRuleText(r.action_type, r.value),
+      formatted_rule: formatRuleText(r.action_type, r.value, r.category_names, r.service_names),
       created_at: r.created_at,
       updated_at: r.updated_at
     }));
@@ -308,7 +390,8 @@ router.get('/rules', async (req, res) => {
 router.get('/preview', async (req, res) => {
   try {
     const basePrice = parseFloat(req.query.price) || 600;
-    const serviceName = req.query.service_name || 'Sofa Cleaning';
+    const serviceName = req.query.service_name || 'Bathroom Cleaning';
+    const categoryName = req.query.category_name || 'Cleaning';
     const actionType = req.query.action_type || 'percentage_increase';
     const value = parseFloat(req.query.value) || 0;
 
@@ -318,14 +401,15 @@ router.get('/preview', async (req, res) => {
 
     res.json({
       success: true,
+      category_name: categoryName,
       service_name: serviceName,
       base_price: basePrice,
       action_type: actionType,
       value: value,
-      formatted_rule: formatRuleText(actionType, value),
+      formatted_rule: formatRuleText(actionType, value, categoryName, serviceName),
       calculated_price: newPrice,
       difference: diffFormatted,
-      preview_text: `${serviceName} Base ₹${basePrice} -> ₹${newPrice}`
+      preview_text: `${serviceName} (${categoryName}) Base ₹${basePrice} -> ₹${newPrice}`
     });
   } catch (err) {
     console.error('Error generating preview:', err);
@@ -366,15 +450,27 @@ router.get('/service-price', async (req, res) => {
       }
 
       const [rules] = await db.query(query, params);
-      if (rules.length > 0) {
-        const r = rules[0];
-        effectivePrice = calculateEffectivePrice(basePrice, r.action_type, r.value);
+      
+      // Filter rules matching service's category_id and service_id
+      const matchingRule = rules.find(r => {
+        if (!r.category_ids && !r.service_ids) return true; // Applies to all services
+        
+        const catMatch = !r.category_ids || r.category_ids.split(',').map(s => s.trim()).includes(service.category_id?.toString());
+        const servMatch = !r.service_ids || r.service_ids.split(',').map(s => s.trim()).includes(service.id?.toString());
+        
+        return catMatch && servMatch;
+      });
+
+      if (matchingRule) {
+        effectivePrice = calculateEffectivePrice(basePrice, matchingRule.action_type, matchingRule.value);
         appliedRule = {
-          city_name: r.city_name,
-          state_name: r.state_name,
-          action_type: r.action_type,
-          value: parseFloat(r.value),
-          formatted_rule: formatRuleText(r.action_type, r.value)
+          city_name: matchingRule.city_name,
+          state_name: matchingRule.state_name,
+          category_names: matchingRule.category_names,
+          service_names: matchingRule.service_names,
+          action_type: matchingRule.action_type,
+          value: parseFloat(matchingRule.value),
+          formatted_rule: formatRuleText(matchingRule.action_type, matchingRule.value, matchingRule.category_names, matchingRule.service_names)
         };
       }
     }
@@ -391,7 +487,7 @@ router.get('/service-price', async (req, res) => {
   } catch (err) {
     console.error('Error calculating city service price:', err);
     res.status(500).json({ success: false, error: err.message });
-  } 
+  }
 });
 
 module.exports = router;

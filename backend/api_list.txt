@@ -331,3 +331,45 @@ The following accounts bypass backend authentication and always retain "super_ad
 
 - GLOBAL SEARCH:
   * GET /api/amc/search - Global search across subscriptions, visits, and orders. Query param: ?q=...
+
+----------------------------------------------------------------------
+16. CITY PRICING MANAGEMENT
+----------------------------------------------------------------------
+* GET /api/pricing/stats
+  - Summary statistics for City Pricing Dashboard (total states, total cities, total services, active rules count) & list of active state names.
+  - Response: { "success": true, "stats": { "total_states": 39, "total_cities": 703, "total_services": 293, "active_rules": 5 }, "states": ["Rajasthan", "Gujarat", ...] }
+
+* GET /api/pricing/cities
+  - Fetch cities for selected state along with current active pricing rules for each city.
+  - Query parameters: ?state=Rajasthan or ?state_id=29
+  - Response: { "success": true, "state": "Rajasthan", "total": 59, "cities": [ { "id": 62, "cityName": "Jaipur", "stateName": "Rajasthan", "status": 1, "pricing_rule": { "id": 1, "category_ids": "7", "category_names": "Cleaning", "service_ids": "38", "service_names": "Bathroom Cleaning", "action_type": "percentage_increase", "value": 10, "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]" } } ] }
+
+* GET /api/pricing/categories
+  - Fetch list of active categories for step 3 selection grid ("3. Select Categories").
+  - Response: { "success": true, "total": 25, "categories": [ { "id": 7, "title": "Cleaning", "name": "Cleaning" }, ... ] }
+
+* GET /api/pricing/services
+  - Fetch list of services for selected categories for step 4 selection grid ("4. Services").
+  - Query parameters: ?category_ids=7,3 or ?categories=Cleaning,Electrician
+  - Response: { "success": true, "total": 12, "services": [ { "id": 38, "title": "Bathroom Cleaning", "name": "Bathroom Cleaning", "price": 600, "category_id": 7 }, ... ] }
+
+* POST /api/pricing/save-rules (or POST /api/pricing/rules)
+  - Bulk save or update city pricing rules for selected cities, categories, and services.
+  - Body: { "state_name": "Rajasthan", "city_ids": [62], "category_ids": [7], "category_names": ["Cleaning"], "service_ids": [38], "service_names": ["Bathroom Cleaning"], "action_type": "percentage_increase", "value": 10 }
+  - Action types supported: 'percentage_increase' (+X%), 'percentage_decrease' (-X%), 'fixed_increase' (+₹X), 'fixed_price' (₹X), 'reset' (Base Price).
+  - Response: { "success": true, "message": "Successfully updated pricing rule for 1 cities.", "updated_count": 1, "rule": { "category_ids": "7", "category_names": "Cleaning", "service_ids": "38", "service_names": "Bathroom Cleaning", "action_type": "percentage_increase", "value": 10, "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]" } }
+
+* GET /api/pricing/rules
+  - Fetch all active city pricing rules configured across all states & cities.
+  - Response: { "success": true, "count": 1, "rules": [...] }
+
+* GET /api/pricing/preview
+  - Generate dynamic price preview calculation for review step.
+  - Query parameters: ?price=600&service_name=Bathroom%20Cleaning&category_name=Cleaning&action_type=percentage_increase&value=10
+  - Response: { "success": true, "category_name": "Cleaning", "service_name": "Bathroom Cleaning", "base_price": 600, "action_type": "percentage_increase", "value": 10, "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]", "calculated_price": 660, "difference": "+₹60", "preview_text": "Bathroom Cleaning (Cleaning) Base ₹600 -> ₹660" }
+
+* GET /api/pricing/service-price
+  - Calculate city-specific effective price for customer and partner apps matching category & service filters.
+  - Query parameters: ?service_id=38&city=Jaipur&state=Rajasthan
+  - Response: { "success": true, "service_id": 38, "title": "Bathroom Cleaning", "base_price": 600, "effective_price": 660, "has_city_pricing": true, "applied_rule": { "city_name": "Jaipur", "state_name": "Rajasthan", "category_names": "Cleaning", "service_names": "Bathroom Cleaning", "action_type": "percentage_increase", "value": 10, "formatted_rule": "Current +10% (Cleaning) [Bathroom Cleaning]" } }
+
