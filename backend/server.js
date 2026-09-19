@@ -473,7 +473,6 @@ const settingsRouter = require('./routes/settings');
 const reportsRouter = require('./routes/reports');
 const supportRouter = require('./routes/support');
 const uploadRouter = require('./routes/upload');
-const partnerRouter = require('./routes/partner');
 const adminsRouter = require('./routes/admins');
 const amcRouter = require('./routes/amc');
 const pricingRouter = require('./routes/pricing');
@@ -516,7 +515,6 @@ server.use('/api/admins', adminsRouter);
 server.use('/api/amc', amcRouter);
 server.use('/api/pricing', pricingRouter);
 server.use('/api/v1/pricing', pricingRouter);
-server.use('/api', partnerRouter);
 
 // Compatibility route: the Flutter user app calls /api/checkout-api/:phone
 // The actual handler lives in partnersRouter at /api/partners/checkout-api/:phone
