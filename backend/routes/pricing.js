@@ -52,12 +52,36 @@ function calculateEffectivePrice(basePrice, actionType, value) {
   }
 }
 
+// In-memory cache for pricing endpoints (TTL 30 seconds)
+const pricingCache = new Map();
+const PRICING_CACHE_TTL = 30000;
+
+function getCachedData(key) {
+  const cached = pricingCache.get(key);
+  if (cached && (Date.now() - cached.timestamp < PRICING_CACHE_TTL)) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedData(key, data) {
+  pricingCache.set(key, { data, timestamp: Date.now() });
+}
+
+function clearPricingCache() {
+  pricingCache.clear();
+}
+
 // -------------------------------------------------------------
 // GET /api/pricing/stats
 // Returns summary statistics & list of active states
 // -------------------------------------------------------------
 router.get('/stats', async (req, res) => {
   try {
+    const cacheKey = 'pricing_stats';
+    const cached = getCachedData(cacheKey);
+    if (cached) return res.json(cached);
+
     const [
       [statesCount],
       [citiesCount],
@@ -72,7 +96,7 @@ router.get('/stats', async (req, res) => {
       db.query("SELECT DISTINCT name FROM states WHERE status = 1 ORDER BY name ASC")
     ]);
 
-    res.json({
+    const result = {
       success: true,
       stats: {
         total_states: statesCount[0]?.count || 0,
@@ -81,7 +105,10 @@ router.get('/stats', async (req, res) => {
         active_rules: activeRulesCount[0]?.count || 0
       },
       states: statesList.map(s => s.name)
-    });
+    };
+
+    setCachedData(cacheKey, result);
+    res.json(result);
   } catch (err) {
     console.error('Error fetching pricing stats:', err);
     res.status(500).json({ success: false, error: err.message });
@@ -90,10 +117,17 @@ router.get('/stats', async (req, res) => {
 
 // -------------------------------------------------------------
 // GET /api/pricing/categories
-// Returns list of active categories for step 3 selection grid
+// Returns list of active categories for step 3 selection grid (supports page & limit)
 // -------------------------------------------------------------
 router.get('/categories', async (req, res) => {
   try {
+    const pageNum = parseInt(req.query.page || '1') || 1;
+    const limitNum = parseInt(req.query.limit || '0') || 0;
+    const cacheKey = `pricing_categories_${pageNum}_${limitNum}`;
+
+    const cached = getCachedData(cacheKey);
+    if (cached) return res.json(cached);
+
     const [rows] = await db.query(
       "SELECT id, title, title as name FROM categories WHERE status = 1 ORDER BY title ASC"
     );
@@ -104,11 +138,27 @@ router.get('/categories', async (req, res) => {
       name: r.title
     }));
 
-    res.json({
+    let paginatedCategories = categories;
+    let totalPages = 1;
+
+    if (limitNum > 0) {
+      const startIndex = (pageNum - 1) * limitNum;
+      paginatedCategories = categories.slice(startIndex, startIndex + limitNum);
+      totalPages = Math.ceil(categories.length / limitNum) || 1;
+    }
+
+    const response = {
       success: true,
       total: categories.length,
-      categories: categories
-    });
+      page: pageNum,
+      limit: limitNum > 0 ? limitNum : categories.length,
+      totalPages: totalPages,
+      categories: paginatedCategories,
+      data: paginatedCategories
+    };
+
+    setCachedData(cacheKey, response);
+    res.json(response);
   } catch (err) {
     console.error('Error fetching categories for pricing:', err);
     res.status(500).json({ success: false, error: err.message });
@@ -118,14 +168,20 @@ router.get('/categories', async (req, res) => {
 // -------------------------------------------------------------
 // GET /api/pricing/services
 // Query params: ?category_ids=1,5,7 or ?categories=Cleaning,Electrician or ?category_name=Cleaning
-// Returns services belonging ONLY to the selected categories
+// Supports pagination (?page=1&limit=20)
 // -------------------------------------------------------------
 router.get('/services', async (req, res) => {
   try {
     const { category_ids, category_id, categories, category_name, category_names, category, cat } = req.query;
+    const pageNum = parseInt(req.query.page || '1') || 1;
+    const limitNum = parseInt(req.query.limit || '0') || 0;
 
     const catParam = category_ids || category_id;
     const catNameParam = categories || category_name || category_names || category || cat;
+
+    const cacheKey = `pricing_services_${catParam || ''}_${catNameParam || ''}_${pageNum}_${limitNum}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return res.json(cached);
 
     let targetCatIds = [];
 
@@ -167,13 +223,29 @@ router.get('/services', async (req, res) => {
       category_name: r.category_name || 'General'
     }));
 
-    res.json({
+    let paginatedServices = services;
+    let totalPages = 1;
+
+    if (limitNum > 0) {
+      const startIndex = (pageNum - 1) * limitNum;
+      paginatedServices = services.slice(startIndex, startIndex + limitNum);
+      totalPages = Math.ceil(services.length / limitNum) || 1;
+    }
+
+    const response = {
       success: true,
       filter_applied: targetCatIds.length > 0,
       target_category_ids: targetCatIds,
       total: services.length,
-      services: services
-    });
+      page: pageNum,
+      limit: limitNum > 0 ? limitNum : services.length,
+      totalPages: totalPages,
+      services: paginatedServices,
+      data: paginatedServices
+    };
+
+    setCachedData(cacheKey, response);
+    res.json(response);
   } catch (err) {
     console.error('Error fetching services for pricing:', err);
     res.status(500).json({ success: false, error: err.message });
@@ -182,13 +254,18 @@ router.get('/services', async (req, res) => {
 
 // -------------------------------------------------------------
 // GET /api/pricing/cities
-// Query: ?state=Rajasthan or ?state_id=29
-// Returns cities in state with their current pricing rule
+// Query: ?state=Rajasthan or ?state_id=29 (supports page & limit)
 // -------------------------------------------------------------
 router.get('/cities', async (req, res) => {
   try {
     const stateName = req.query.state || req.query.state_name;
     const stateId = req.query.state_id;
+    const pageNum = parseInt(req.query.page || '1') || 1;
+    const limitNum = parseInt(req.query.limit || '0') || 0;
+
+    const cacheKey = `pricing_cities_${stateName || ''}_${stateId || ''}_${pageNum}_${limitNum}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return res.json(cached);
 
     let whereClause = "WHERE 1=1";
     let params = [];
@@ -236,12 +313,28 @@ router.get('/cities', async (req, res) => {
       };
     });
 
-    res.json({
+    let paginatedCities = enrichedCities;
+    let totalPages = 1;
+
+    if (limitNum > 0) {
+      const startIndex = (pageNum - 1) * limitNum;
+      paginatedCities = enrichedCities.slice(startIndex, startIndex + limitNum);
+      totalPages = Math.ceil(enrichedCities.length / limitNum) || 1;
+    }
+
+    const response = {
       success: true,
       state: stateName || 'All',
       total: enrichedCities.length,
-      cities: enrichedCities
-    });
+      page: pageNum,
+      limit: limitNum > 0 ? limitNum : enrichedCities.length,
+      totalPages: totalPages,
+      cities: paginatedCities,
+      data: paginatedCities
+    };
+
+    setCachedData(cacheKey, response);
+    res.json(response);
   } catch (err) {
     console.error('Error fetching cities with pricing rules:', err);
     res.status(500).json({ success: false, error: err.message });

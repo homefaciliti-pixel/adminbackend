@@ -61,10 +61,27 @@ function mapCategory(r, req) {
   };
 }
 
-// GET all categories (with optional search/filtering)
+// In-memory cache for categories (TTL 30 seconds)
+const categoriesCache = new Map();
+const CAT_CACHE_TTL = 30000;
+
+function clearCategoriesCache() {
+  categoriesCache.clear();
+}
+
+// GET all categories (with optional search/filtering/pagination)
 router.get('/', async (req, res) => {
   try {
     const { title, categoryName, parent, mainCategory, status, emailStatus } = req.query;
+    const pageNum = parseInt(req.query.page || '1') || 1;
+    const limitNum = parseInt(req.query.limit || '0') || 0;
+
+    const cacheKey = `cats_${title || ''}_${categoryName || ''}_${parent || ''}_${mainCategory || ''}_${status !== undefined ? status : ''}_${pageNum}_${limitNum}`;
+    const cached = categoriesCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CAT_CACHE_TTL)) {
+      return res.json(cached.data);
+    }
+
     let query = 'SELECT * FROM categories WHERE 1=1';
     const params = [];
 
@@ -95,12 +112,28 @@ router.get('/', async (req, res) => {
     const [rows] = await db.query(query, params);
     const mapped = rows.map(r => mapCategory(r, req));
 
-    res.json({
+    let paginatedMapped = mapped;
+    let totalPages = 1;
+
+    if (limitNum > 0) {
+      const startIndex = (pageNum - 1) * limitNum;
+      paginatedMapped = mapped.slice(startIndex, startIndex + limitNum);
+      totalPages = Math.ceil(mapped.length / limitNum) || 1;
+    }
+
+    const response = {
       success: true,
-      data: mapped,
-      categories: mapped,
-      result: mapped
-    });
+      total: mapped.length,
+      page: pageNum,
+      limit: limitNum > 0 ? limitNum : mapped.length,
+      totalPages: totalPages,
+      data: paginatedMapped,
+      categories: paginatedMapped,
+      result: paginatedMapped
+    };
+
+    categoriesCache.set(cacheKey, { data: response, timestamp: Date.now() });
+    res.json(response);
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
