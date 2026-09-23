@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR ORDERS
 let ordersCache = null;
 let ordersCacheTimestamp = null;
-const ORDERS_CACHE_TTL = 60 * 1000; // Cache lives for 1 minute
+const ORDERS_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
 
 function clearOrdersCache() {
   ordersCache = null;

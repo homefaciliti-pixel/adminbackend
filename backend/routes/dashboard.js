@@ -14,7 +14,7 @@ function getTodayDateString() {
 // CACHE memory STORAGE FOR DASHBOARD STATS
 let dashboardStatsCache = null;
 let dashboardCacheTimestamp = null;
-const DASHBOARD_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+const DASHBOARD_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
 
 function clearDashboardCache() {
   dashboardStatsCache = null;

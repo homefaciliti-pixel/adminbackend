@@ -88,9 +88,9 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// In-memory cache for pricing endpoints (TTL 30 seconds)
+// In-memory cache for pricing endpoints (TTL 3 seconds)
 const pricingCache = new Map();
-const PRICING_CACHE_TTL = 30000;
+const PRICING_CACHE_TTL = 3000;
 
 function getCachedData(key) {
   const cached = pricingCache.get(key);

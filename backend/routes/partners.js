@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR PARTNERS
 let partnersCache = null;
 let partnersCacheTimestamp = null;
-const PARTNERS_CACHE_TTL = 2 * 60 * 1000;
+const PARTNERS_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
 
 function clearPartnersCache() {
   partnersCache = null;

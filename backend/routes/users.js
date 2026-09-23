@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR USERS
 let usersCache = null;
 let usersCacheTimestamp = null;
-const USERS_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+const USERS_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
 
 function clearUsersCache() {
   usersCache = null;

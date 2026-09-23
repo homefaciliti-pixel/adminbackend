@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR SERVICES
 let servicesCache = null;
 let servicesCacheTimestamp = null;
-const SERVICES_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+const SERVICES_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
 
 function clearServicesCache() {
   servicesCache = null;
