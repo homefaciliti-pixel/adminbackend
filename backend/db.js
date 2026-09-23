@@ -13,8 +13,8 @@ const pool = mysql.createPool({
   port:     parseInt(process.env.DB_PORT || '3306'),
 
   waitForConnections: true,
-  connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '30'),
-  maxIdle:            10,       // Keep up to 10 warm idle connections for instant responses
+  connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '20'),
+  maxIdle:            5,        // Keep up to 5 warm idle connections for instant responses
   idleTimeout:        20000,    // 20s - close idle connections gracefully
   queueLimit:         0,        // Queue incoming queries safely in Node RAM when pool limit reached
   connectTimeout:     15000,    // 15s connection timeout
