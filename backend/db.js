@@ -93,28 +93,5 @@ pool.execute = async function (sql, values) {
   return withRetry(_execute, queryStr, values);
 };
 
-// Verify connection on startup (non-blocking, just for logging)
-pool.getConnection()
-  .then(conn => {
-    console.log('✅ MySQL connected directly to homefaciliti.com — no bridge needed.');
-    conn.release();
-  })
-  .catch(err => {
-    console.error('⚠️ MySQL direct connection error on startup:', err.message);
-  });
-
-// Periodic heartbeat keepalive ping every 15 seconds to keep connection warm
-const heartbeatTimer = setInterval(async () => {
-  try {
-    const rawQuery = _query.bind(pool);
-    await rawQuery('SELECT 1');
-  } catch (err) {
-    // Ignore heartbeat errors; pool auto-reconnects on next request
-  }
-}, 15000);
-
-if (heartbeatTimer.unref) {
-  heartbeatTimer.unref();
-}
-
+// Export pool — mysql2 pool connects lazily and auto-manages connections on-demand without startup connection hogging
 module.exports = pool;
