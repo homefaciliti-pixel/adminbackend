@@ -13,13 +13,13 @@ const pool = mysql.createPool({
   port:     parseInt(process.env.DB_PORT || '3306'),
 
   waitForConnections: true,
-  connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '30'),
-  maxIdle:            10,       // Limit idle connections to prevent stale socket accumulation
-  idleTimeout:        20000,    // 20s - close idle connections before BigRock drops them
-  queueLimit:         0,
-  connectTimeout:     10000,    // 10s
+  connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '50'),
+  maxIdle:            20,       // Keep 20 warm idle connections for instant response
+  idleTimeout:        30000,    // 30s - close idle connections gracefully
+  queueLimit:         0,        // Unlimited queueing so concurrent admin requests never get rejected
+  connectTimeout:     20000,    // 20s connection timeout
   enableKeepAlive:    true,
-  keepAliveInitialDelay: 10000, // 10s TCP keep-alive
+  keepAliveInitialDelay: 5000,  // 5s TCP keep-alive
   ssl: false
 });
 
@@ -51,7 +51,7 @@ function prefixQuery(sql) {
 }
 
 // Helper function to retry queries automatically if connection is lost
-async function withRetry(operation, queryStr, values, maxRetries = 2) {
+async function withRetry(operation, queryStr, values, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await operation(queryStr, values);
@@ -62,12 +62,13 @@ async function withRetry(operation, queryStr, values, maxRetries = 2) {
                                errCode === 'ECONNRESET' ||
                                errCode === 'EPIPE' ||
                                errCode === 'ETIMEDOUT' ||
+                               errCode === 'ER_CON_COUNT_ERROR' ||
                                errMsg.includes('Connection lost') ||
                                errMsg.includes('socket hang up') ||
                                errMsg.includes('closed');
 
       if (isConnectionLost && attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, attempt * 100));
       } else {
         throw err;
       }
