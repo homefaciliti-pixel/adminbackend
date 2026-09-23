@@ -13,8 +13,8 @@ const pool = mysql.createPool({
   port:     parseInt(process.env.DB_PORT || '3306'),
 
   waitForConnections: true,
-  connectionLimit:    10,
-  maxIdle:            2,        // Limit idle connections to prevent stale socket accumulation
+  connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '30'),
+  maxIdle:            10,       // Limit idle connections to prevent stale socket accumulation
   idleTimeout:        20000,    // 20s - close idle connections before BigRock drops them
   queueLimit:         0,
   connectTimeout:     10000,    // 10s
