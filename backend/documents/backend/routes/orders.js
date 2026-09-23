@@ -2,14 +2,16 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// ─────────────────────────────────────────────
-// NOTE: db.js auto-prefixes table names with "node_"
-// So writing 'orders'  → queries 'node_orders'  (admin panel orders)
-//    writing 'partners' → queries 'node_partners' (but we use 'partners' table)
-// node_orders schema: id, serviceRequestNumber, serviceName, serviceAmount,
-//   slotTime, serviceDate, city, locality, status, vendorName, vendorMobile,
-//   address, createdAt, paymentMethod, latitude, longitude
-// ─────────────────────────────────────────────
+// IN-MEMORY CACHE STORAGE FOR ORDERS
+let ordersCache = null;
+let ordersCacheTimestamp = null;
+const ORDERS_CACHE_TTL = 60 * 1000; // Cache lives for 1 minute
+
+function clearOrdersCache() {
+  ordersCache = null;
+  ordersCacheTimestamp = null;
+}
+
 
 // Helper: Haversine distance in km
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -68,24 +70,29 @@ async function resolveVendorName(vendorName, vendorPhone, phone, mobile, vendorM
 }
 
 
-// Helper: Sequentially lookup an order ID to find which table it belongs to
+// Helper: Sequentially lookup an order ID to find which table it belongs to (Optimized)
 async function findOrderSource(orderId) {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
   
-  // 1. Check node_orders_v2 (Flutter application bookings)
-  const [v2Rows] = await db.query('SELECT id FROM node_orders_v2 WHERE id = ?', [orderId]);
+  // Run all three table checks simultaneously in parallel with LIMIT 1
+  const [v2Res, nodeRes, laravelRes] = await Promise.all([
+    db.query('SELECT id FROM node_orders_v2 WHERE id = ? LIMIT 1', [orderId]).catch(() => [[]]),
+    db.query('SELECT id FROM orders WHERE id = ? LIMIT 1', [orderId]).catch(() => [[]]),
+    db.query(`SELECT id FROM \`${dbName}\`.\`order_items\` WHERE id = ? LIMIT 1`, [orderId]).catch(() => [[]])
+  ]);
+
+  const v2Rows = v2Res[0] || [];
+  const nodeRows = nodeRes[0] || [];
+  const laravelRows = laravelRes[0] || [];
+
   if (v2Rows.length > 0) {
     return { source: 'v2', id: orderId };
   }
 
-  // 2. Check orders (node_orders - Admin panel bookings)
-  const [nodeRows] = await db.query('SELECT id FROM orders WHERE id = ?', [orderId]);
   if (nodeRows.length > 0) {
     return { source: 'admin', id: orderId };
   }
 
-  // 3. Check Laravel order_items
-  const [laravelRows] = await db.query(`SELECT id FROM \`${dbName}\`.\`order_items\` WHERE id = ?`, [orderId]);
   if (laravelRows.length > 0) {
     return { source: 'laravel', id: orderId };
   }
@@ -95,6 +102,12 @@ async function findOrderSource(orderId) {
 
 // Helper: Get all orders from admin, v2 (live app), and Laravel tables
 async function getAllOrders(req) {
+
+  // ✅ 1. Check cache first! If valid, return instantly with zero database lag
+  if (ordersCache && (Date.now() - ordersCacheTimestamp < ORDERS_CACHE_TTL)) {
+    return ordersCache;
+  }
+
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
   // Fetch all orders, partners, and users maps in parallel to reduce sequential database network roundtrip times
@@ -338,23 +351,60 @@ function parseOrderTimestamp(item) {
     return b.id - a.id;
   });
 
+  // Save the compiled list to cache before returning
+  ordersCache = list;
+  ordersCacheTimestamp = Date.now();
+
   return list;
 }
 
 // ─────────────────────────────────────────────
 // GET /api/orders  — List all orders (admin panel)
 // ─────────────────────────────────────────────
+// GET /api/orders — List all orders (admin panel with pagination & filtering)
 router.get('/', async (req, res) => {
   let retries = 2;
   while (retries >= 0) {
     try {
-      const list = await getAllOrders(req);
-      return res.json({ success: true, data: list });
+      const { page = 1, limit = 50, status, search } = req.query;
+      let list = await getAllOrders(req);
+
+      // Optional: Filter by status if provided
+      if (status && status !== 'all') {
+        list = list.filter(o => o.status && o.status.toLowerCase() === status.toLowerCase());
+      }
+
+      // Optional: General search filtering
+      const searchVal = (search || req.query.q || '').trim().toLowerCase();
+      if (searchVal !== '') {
+        list = list.filter(o => 
+          (o.serviceRequestNumber && o.serviceRequestNumber.toLowerCase().includes(searchVal)) ||
+          (o.serviceName && o.serviceName.toLowerCase().includes(searchVal)) ||
+          (o.customerName && o.customerName.toLowerCase().includes(searchVal)) ||
+          (o.customerMobile && o.customerMobile.toLowerCase().includes(searchVal)) ||
+          (o.vendorName && o.vendorName.toLowerCase().includes(searchVal))
+        );
+      }
+
+      // Pagination Slice
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 50;
+      const startIndex = (pageNum - 1) * limitNum;
+      const paginatedList = list.slice(startIndex, startIndex + limitNum);
+
+      return res.json({ 
+        success: true, 
+        total: list.length,
+        page: pageNum,
+        pages: Math.ceil(list.length / limitNum),
+        data: paginatedList 
+      });
+
     } catch (error) {
       if (retries > 0 && (error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET' || error.code === 'PROTOCOL_CONNECTION_LOST')) {
         console.warn(`Orders fetch timeout, retrying... (${retries} retries left)`);
         retries--;
-        await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
+        await new Promise(r => setTimeout(r, 2000));
       } else {
         console.error('Error fetching orders:', error);
         return res.status(500).json({ success: false, message: 'Failed to fetch orders', error: error.message });
@@ -362,7 +412,6 @@ router.get('/', async (req, res) => {
     }
   }
 });
-
 // ─────────────────────────────────────────────
 // GET /api/orders/:id  — Single order detail
 // ─────────────────────────────────────────────
@@ -571,8 +620,11 @@ router.put('/:id', async (req, res) => {
       }
 
       values.push(rawId);
+
       await db.query('UPDATE orders SET ' + fields.join(', ') + ' WHERE id = ?', values);
     }
+
+    clearOrdersCache();
 
     // If status updated to Completed, credit the partner's wallet/earnings dynamically
     if (status !== undefined && status === 'Completed' && oldStatus !== 'Completed') {
@@ -610,6 +662,8 @@ router.put('/:id', async (req, res) => {
              WHERE id = ?`,
             [partnerShare, walletIncrement, payToCompanyIncrement, partner.id]
           );
+
+
 
           // Log transaction in booking_earnings
           const transactionId = 'TXN-' + Date.now();
@@ -676,6 +730,9 @@ router.delete('/:id', async (req, res) => {
     if (affected === 0) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
+
+    clearOrdersCache();
+
     res.json({ success: true, message: 'Order deleted successfully' });
   } catch (error) {
     console.error('Error deleting order:', error);
@@ -804,6 +861,7 @@ router.put('/:id/assign', async (req, res) => {
       if (result.affectedRows === 0) return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    clearOrdersCache();
 
     const list = await getAllOrders(req);
     const updatedOrder = list.find(o => {
@@ -932,6 +990,8 @@ router.post('/', async (req, res) => {
         nowTs
       ]
     ).catch(err => console.warn('Failed to insert into node_orders_v2:', err.message));
+
+    clearOrdersCache();
 
     res.status(201).json({
       success: true,

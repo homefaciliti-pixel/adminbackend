@@ -2,6 +2,16 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// IN-MEMORY CACHE STORAGE FOR SERVICES
+let servicesCache = null;
+let servicesCacheTimestamp = null;
+const SERVICES_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+
+function clearServicesCache() {
+  servicesCache = null;
+  servicesCacheTimestamp = null;
+}
+
 function formatImageUrl(img, req) {
   if (!img) return '';
   const host = req ? req.get('host') : 'adminbackend-1-h03r.onrender.com';
@@ -63,10 +73,38 @@ function mapServiceRow(r, req) {
 // GET all services
 router.get(['/', '/services'], async (req, res) => {
   try {
+
+    const { page = 1, limit = 50, search } = req.query;
+
+// Return from cache if valid and no custom search/pagination filtering is being applied dynamically
+    if (!search && servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL)) {
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 50;
+      const startIndex = (pageNum - 1) * limitNum;
+      const paginatedData = servicesCache.slice(startIndex, startIndex + limitNum);
+
+      return res.json({
+        success: true,
+        source: 'cache',
+        total: servicesCache.length,
+        page: pageNum,
+        pages: Math.ceil(servicesCache.length / limitNum),
+        data: paginatedData,
+        services: paginatedData,
+        result: paginatedData
+      });
+    }
+
     const [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
     const mapped = rows.map(r => mapServiceRow(r, req));
+
+    // Save to cache
+    servicesCache = mapped;
+    servicesCacheTimestamp = Date.now();
+
     res.json({
       success: true,
+      source: 'database',
       data: mapped,
       services: mapped,
       result: mapped
@@ -153,8 +191,11 @@ router.post('/', async (req, res) => {
 
     const [result] = await db.query(query, params);
 
+    // ✅ Clear cache immediately after creation
+    clearServicesCache();
+
     const [insertedRows] = await db.query('SELECT * FROM services WHERE id = ?', [result.insertId]);
-    const responseData = mapServiceRow(insertedRows[0]);
+    const responseData = mapServiceRow(insertedRows[0], req);
 
     res.status(201).json({
       success: true,
@@ -297,6 +338,9 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
 
+    // ✅ Clear cache immediately after update
+    clearServicesCache();
+
     // Retrieve updated service
     const [rows] = await db.query('SELECT * FROM services WHERE id = ?', [id]);
     const responseData = mapServiceRow(rows[0]);
@@ -320,6 +364,10 @@ router.delete('/:id', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
+
+    // Clear cache immediately after deletion
+    clearServicesCache();
+
     res.json({
       success: true,
       message: 'Service deleted successfully'
@@ -334,7 +382,21 @@ router.delete('/:id', async (req, res) => {
 // GET /search - search services
 router.get('/search', async (req, res) => {
   const q = req.query.q || req.query.query || '';
+
   try {
+    // If we have a valid cache, filter from memory instantly with zero database lag
+    if (servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL)) {
+      if (q === '') {
+        return res.json({ success: true, data: servicesCache });
+      }
+      const filtered = servicesCache.filter(s => 
+        (s.title && s.title.toLowerCase().includes(q)) ||
+        (s.description && s.description.toLowerCase().includes(q))
+      );
+      return res.json({ success: true, data: filtered });
+    }
+    
+    // if we not have the cache then fallback diresctly to database
     let rows;
     if (q.trim() === '') {
       [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
@@ -344,7 +406,7 @@ router.get('/search', async (req, res) => {
         [`%${q}%`, `%${q}%`]
       );
     }
-    const mapped = rows.map(mapServiceRow);
+    const mapped = rows.map(r => mapServiceRow(r, req));
     res.json({ success: true, data: mapped });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Search failed', error: error.message });
@@ -364,8 +426,12 @@ router.put('/:id/status', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
+
+    // Clear cache immediately after status change
+    clearServicesCache();
+
     const [rows] = await db.query('SELECT * FROM services WHERE id = ?', [id]);
-    const responseData = mapServiceRow(rows[0]);
+    const responseData = mapServiceRow(rows[0], req);
     res.json({
       success: true,
       message: `Service status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
@@ -389,8 +455,12 @@ router.patch('/:id/status', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
     }
+
+    // ✅ Clear cache immediately after status change
+    clearServicesCache();
+
     const [rows] = await db.query('SELECT * FROM services WHERE id = ?', [id]);
-    const responseData = mapServiceRow(rows[0]);
+    const responseData = mapServiceRow(rows[0], req);
     res.json({
       success: true,
       message: `Service status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,

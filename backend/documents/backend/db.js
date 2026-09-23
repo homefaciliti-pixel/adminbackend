@@ -16,7 +16,7 @@ const pool = mysql.createPool({
   port:     parseInt(process.env.DB_PORT || '3306'),
 
   waitForConnections: true,
-  connectionLimit:    30,
+  connectionLimit:    20,
   queueLimit:         0,
   connectTimeout:     15000,   // 15s — enough for cold BigRock connection
   enableKeepAlive:    true,

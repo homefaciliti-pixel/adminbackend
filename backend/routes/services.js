@@ -98,28 +98,16 @@ router.get(['/', '/services'], async (req, res) => {
     const [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
     const mapped = rows.map(r => mapServiceRow(r, req));
 
-    const pageNum = parseInt(req.query.page || '1') || 1;
-    const limitNum = parseInt(req.query.limit || '0') || 0;
-
-    let paginatedMapped = mapped;
-    let totalPages = 1;
-
-    if (limitNum > 0) {
-      const startIndex = (pageNum - 1) * limitNum;
-      paginatedMapped = mapped.slice(startIndex, startIndex + limitNum);
-      totalPages = Math.ceil(mapped.length / limitNum) || 1;
-    }
+    // Save to cache
+    servicesCache = mapped;
+    servicesCacheTimestamp = Date.now();
 
     res.json({
       success: true,
-      source: servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL) ? 'cache' : 'database',
-      total: mapped.length,
-      page: pageNum,
-      limit: limitNum > 0 ? limitNum : mapped.length,
-      totalPages: totalPages,
-      data: paginatedMapped,
-      services: paginatedMapped,
-      result: paginatedMapped
+      source: 'database',
+      data: mapped,
+      services: mapped,
+      result: mapped
     });
   } catch (error) {
     console.error('Error fetching services:', error);

@@ -2,103 +2,64 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// updated new code for the cache memory or storage 
+let categoryCache = null;
+let cacheTimestamp = null;
+const CACHE_TTL = 5 * 60 * 1000; // Cache lives for 5 minutes (5 * 60 seconds)
+
+function clearCategoryCache() {
+  categoryCache = null;
+  cacheTimestamp = null;
+}
+
 function formatImageUrl(img, req) {
   if (!img) return '';
+  const host = req.get('host');
+  const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
   
-  const host = (req && req.get) ? (req.get('host') || 'adminbackend-1-h03r.onrender.com') : 'adminbackend-1-h03r.onrender.com';
-  const isHttps = host.includes('onrender.com') || (req && (req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' || req.headers['x-forwarded-ssl'] === 'on'));
-  const protocol = isHttps ? 'https' : 'http';
-  
-  let cleanFilename = img;
-  if (cleanFilename.includes('/uploads/')) {
-    cleanFilename = cleanFilename.split('/uploads/').pop();
-  } else if (cleanFilename.startsWith('http://') || cleanFilename.startsWith('https://')) {
-    if (isHttps && cleanFilename.startsWith('http://')) {
-      return cleanFilename.replace('http://', 'https://');
-    }
-    return cleanFilename;
-  } else {
-    cleanFilename = cleanFilename.replace(/^\/?uploads\//, '').replace(/^\/?categories\//, '');
+  if (img.includes('/uploads/')) {
+    const filename = img.split('/uploads/').pop();
+    return `${protocol}://${host}/uploads/${filename}`;
   }
 
+  if (img.startsWith('http://') || img.startsWith('https://')) {
+    return img;
+  }
+  const cleanFilename = img.replace(/^uploads\//, '').replace(/^categories\//, '');
   return `${protocol}://${host}/uploads/${cleanFilename}`;
 }
 
-function mapCategory(r, req) {
-  const formattedImg = formatImageUrl(r.image, req);
-  const titleVal = r.title || r.categoryName || r.name || '';
-  const parentVal = (r.parent === null || r.parent === 'None' || !r.parent) ? 'Main Category' : r.parent;
-
-  return {
-    ...r,
-    id: r.id,
-    title: titleVal,
-    name: titleVal,
-    categoryName: titleVal,
-    category_name: titleVal,
-    
-    // Icon and Image field variations for all Flutter app versions & Admin Panel
-    image: formattedImg,
-    img: formattedImg,
-    icon: formattedImg,
-    icon_3d: formattedImg,
-    icon3d: formattedImg,
-    imageUrl: formattedImg,
-    image_url: formattedImg,
-    cat_image: formattedImg,
-    cat_icon: formattedImg,
-    categoryImage: formattedImg,
-    categoryIcon: formattedImg,
-    category_icon: formattedImg,
-    category_image: formattedImg,
-    iconUrl: formattedImg,
-    banner: formattedImg,
-
-    parent: parentVal,
-    mainCategory: parentVal === 'Main Category',
-    isMain: parentVal === 'Main Category',
-    status: r.status === 1 || r.status === true
-  };
-}
-
-// In-memory cache for categories (TTL 30 seconds)
-const categoriesCache = new Map();
-const CAT_CACHE_TTL = 30000;
-
-function clearCategoriesCache() {
-  categoriesCache.clear();
-}
-
-// GET all categories (with optional search/filtering/pagination)
+// GET all categories (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
     const { title, categoryName, parent, mainCategory, status, emailStatus } = req.query;
-    const pageNum = parseInt(req.query.page || '1') || 1;
-    const limitNum = parseInt(req.query.limit || '0') || 0;
 
-    const cacheKey = `cats_${title || ''}_${categoryName || ''}_${parent || ''}_${mainCategory || ''}_${status !== undefined ? status : ''}_${pageNum}_${limitNum}`;
-    const cached = categoriesCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < CAT_CACHE_TTL)) {
-      return res.json(cached.data);
-    }
+    // If no search or filters are applied, check the cache first!
+    const isFiltered = title || categoryName || parent || mainCategory || status !== undefined || emailStatus !== undefined;
+    
+    if (!isFiltered && categoryCache && (Date.now() - cacheTimestamp < CACHE_TTL)) {
+      return res.json({
+        success: true,
+        source: 'cache', // Easy to verify in Postman/Console
+        data: categoryCache,
+        categories: categoryCache,
+        result: categoryCache
+      });
+    }    
 
     let query = 'SELECT * FROM categories WHERE 1=1';
     const params = [];
 
     const searchTitle = title || categoryName;
     if (searchTitle) {
-      query += ' AND (title LIKE ? OR name_hi LIKE ?)';
-      params.push(`%${searchTitle}%`, `%${searchTitle}%`);
+      query += ' AND title LIKE ?';
+      params.push(`%${searchTitle}%`);
     }
 
     const searchParent = parent || mainCategory;
     if (searchParent) {
-      if (searchParent === 'Main Category' || searchParent === 'main' || searchParent === 'true') {
-        query += " AND (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category')";
-      } else {
-        query += ' AND parent LIKE ?';
-        params.push(`%${searchParent}%`);
-      }
+      query += ' AND parent LIKE ?';
+      params.push(`%${searchParent}%`);
     }
 
     const searchStatus = status !== undefined ? status : emailStatus;
@@ -110,44 +71,29 @@ router.get('/', async (req, res) => {
 
     query += ' ORDER BY id DESC';
     const [rows] = await db.query(query, params);
-    const mapped = rows.map(r => mapCategory(r, req));
+    const mapped = rows.map(r => ({
+      ...r,
+      id: r.id,
+      image: formatImageUrl(r.image, req),
+      parent: r.parent === null ? 'None' : r.parent,
+      status: r.status === 1
+    }));
 
-    let paginatedMapped = mapped;
-    let totalPages = 1;
-
-    if (limitNum > 0) {
-      const startIndex = (pageNum - 1) * limitNum;
-      paginatedMapped = mapped.slice(startIndex, startIndex + limitNum);
-      totalPages = Math.ceil(mapped.length / limitNum) || 1;
+    // Save to cache if it's an unfiltered request
+    if (!isFiltered) {
+      categoryCache = mapped;
+      cacheTimestamp = Date.now();
     }
 
-    const response = {
+    res.json({
       success: true,
-      total: mapped.length,
-      page: pageNum,
-      limit: limitNum > 0 ? limitNum : mapped.length,
-      totalPages: totalPages,
-      data: paginatedMapped,
-      categories: paginatedMapped,
-      result: paginatedMapped
-    };
-
-    categoriesCache.set(cacheKey, { data: response, timestamp: Date.now() });
-    res.json(response);
+      data: mapped,
+      categories: mapped,
+      result: mapped
+    });
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch categories', error: error.message });
-  }
-});
-
-// GET /main - get main categories
-router.get('/main', async (req, res) => {
-  try {
-    const [rows] = await db.query("SELECT * FROM categories WHERE (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category') AND status = 1 ORDER BY id DESC");
-    const mapped = rows.map(r => mapCategory(r, req));
-    res.json({ success: true, data: mapped, categories: mapped, result: mapped });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch main categories', error: error.message });
   }
 });
 
@@ -164,38 +110,24 @@ router.get('/search', async (req, res) => {
         [`%${q}%`, `%${q}%`]
       );
     }
-    const mapped = rows.map(r => mapCategory(r, req));
+    const mapped = rows.map(r => ({
+      ...r,
+      id: r.id,
+      image: formatImageUrl(r.image, req),
+      parent: r.parent === null ? 'None' : r.parent,
+      status: r.status === 1
+    }));
     res.json({ success: true, data: mapped, categories: mapped, result: mapped });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Search failed', error: error.message });
   }
 });
 
-// GET /:id - single category
-router.get('/:id', async (req, res) => {
-  const { id } = req.params;
-  if (id === 'main' || id === 'search') return; // Handled by specific routes
-  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
-  if (isNaN(numericId)) {
-    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
-  }
-  try {
-    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    if (rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Category not found' });
-    }
-    const mapped = mapCategory(rows[0], req);
-    res.json({ success: true, data: mapped, category: mapped });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to fetch category', error: error.message });
-  }
-});
-
 // POST create category
 router.post('/', async (req, res) => {
-  const titleVal = req.body.title || req.body.categoryName || req.body.name;
+  const titleVal = req.body.title || req.body.categoryName;
   const parentVal = req.body.parent || req.body.mainCategory;
-  const imageVal = req.body.image || req.body.icon || req.body.icon_3d || req.body.imageUrl || '';
+  const imageVal = req.body.image || '';
   const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
   
   if (!titleVal) {
@@ -203,7 +135,7 @@ router.post('/', async (req, res) => {
   }
   
   const statusInt = statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0;
-  const dbParentVal = parentVal === 'None' || !parentVal ? 'Main Category' : parentVal;
+  const dbParentVal = parentVal === 'None' || !parentVal ? null : parentVal;
   
   const slug = titleVal.trim().toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -215,15 +147,16 @@ router.post('/', async (req, res) => {
       'INSERT INTO categories (title, slug, parent, image, status) VALUES (?, ?, ?, ?, ?)',
       [titleVal, slug, dbParentVal, imageVal, statusInt]
     );
-
-    const [newRows] = await db.query('SELECT * FROM categories WHERE id = ?', [result.insertId]);
-    const createdCategory = mapCategory(newRows[0] || { id: result.insertId, title: titleVal, parent: dbParentVal, image: imageVal, status: statusInt }, req);
-
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
-      data: createdCategory,
-      category: createdCategory
+      data: {
+        id: result.insertId,
+        title: titleVal,
+        parent: parentVal,
+        image: imageVal,
+        status: statusInt === 1
+      }
     });
   } catch (error) {
     console.error('Error creating category:', error);
@@ -239,9 +172,9 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
   }
 
-  const titleVal = req.body.title || req.body.categoryName || req.body.name;
+  const titleVal = req.body.title || req.body.categoryName;
   const parentVal = req.body.parent || req.body.mainCategory;
-  const imageVal = req.body.image || req.body.icon || req.body.icon_3d || req.body.imageUrl;
+  const imageVal = req.body.image;
   const statusVal = req.body.status !== undefined ? req.body.status : req.body.emailStatus;
   
   try {
@@ -254,7 +187,7 @@ router.put('/:id', async (req, res) => {
     }
     if (parentVal !== undefined) {
       fields.push('`parent` = ?');
-      values.push(parentVal === 'None' || !parentVal ? 'Main Category' : parentVal);
+      values.push(parentVal === 'None' || !parentVal ? null : parentVal);
     }
     if (imageVal !== undefined) {
       fields.push('`image` = ?');
@@ -267,8 +200,7 @@ router.put('/:id', async (req, res) => {
 
     if (fields.length === 0) {
       const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-      const mapped = mapCategory(rows[0], req);
-      return res.json({ success: true, message: 'Update successful (no changes made)', data: mapped, category: mapped });
+      return res.json({ success: true, message: 'Update successful (no changes made)', data: rows[0] });
     }
 
     values.push(numericId);
@@ -280,8 +212,24 @@ router.put('/:id', async (req, res) => {
     }
 
     // Retrieve updated category
-    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    const updatedCategory = mapCategory(rows[0], req);
+    // const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    // const updatedCategory = {
+    //   ...rows[0],
+    //   id: rows[0].id,
+    //   image: formatImageUrl(rows[0].image, req),
+    //   parent: rows[0].parent === null ? 'None' : rows[0].parent,
+    //   status: rows[0].status === 1
+    // };
+
+
+    // ✅ THE CORRECTION: Build the response object instantly from memory without a second DB query
+    const updatedCategory = {
+      id: numericId,
+      title: titleVal !== undefined ? titleVal : null,
+      parent: parentVal === 'None' || !parentVal ? 'None' : parentVal,
+      image: imageVal !== undefined ? formatImageUrl(imageVal, req) : '',
+      status: statusVal !== undefined ? (statusVal === true || statusVal === 1 || statusVal === 'true') : true
+    };
 
     res.json({
       success: true,
@@ -304,14 +252,23 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
+    // Fetch category title first to perform programmatic cascade delete of sub-categories
     const [rows] = await db.query('SELECT title FROM categories WHERE id = ?', [numericId]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
     const categoryTitle = rows[0].title;
 
-    await db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]);
-    await db.query('DELETE FROM categories WHERE id = ?', [numericId]);
+    // // Delete sub-categories referencing this category title as parent
+    // await db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]);
+
+    // // Delete parent category
+    // await db.query('DELETE FROM categories WHERE id = ?', [numericId]);
+
+    await Promise.all([
+      db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]),
+      db.query('DELETE FROM categories WHERE id = ?', [numericId])
+    ]);
 
     res.json({
       success: true,
@@ -342,11 +299,15 @@ router.put('/:id/status', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    const mapped = mapCategory(rows[0], req);
     res.json({
       success: true,
       message: `Category status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
-      data: mapped
+      data: {
+        ...rows[0],
+        id: rows[0].id,
+        parent: rows[0].parent === null ? 'None' : rows[0].parent,
+        status: rows[0].status === 1
+      }
     });
   } catch (error) {
     console.error('Error toggling category status:', error);
@@ -372,11 +333,15 @@ router.patch('/:id/status', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    const mapped = mapCategory(rows[0], req);
     res.json({
       success: true,
       message: `Category status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
-      data: mapped
+      data: {
+        ...rows[0],
+        id: rows[0].id,
+        parent: rows[0].parent === null ? 'None' : rows[0].parent,
+        status: rows[0].status === 1
+      }
     });
   } catch (error) {
     console.error('Error toggling category status:', error);

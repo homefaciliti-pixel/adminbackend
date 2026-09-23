@@ -2,70 +2,96 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
-// GET all users (with optional search/filtering)
+// IN-MEMORY CACHE STORAGE FOR USERS
+let usersCache = null;
+let usersCacheTimestamp = null;
+const USERS_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+
+function clearUsersCache() {
+  usersCache = null;
+  usersCacheTimestamp = null;
+}
+
+// Unified helper to fetch and normalize all users from all tables in parallel with caching
+async function getAllUsers() {
+  if (usersCache && (Date.now() - usersCacheTimestamp < USERS_CACHE_TTL)) {
+    return usersCache;
+  }
+
+  const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+  
+  // Fetch from all three database sources simultaneously in parallel
+  const [
+    [nodeV2Rows],
+    [nodeRows],
+    [laravelRows]
+  ] = await Promise.all([
+    db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender, countryCode FROM node_users_v2").catch(() => [[]]),
+    db.query("SELECT id, name, email, mobile, address, createdAt as created_at FROM users").catch(() => [[]]),
+    db.query(`SELECT id, name, email, mobile_number as mobile, gender, address, created_at FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`).catch(() => [[]])
+  ]);
+  
+  let allUsers = [];
+
+  // 1. Normalize node_users_v2 (Flutter application users)
+  nodeV2Rows.forEach((r, idx) => {
+    const numericPhone = parseInt(r.mobile);
+    const finalId = isNaN(numericPhone) ? (2000000000 + idx) : numericPhone;
+    allUsers.push({
+      id: finalId,
+      name: r.name || 'Guest User',
+      email: r.email || '',
+      mobile: r.mobile || '',
+      address: r.address || '',
+      gender: r.gender || '',
+      created_at: null,
+      source: 'User App (MySQL v2)',
+      countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
+    });
+  });
+
+  // 2. Normalize node_users (Admin users)
+  nodeRows.forEach(r => {
+    allUsers.push({
+      id: r.id,
+      name: r.name || '',
+      email: r.email || '',
+      mobile: r.mobile || '',
+      address: r.address || '',
+      gender: '',
+      created_at: r.created_at,
+      source: 'Admin User (MySQL)',
+      countryCode: '+91'
+    });
+  });
+
+  // 3. Normalize Laravel users (App Users)
+  laravelRows.forEach(r => {
+    allUsers.push({
+      id: r.id + 10000000,
+      name: r.name || '',
+      email: r.email || '',
+      mobile: r.mobile || '',
+      address: r.address || '',
+      gender: r.gender || '',
+      created_at: r.created_at,
+      source: 'App User (Laravel)',
+      countryCode: '+91'
+    });
+  });
+
+  // Save to cache
+  usersCache = allUsers;
+  usersCacheTimestamp = Date.now();
+
+  return allUsers;
+}
+
+// GET all users (with optional search/filtering & pagination)
 router.get('/', async (req, res) => {
   try {
-    const { query: searchQuery, name, email, mobile } = req.query;
-    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
-    
-    // 1. Fetch from node_users_v2
-    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender, countryCode FROM node_users_v2");
-    
-    // 2. Fetch from node_users (translated to node_users by prefixQuery)
-    const [nodeRows] = await db.query("SELECT id, name, email, mobile, address, createdAt as created_at FROM users");
-    
-    // 3. Fetch from original users (bypassing prefixQuery translation using database prefix)
-    const [laravelRows] = await db.query(`SELECT id, name, email, mobile_number as mobile, gender, address, created_at FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`);
-    
-    let allUsers = [];
-
-    // Normalize and add node_users_v2 (Flutter application users)
-    nodeV2Rows.forEach((r, idx) => {
-      // Parse phone as numeric ID
-      const numericPhone = parseInt(r.mobile);
-      const finalId = isNaN(numericPhone) ? (2000000000 + idx) : numericPhone;
-      allUsers.push({
-        id: finalId,
-        name: r.name || 'Guest User',
-        email: r.email || '',
-        mobile: r.mobile || '',
-        address: r.address || '',
-        gender: r.gender || '',
-        created_at: null,
-        source: 'User App (MySQL v2)',
-        countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
-      });
-    });
-
-    // Normalize and add node_users (Admin users)
-    nodeRows.forEach(r => {
-      allUsers.push({
-        id: r.id, // original small ID (under 10M)
-        name: r.name || '',
-        email: r.email || '',
-        mobile: r.mobile || '',
-        address: r.address || '',
-        gender: '',
-        created_at: r.created_at,
-        source: 'Admin User (MySQL)',
-        countryCode: '+91'
-      });
-    });
-
-    // Normalize and add laravel users (App Users)
-    laravelRows.forEach(r => {
-      allUsers.push({
-        id: r.id + 10000000, // offset by 10 million
-        name: r.name || '',
-        email: r.email || '',
-        mobile: r.mobile || '',
-        address: r.address || '',
-        gender: r.gender || '',
-        created_at: r.created_at,
-        source: 'App User (Laravel)',
-        countryCode: '+91'
-      });
-    });
+    const { query: searchQuery, name, email, mobile, page = 1, limit = 50 } = req.query;
+    let allUsers = await getAllUsers();
 
     // Apply filters in memory
     if (searchQuery) {
@@ -89,9 +115,18 @@ router.get('/', async (req, res) => {
       allUsers = allUsers.filter(u => u.mobile && u.mobile.toLowerCase().includes(m));
     }
 
+    // Pagination slice
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 50;
+    const startIndex = (pageNum - 1) * limitNum;
+    const paginatedList = allUsers.slice(startIndex, startIndex + limitNum);
+
     res.json({
       success: true,
-      data: allUsers
+      total: allUsers.length,
+      page: pageNum,
+      pages: Math.ceil(allUsers.length / limitNum),
+      data: paginatedList
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -103,58 +138,8 @@ router.get('/', async (req, res) => {
 router.get('/search', async (req, res) => {
   const q = req.query.q || req.query.query || '';
   try {
-    const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
+    let allUsers = await getAllUsers();
     
-    const [nodeV2Rows] = await db.query("SELECT phone as mobile, name, email, CONCAT(locality, ' ', location) as address, gender, countryCode FROM node_users_v2");
-    const [nodeRows] = await db.query("SELECT id, name, email, mobile, address, createdAt as created_at FROM users");
-    const [laravelRows] = await db.query(`SELECT id, name, email, mobile_number as mobile, gender, address, created_at FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL`);
-    
-    let allUsers = [];
-
-    nodeV2Rows.forEach((r, idx) => {
-      const numericPhone = parseInt(r.mobile);
-      const finalId = isNaN(numericPhone) ? (2000000000 + idx) : numericPhone;
-      allUsers.push({
-        id: finalId,
-        name: r.name || 'Guest User',
-        email: r.email || '',
-        mobile: r.mobile || '',
-        address: r.address || '',
-        gender: r.gender || '',
-        created_at: null,
-        source: 'User App (MySQL v2)',
-        countryCode: r.countryCode ? (r.countryCode.startsWith('+') ? r.countryCode : `+${r.countryCode}`) : '+91'
-      });
-    });
-
-    nodeRows.forEach(r => {
-      allUsers.push({
-        id: r.id,
-        name: r.name || '',
-        email: r.email || '',
-        mobile: r.mobile || '',
-        address: r.address || '',
-        gender: '',
-        created_at: r.created_at,
-        source: 'Admin User (MySQL)',
-        countryCode: '+91'
-      });
-    });
-
-    laravelRows.forEach(r => {
-      allUsers.push({
-        id: r.id + 10000000,
-        name: r.name || '',
-        email: r.email || '',
-        mobile: r.mobile || '',
-        address: r.address || '',
-        gender: r.gender || '',
-        created_at: r.created_at,
-        source: 'App User (Laravel)',
-        countryCode: '+91'
-      });
-    });
-
     if (q.trim() !== '') {
       const searchQ = q.toLowerCase();
       allUsers = allUsers.filter(u => 
@@ -177,17 +162,18 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Please provide all required fields' });
   }
   try {
-    // 1. Insert into node_users_v2 (Flutter application user table)
     await db.query(
       "INSERT INTO node_users_v2 (phone, name, email, referralCode) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name), email=VALUES(email)",
       [mobile, name, email, 'ADM' + Date.now().toString().slice(-6)]
     );
 
-    // 2. Insert into node_users (Admin user table)
     const [result] = await db.query(
       'INSERT INTO users (name, email, mobile, address) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name), email=VALUES(email), address=VALUES(address)',
       [name, email, mobile, address || '']
     );
+
+    // Clear cache immediately after creation
+    clearUsersCache();
 
     res.status(201).json({
       success: true,
@@ -215,7 +201,6 @@ router.get('/:id', async (req, res) => {
   
   try {
     if (rawId >= 2000000000) {
-      // It is a phone number (node_users_v2)
       const phone = rawId.toString();
       const [rows] = await db.query("SELECT * FROM node_users_v2 WHERE phone = ?", [phone]);
       if (rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
@@ -234,7 +219,6 @@ router.get('/:id', async (req, res) => {
         }
       });
     } else if (rawId >= 10000000) {
-      // It is a offset Laravel user ID
       const originalId = rawId - 10000000;
       const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
       const [rows] = await db.query(`SELECT * FROM \`${dbName}\`.\`users\` WHERE id = ?`, [originalId]);
@@ -254,7 +238,6 @@ router.get('/:id', async (req, res) => {
         }
       });
     } else {
-      // It is a node_users ID
       const [rows] = await db.query("SELECT * FROM users WHERE id = ?", [rawId]);
       if (rows.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
       const r = rows[0];
@@ -304,13 +287,17 @@ router.delete('/:id', async (req, res) => {
     if (affected === 0) {
       return res.status(404).json({ success: false, message: 'User not found or already deleted' });
     }
+
+    // Clear cache immediately after deletion
+    clearUsersCache();
+
     res.json({
       success: true,
       message: 'User deleted successfully'
     });
   } catch (error) {
     console.error('Error deleting user:', error);
-    res.status(500).json({ success: false, message: 'Failed to delete user', error: error.message });
+    res.status(500).json({ success: false, message: 'Failed to fetch user details', error: error.message });
   }
 });
 

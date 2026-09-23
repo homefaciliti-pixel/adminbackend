@@ -52,6 +52,42 @@ function calculateEffectivePrice(basePrice, actionType, value) {
   }
 }
 
+// -------------------------------------------------------------
+// GET /api/pricing/stats
+// Returns summary statistics & list of active states
+// -------------------------------------------------------------
+router.get('/stats', async (req, res) => {
+  try {
+    const [
+      [statesCount],
+      [citiesCount],
+      [servicesCount],
+      [activeRulesCount],
+      [statesList]
+    ] = await Promise.all([
+      db.query("SELECT COUNT(*) as count FROM states WHERE status = 1"),
+      db.query("SELECT COUNT(*) as count FROM cities WHERE status = 1"),
+      db.query("SELECT COUNT(*) as count FROM services WHERE status = 1"),
+      db.query("SELECT COUNT(*) as count FROM city_pricing_rules WHERE action_type != 'reset' AND status = 1"),
+      db.query("SELECT DISTINCT name FROM states WHERE status = 1 ORDER BY name ASC")
+    ]);
+
+    res.json({
+      success: true,
+      stats: {
+        total_states: statesCount[0]?.count || 0,
+        total_cities: citiesCount[0]?.count || 0,
+        total_services: servicesCount[0]?.count || 0,
+        active_rules: activeRulesCount[0]?.count || 0
+      },
+      states: statesList.map(s => s.name)
+    });
+  } catch (err) {
+    console.error('Error fetching pricing stats:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // In-memory cache for pricing endpoints (TTL 30 seconds)
 const pricingCache = new Map();
 const PRICING_CACHE_TTL = 30000;
@@ -67,53 +103,6 @@ function getCachedData(key) {
 function setCachedData(key, data) {
   pricingCache.set(key, { data, timestamp: Date.now() });
 }
-
-function clearPricingCache() {
-  pricingCache.clear();
-}
-
-// -------------------------------------------------------------
-// GET /api/pricing/stats
-// Returns summary statistics & list of active states
-// -------------------------------------------------------------
-router.get('/stats', async (req, res) => {
-  try {
-    const cacheKey = 'pricing_stats';
-    const cached = getCachedData(cacheKey);
-    if (cached) return res.json(cached);
-
-    const [
-      [statesCount],
-      [citiesCount],
-      [servicesCount],
-      [activeRulesCount],
-      [statesList]
-    ] = await Promise.all([
-      db.query("SELECT COUNT(*) as count FROM states WHERE status = 1"),
-      db.query("SELECT COUNT(*) as count FROM cities WHERE status = 1"),
-      db.query("SELECT COUNT(*) as count FROM services WHERE status = 1"),
-      db.query("SELECT COUNT(*) as count FROM city_pricing_rules WHERE action_type != 'reset' AND status = 1"),
-      db.query("SELECT DISTINCT name FROM states WHERE status = 1 ORDER BY name ASC")
-    ]);
-
-    const result = {
-      success: true,
-      stats: {
-        total_states: statesCount[0]?.count || 0,
-        total_cities: citiesCount[0]?.count || 0,
-        total_services: servicesCount[0]?.count || 0,
-        active_rules: activeRulesCount[0]?.count || 0
-      },
-      states: statesList.map(s => s.name)
-    };
-
-    setCachedData(cacheKey, result);
-    res.json(result);
-  } catch (err) {
-    console.error('Error fetching pricing stats:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
 
 // -------------------------------------------------------------
 // GET /api/pricing/categories
@@ -168,7 +157,7 @@ router.get('/categories', async (req, res) => {
 // -------------------------------------------------------------
 // GET /api/pricing/services
 // Query params: ?category_ids=1,5,7 or ?categories=Cleaning,Electrician or ?category_name=Cleaning
-// Supports pagination (?page=1&limit=20)
+// Returns services belonging ONLY to the selected categories (supports page & limit)
 // -------------------------------------------------------------
 router.get('/services', async (req, res) => {
   try {
@@ -254,18 +243,13 @@ router.get('/services', async (req, res) => {
 
 // -------------------------------------------------------------
 // GET /api/pricing/cities
-// Query: ?state=Rajasthan or ?state_id=29 (supports page & limit)
+// Query: ?state=Rajasthan or ?state_id=29
+// Returns cities in state with their current pricing rule
 // -------------------------------------------------------------
 router.get('/cities', async (req, res) => {
   try {
     const stateName = req.query.state || req.query.state_name;
     const stateId = req.query.state_id;
-    const pageNum = parseInt(req.query.page || '1') || 1;
-    const limitNum = parseInt(req.query.limit || '0') || 0;
-
-    const cacheKey = `pricing_cities_${stateName || ''}_${stateId || ''}_${pageNum}_${limitNum}`;
-    const cached = getCachedData(cacheKey);
-    if (cached) return res.json(cached);
 
     let whereClause = "WHERE 1=1";
     let params = [];
@@ -313,28 +297,12 @@ router.get('/cities', async (req, res) => {
       };
     });
 
-    let paginatedCities = enrichedCities;
-    let totalPages = 1;
-
-    if (limitNum > 0) {
-      const startIndex = (pageNum - 1) * limitNum;
-      paginatedCities = enrichedCities.slice(startIndex, startIndex + limitNum);
-      totalPages = Math.ceil(enrichedCities.length / limitNum) || 1;
-    }
-
-    const response = {
+    res.json({
       success: true,
       state: stateName || 'All',
       total: enrichedCities.length,
-      page: pageNum,
-      limit: limitNum > 0 ? limitNum : enrichedCities.length,
-      totalPages: totalPages,
-      cities: paginatedCities,
-      data: paginatedCities
-    };
-
-    setCachedData(cacheKey, response);
-    res.json(response);
+      cities: enrichedCities
+    });
   } catch (err) {
     console.error('Error fetching cities with pricing rules:', err);
     res.status(500).json({ success: false, error: err.message });

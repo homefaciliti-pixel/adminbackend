@@ -2,6 +2,16 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// updated new code for the cache memory or storage 
+let categoryCache = null;
+let cacheTimestamp = null;
+const CACHE_TTL = 5 * 60 * 1000; // Cache lives for 5 minutes (5 * 60 seconds)
+
+function clearCategoryCache() {
+  categoryCache = null;
+  cacheTimestamp = null;
+}
+
 function formatImageUrl(img, req) {
   if (!img) return '';
   const host = req.get('host');
@@ -23,6 +33,20 @@ function formatImageUrl(img, req) {
 router.get('/', async (req, res) => {
   try {
     const { title, categoryName, parent, mainCategory, status, emailStatus } = req.query;
+
+    // If no search or filters are applied, check the cache first!
+    const isFiltered = title || categoryName || parent || mainCategory || status !== undefined || emailStatus !== undefined;
+    
+    if (!isFiltered && categoryCache && (Date.now() - cacheTimestamp < CACHE_TTL)) {
+      return res.json({
+        success: true,
+        source: 'cache', // Easy to verify in Postman/Console
+        data: categoryCache,
+        categories: categoryCache,
+        result: categoryCache
+      });
+    }    
+
     let query = 'SELECT * FROM categories WHERE 1=1';
     const params = [];
 
@@ -54,6 +78,13 @@ router.get('/', async (req, res) => {
       parent: r.parent === null ? 'None' : r.parent,
       status: r.status === 1
     }));
+
+    // Save to cache if it's an unfiltered request
+    if (!isFiltered) {
+      categoryCache = mapped;
+      cacheTimestamp = Date.now();
+    }
+
     res.json({
       success: true,
       data: mapped,
@@ -116,6 +147,9 @@ router.post('/', async (req, res) => {
       'INSERT INTO categories (title, slug, parent, image, status) VALUES (?, ?, ?, ?, ?)',
       [titleVal, slug, dbParentVal, imageVal, statusInt]
     );
+
+    clearCategoryCache();
+
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
@@ -180,15 +214,17 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
 
-    // Retrieve updated category
-    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    clearCategoryCache();
+
+    // ✅ THE CORRECTION: Build the response object instantly from memory without a second DB query
     const updatedCategory = {
-      ...rows[0],
-      id: rows[0].id,
-      image: formatImageUrl(rows[0].image, req),
-      parent: rows[0].parent === null ? 'None' : rows[0].parent,
-      status: rows[0].status === 1
+      id: numericId,
+      title: titleVal !== undefined ? titleVal : null,
+      parent: parentVal === 'None' || !parentVal ? 'None' : parentVal,
+      image: imageVal !== undefined ? formatImageUrl(imageVal, req) : '',
+      status: statusVal !== undefined ? (statusVal === true || statusVal === 1 || statusVal === 'true') : true
     };
+
     res.json({
       success: true,
       message: 'Category updated successfully',
@@ -217,11 +253,12 @@ router.delete('/:id', async (req, res) => {
     }
     const categoryTitle = rows[0].title;
 
-    // Delete sub-categories referencing this category title as parent
-    await db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]);
+    await Promise.all([
+      db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]),
+      db.query('DELETE FROM categories WHERE id = ?', [numericId])
+    ]);
 
-    // Delete parent category
-    await db.query('DELETE FROM categories WHERE id = ?', [numericId]);
+    clearCategoryCache();
 
     res.json({
       success: true,
@@ -251,6 +288,9 @@ router.put('/:id/status', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
+
+    clearCategoryCache();
+
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
     res.json({
       success: true,
@@ -285,6 +325,9 @@ router.patch('/:id/status', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
+
+    clearCategoryCache();
+
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
     res.json({
       success: true,
@@ -300,6 +343,7 @@ router.patch('/:id/status', async (req, res) => {
     console.error('Error toggling category status:', error);
     res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
   }
+
 });
 
 module.exports = router;

@@ -2,6 +2,16 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// IN-MEMORY CACHE STORAGE FOR PARTNERS
+let partnersCache = null;
+let partnersCacheTimestamp = null;
+const PARTNERS_CACHE_TTL = 2 * 60 * 1000;
+
+function clearPartnersCache() {
+  partnersCache = null;
+  partnersCacheTimestamp = null;
+}
+
 const laravelFields = [
   'name', 'email', 'mobile', 'city', 'state', 'locality', 'address', 'image',
   'status', 'isApproved', 'gender', 'experience', 'services', 'aadhaarNumber',
@@ -10,36 +20,26 @@ const laravelFields = [
   'cancelledBookings', 'pendingBookings', 'rating', 'totalReviews'
 ];
 
-let partnersCache = null;
-let partnersCacheTime = 0;
-const CACHE_TTL = 30000;
+async function getAllPartners() {
 
-function invalidatePartnerCache() {
-  partnersCache = null;
-  partnersCacheTime = 0;
-}
-
-async function getCachedPartners() {
-  const now = Date.now();
-  if (partnersCache && (now - partnersCacheTime < CACHE_TTL)) {
+  // Check if valid cache exists to avoid heavy remote database trips
+  if (partnersCache && (Date.now() - partnersCacheTimestamp < PARTNERS_CACHE_TTL)) {
     return partnersCache;
   }
-  const all = await getAllPartners();
-  partnersCache = all;
-  partnersCacheTime = now;
-  return all;
-}
 
-async function getAllPartners() {
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
-  
+
   // Fetch from all tables in parallel to optimize latency, selecting only required fields to minimize RAM and payload size
   const [
     [nodeRows],
     [laravelRows]
   ] = await Promise.all([
     db.query(`
-      SELECT * FROM partners
+      SELECT 
+        id, name, email, mobile, city, state, locality, image, status, 
+        isApproved, isPaid, latitude, longitude, locationTime, createdAt, 
+        category, subCategory 
+      FROM partners
     `),
     db.query(`
       SELECT 
@@ -56,20 +56,7 @@ async function getAllPartners() {
         u.status, 
         u.is_approval AS isApproved, 
         u.created_at AS createdAt,
-        u.payment_status AS isPaid,
-        u.gender, 
-        u.experience, 
-        u.service_id AS services, 
-        u.aadhaar_number AS aadhaarNumber, 
-        u.aadhaar_front_image AS aadharFront, 
-        u.aadhaar_back_image AS aadharBack, 
-        u.pan_number AS panNumber, 
-        u.pan_image AS panImage, 
-        u.bank_name AS bankName, 
-        u.account_number AS accountNumber, 
-        u.ifsc_code AS ifscCode,
-        u.do_you_have_vehicle AS hasVehicle,
-        u.account_holder_name AS accountHolder
+        u.payment_status AS isPaid
       FROM \`${dbName}\`.\`users\` u
       LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
       LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
@@ -84,14 +71,29 @@ async function getAllPartners() {
 
   nodeRows.forEach(r => {
     all.push({
-      ...r,
+      id: r.id,
+      name: r.name || '',
+      email: r.email || '',
+      mobile: r.mobile || '',
+      city: r.city || '',
+      state: r.state || '',
+      locality: r.locality || '',
+      image: r.image || '',
+      status: r.status === 1 || r.status === true,
+      isApproved: r.isApproved === 1 || r.isApproved === true,
+      isPaid: (r.isPaid === 1 || r.isPaid === true || r.isPaid === 'Paid') ? 1 : 0,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      locationTime: r.locationTime || '',
+      createdAt: r.createdAt || '',
+      category: r.category || '',
+      subCategory: r.subCategory || '',
       source: 'Admin Partner (MySQL)'
     });
   });
 
   laravelRows.forEach(r => {
     all.push({
-      ...r,
       id: r.id + 10000000, // Offset Laravel IDs by 10,000,000
       name: r.name || '',
       email: r.email || '',
@@ -143,7 +145,7 @@ function mapPartner(r, req) {
   const resolvedPanImage = resolveDocUrl(r.panImage, req, 'document');
   const resolvedPoliceImage = resolveDocUrl(r.policeVerificationImage, req, 'document');
   const resolvedImage = resolveDocUrl(r.image, req, 'profile');
-  
+
   const documentsArray = [resolvedAadharFront, resolvedAadharBack, resolvedPanImage, resolvedPoliceImage].filter(Boolean);
 
   return {
@@ -175,13 +177,14 @@ function mapPartner(r, req) {
 // GET all partners (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
-    const { name, mobile, city, state, date, status, isApproved, search, category, locality, paymentStatus, isPaid, payment } = req.query;
-    let list = await getCachedPartners();
+    const { name, mobile, city, state, date, status, isApproved, search, category, locality, paymentStatus, isPaid, payment, page = 1, limit = 50 } = req.query;
+
+    let list = await getAllPartners();
 
     // 1. General search (Search Name / Mobile / Partner ID)
     const searchVal = (search || req.query.q || req.query.query || '').trim().toLowerCase();
     if (searchVal !== '') {
-      list = list.filter(p => 
+      list = list.filter(p =>
         (p.name && p.name.toLowerCase().includes(searchVal)) ||
         (p.mobile && p.mobile.toLowerCase().includes(searchVal)) ||
         (p.id && String(p.id).toLowerCase().includes(searchVal)) ||
@@ -239,25 +242,19 @@ router.get('/', async (req, res) => {
     // Order by ID descending
     list.sort((a, b) => b.id - a.id);
 
-    const pageNum = parseInt(req.query.page || '1') || 1;
-    const limitNum = parseInt(req.query.limit || '0') || 0;
-
-    if (limitNum > 0) {
-      const startIndex = (pageNum - 1) * limitNum;
-      const paginatedList = list.slice(startIndex, startIndex + limitNum);
-      return res.json({
-        success: true,
-        total: list.length,
-        page: pageNum,
-        limit: limitNum,
-        data: paginatedList.map(p => mapPartner(p, req))
-      });
-    }
+// ✅ Pagination slice
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 50;
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = pageNum * limitNum;
+    const paginatedList = list.slice(startIndex, endIndex);
 
     res.json({
       success: true,
       total: list.length,
-      data: list.map(p => mapPartner(p, req))
+      page: pageNum,
+      pages: Math.ceil(list.length / limitNum),
+      data: paginatedList.map(p => mapPartner(p, req))
     });
   } catch (error) {
     console.error('Error fetching partners:', error);
@@ -323,7 +320,7 @@ router.get('/search', async (req, res) => {
   try {
     let list = await getAllPartners();
     if (q !== '') {
-      list = list.filter(p => 
+      list = list.filter(p =>
         (p.name && p.name.toLowerCase().includes(q)) ||
         (p.email && p.email.toLowerCase().includes(q)) ||
         (p.mobile && p.mobile.toLowerCase().includes(q)) ||
@@ -341,7 +338,8 @@ router.get('/search', async (req, res) => {
 // GET pending approval partners
 router.get('/pending', async (req, res) => {
   try {
-    const { name, mobile, city, state, date, status, search, category, locality, paymentStatus, isPaid, payment } = req.query;
+    const { name, mobile, city, state, date, status, search, category, locality, paymentStatus, isPaid, payment, page=1, limit=50} = req.query;
+
     let list = await getAllPartners();
 
     list = list.filter(p => !p.isApproved);
@@ -349,7 +347,7 @@ router.get('/pending', async (req, res) => {
     // 1. General search (Search Name / Mobile / Partner ID)
     const searchVal = (search || req.query.q || req.query.query || '').trim().toLowerCase();
     if (searchVal !== '') {
-      list = list.filter(p => 
+      list = list.filter(p =>
         (p.name && p.name.toLowerCase().includes(searchVal)) ||
         (p.mobile && p.mobile.toLowerCase().includes(searchVal)) ||
         (p.id && String(p.id).toLowerCase().includes(searchVal)) ||
@@ -401,9 +399,20 @@ router.get('/pending', async (req, res) => {
     }
 
     list.sort((a, b) => b.id - a.id);
+    
+    // ✅ Pagination slice
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 50;
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = pageNum * limitNum;
+    const paginatedList = list.slice(startIndex, endIndex);
+
     res.json({
       success: true,
-      data: list.map(p => mapPartner(p, req))
+      total: list.length,
+      page: pageNum,
+      pages: Math.ceil(list.length / limitNum),
+      data: paginatedList.map(p => mapPartner(p, req))
     });
   } catch (error) {
     console.error('Error fetching pending partners:', error);
@@ -424,7 +433,7 @@ router.put('/:id/approve', async (req, res) => {
 
     if (rawId >= 10000000) {
       const originalId = rawId - 10000000;
-      query = `UPDATE \`${dbName}\`.\`users\` SET is_approval = '1', status = 1, payment_status = '1', account_status = 'APPROVED', partner_status = 'approved', kyc_status = 'approved' WHERE id = ?`;
+      query = `UPDATE \`${dbName}\`.\`users\` SET is_approval = '1', status = 1, payment_status = '1' WHERE id = ?`;
       params = [originalId];
 
       const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
@@ -553,7 +562,7 @@ router.put('/:id/mark-paid', async (req, res) => {
 
     if (rawId >= 10000000) {
       const originalId = rawId - 10000000;
-      
+
       // Get partner details first
       const [uRows] = await db.query(`SELECT name, mobile_number FROM \`${dbName}\`.\`users\` WHERE id = ?`, [originalId]);
       if (uRows.length > 0) {
@@ -563,7 +572,7 @@ router.put('/:id/mark-paid', async (req, res) => {
 
       // Update Laravel user (mark paid, approve, activate)
       await db.query(`UPDATE \`${dbName}\`.\`users\` SET payment_status = '1', is_approval = '1', status = 1 WHERE id = ?`, [originalId]);
-      
+
       // Sync node_partners if exists
       if (partnerPhone) {
         await db.query(`UPDATE partners SET isPaid = 1, isApproved = 1, status = 1 WHERE mobile = ?`, [partnerPhone]);
@@ -813,35 +822,51 @@ router.put('/:id/disapprove', async (req, res) => {
 router.get('/active', async (req, res) => {
   try {
     let list = await getAllPartners();
-    
+
     // Filter to active/online partners: status = 1 or true
     const activeList = list.filter(p => p.status === 1 || p.status === '1' || p.status === true);
 
-    // Map active list to the format expected by the ActivePartnerModel in the Flutter app
-    const mapped = [];
-    for (const p of activeList) {
-      // Get currentOrders count
-      const [[{ count }]] = await db.query(
-        "SELECT COUNT(*) as count FROM orders WHERE (vendorName = ? OR vendorMobile = ?) AND status IN ('Assigned', 'In Progress')",
-        [p.name || '', p.mobile || '']
+    if (activeList.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // Collect all mobiles to fetch counts in one single batch query
+    const mobiles = activeList.map(p => p.mobile).filter(Boolean);
+
+
+    // ✅ THE CORRECTION: Fetch all order counts in ONE single query using IN (...) instead of a loop
+    let orderCountsMap = {};
+    if (mobiles.length > 0) {
+      const [orderRows] = await db.query(
+        `SELECT vendorMobile, COUNT(*) as count 
+         FROM orders 
+         WHERE vendorMobile IN (?) AND status IN ('Assigned', 'In Progress') 
+         GROUP BY vendorMobile`,
+        [mobiles]
       );
 
-      mapped.push({
-        partnerId: String(p.id),
-        profileImage: resolveDocUrl(p.image, req, 'profile'),
-        name: p.name || '',
-        phone: p.mobile || '',
-        category: p.category || '',
-        subCategory: p.subCategory || '',
-        area: p.city || p.locality || '',
-        latitude: parseFloat(p.latitude || 0),
-        longitude: parseFloat(p.longitude || 0),
-        currentOrders: count,
-        isOnline: p.status === 1 || p.status === '1' || p.status === true,
-        activeAt: p.locationTime || '',
-        lastActive: p.locationTime || ''
+      orderRows.forEach(row => {
+        orderCountsMap[row.vendorMobile] = row.count;
       });
     }
+
+
+    const mapped = activeList.map(p => ({
+      partnerId: String(p.id),
+      profileImage: resolveDocUrl(p.image, req, 'profile'),
+      name: p.name || '',
+      phone: p.mobile || '',
+      category: p.category || '',
+      subCategory: p.subCategory || '',
+      area: p.city || p.locality || '',
+      latitude: parseFloat(p.latitude || 0),
+      longitude: parseFloat(p.longitude || 0),
+      currentOrders: orderCountsMap[p.mobile] || 0, // Instant lookup with zero database lag!
+      isOnline: true,
+      activeAt: p.locationTime || '',
+      lastActive: p.locationTime || ''
+    }));
+
 
     res.json({
       success: true,
@@ -886,7 +911,7 @@ router.get('/checkout-api/:phone', async (req, res) => {
 
       // Exact match
       let matched = services.find(s => (s.title || '').toLowerCase().trim() === cleanTitle);
-      
+
       // Partial matches
       if (!matched) {
         matched = services.find(s => (s.title || '').toLowerCase().trim().startsWith(cleanTitle) || cleanTitle.startsWith((s.title || '').toLowerCase().trim()));
@@ -1055,7 +1080,7 @@ router.get('/filter-options', async (req, res) => {
 router.get('/dropdown', async (req, res) => {
   try {
     const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
-    
+
     // Fetch approved from node partners and Laravel partners in parallel to optimize latency
     const [
       [nodeRows],
@@ -1206,7 +1231,7 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid Partner ID format' });
   }
   const body = req.body;
-  
+
   try {
     const fs = require('fs');
     const path = require('path');
@@ -1254,25 +1279,14 @@ router.put('/:id', async (req, res) => {
         if (keyMap[key]) {
           let val = body[key];
           if (key === 'isApproved') {
-            const isApp = (val === true || val === 1 || val === 'true');
-            fields.push('`is_approval` = ?', '`status` = ?', '`account_status` = ?', '`partner_status` = ?', '`kyc_status` = ?');
-            values.push(isApp ? '1' : '0', isApp ? 1 : 0, isApp ? 'APPROVED' : 'REJECTED', isApp ? 'approved' : 'rejected', isApp ? 'approved' : 'rejected');
-            if (isApp) {
-              fields.push('`payment_status` = ?');
-              values.push('1');
-            }
+            val = (val === true || val === 1 || val === 'true') ? '1' : '0';
           } else if (key === 'status' || key === 'isPaid') {
             val = (val === true || val === 1 || val === 'true') ? 1 : 0;
-            fields.push(`\`${keyMap[key]}\` = ?`);
-            values.push(val);
           } else if (key === 'hasVehicle') {
             val = (val === 'Yes' || val === '1' || val === 1 || val === true) ? 1 : 0;
-            fields.push(`\`${keyMap[key]}\` = ?`);
-            values.push(val);
-          } else {
-            fields.push(`\`${keyMap[key]}\` = ?`);
-            values.push(val);
           }
+          fields.push(`\`${keyMap[key]}\` = ?`);
+          values.push(val);
         }
       }
 
@@ -1423,32 +1437,15 @@ router.put('/:id', async (req, res) => {
         let val = body[key];
         if (key === 'services' || key === 'documents') {
           if (Array.isArray(val)) val = val.join(',');
-          fields.push(`\`${key}\` = ?`);
-          values.push(val);
-        } else if (key === 'isApproved') {
-          const isApp = (val === true || val === 1 || val === 'true');
-          fields.push('`isApproved` = ?', '`status` = ?');
-          values.push(isApp ? 1 : 0, isApp ? 1 : 0);
-          if (isApp) {
-            fields.push('`isPaid` = ?');
-            values.push(1);
-          }
-        } else if (key === 'status') {
+        } else if (key === 'status' || key === 'isApproved') {
           val = (val === true || val === 1 || val === 'true') ? 1 : 0;
-          fields.push('`status` = ?');
-          values.push(val);
         } else if (['walletBalance', 'totalEarnings', 'withdrawnAmount', 'rating'].includes(key)) {
           val = parseFloat(val);
-          fields.push(`\`${key}\` = ?`);
-          values.push(val);
         } else if (['totalBookings', 'completedBookings', 'cancelledBookings', 'pendingBookings', 'totalReviews'].includes(key)) {
           val = parseInt(val);
-          fields.push(`\`${key}\` = ?`);
-          values.push(val);
-        } else {
-          fields.push(`\`${key}\` = ?`);
-          values.push(val);
         }
+        fields.push(`\`${key}\` = ?`);
+        values.push(val);
       });
 
       if (fields.length === 0) {
@@ -1553,7 +1550,6 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Partner not found' });
     }
 
-    invalidatePartnerCache();
     res.json({
       success: true,
       message: 'Partner updated successfully',
@@ -1725,7 +1721,7 @@ router.patch('/:id/status', toggleStatus);
 router.put('/:id/password', async (req, res) => {
   const rawId = parseInt(req.params.id);
   const password = req.body.password || req.body.newPassword;
-  
+
   if (isNaN(rawId)) {
     return res.status(400).json({ success: false, message: 'Invalid Partner ID format' });
   }
@@ -1783,3 +1779,5 @@ router.get('/diagnostics-log/view', (req, res) => {
 });
 
 module.exports = router;
+
+
