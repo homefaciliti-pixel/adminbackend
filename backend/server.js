@@ -325,6 +325,15 @@ server.get('/partner/join', async (req, res) => {
   `);
 });
 
+// Ultra-fast 1ms Keepalive Ping route for 24/7 uptime monitoring (UptimeRobot / Cron pinger)
+server.get(['/ping', '/api/ping'], (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime_seconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Root Route / Health Check - Instant 0ms response for Render port scanner
 server.get('/', (req, res) => {
   res.status(200).send(`
