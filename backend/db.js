@@ -13,11 +13,11 @@ const pool = mysql.createPool({
   port:     parseInt(process.env.DB_PORT || '3306'),
 
   waitForConnections: true,
-  connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '50'),
-  maxIdle:            20,       // Keep 20 warm idle connections for instant response
-  idleTimeout:        30000,    // 30s - close idle connections gracefully
-  queueLimit:         0,        // Unlimited queueing so concurrent admin requests never get rejected
-  connectTimeout:     20000,    // 20s connection timeout
+  connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '15'), // Match BigRock MySQL user limit
+  maxIdle:            5,        // Limit idle connections to match BigRock max_user_connections
+  idleTimeout:        20000,    // 20s - close idle connections gracefully
+  queueLimit:         0,        // Queue incoming queries safely in Node RAM when pool limit reached
+  connectTimeout:     15000,    // 15s connection timeout
   enableKeepAlive:    true,
   keepAliveInitialDelay: 5000,  // 5s TCP keep-alive
   ssl: false
@@ -50,7 +50,7 @@ function prefixQuery(sql) {
   return sql.replace(regex, (match, keyword, tableName) => `${keyword} \`${tablePrefix}${tableName}\``);
 }
 
-// Helper function to retry queries automatically if connection is lost
+// Helper function to retry queries automatically if connection is lost or max connections hit
 async function withRetry(operation, queryStr, values, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -63,12 +63,14 @@ async function withRetry(operation, queryStr, values, maxRetries = 3) {
                                errCode === 'EPIPE' ||
                                errCode === 'ETIMEDOUT' ||
                                errCode === 'ER_CON_COUNT_ERROR' ||
+                               errCode === 'ER_TOO_MANY_USER_CONNECTIONS' ||
+                               errMsg.includes('max_user_connections') ||
                                errMsg.includes('Connection lost') ||
                                errMsg.includes('socket hang up') ||
                                errMsg.includes('closed');
 
       if (isConnectionLost && attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, attempt * 100));
+        await new Promise(resolve => setTimeout(resolve, attempt * 150));
       } else {
         throw err;
       }
