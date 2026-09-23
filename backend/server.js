@@ -121,32 +121,20 @@ server.use('/uploads', async (req, res, next) => {
       return res.status(404).json({ error: 'Video file not found: ' + filename });
     }
 
-    try {
-      // Check if this filename is stored as the partner's profile image
-      const [rows] = await db.query(
-        'SELECT name FROM partners WHERE image LIKE ?',
-        [`%${filename}`]
-      );
-      if (rows.length > 0) {
-        const partnerName = rows[0].name || 'Partner';
-        const nameEncoded = encodeURIComponent(partnerName);
-        const color = getColorForName(partnerName);
-        const avatarUrl = `https://ui-avatars.com/api/?name=${nameEncoded}&background=${color}&color=fff&size=250&bold=true`;
-        
-        return https.get(avatarUrl, (apiRes) => {
-          res.setHeader('Content-Type', 'image/png');
-          apiRes.pipe(res);
-        }).on('error', (err) => {
-          console.error('Error fetching dynamic avatar:', err.message);
-          res.sendFile(path.join(__dirname, 'defaults', 'default-profile.png'));
-        });
-      }
-    } catch (err) {
-      console.error('Error in uploads fallback database check:', err.message);
+    // Direct fast fallback to default placeholders without querying MySQL DB to prevent connection limit errors
+    const defaultProfilePath = path.join(__dirname, 'defaults', 'default-profile.png');
+    const defaultDocPath = path.join(__dirname, 'defaults', 'default-document.png');
+
+    const isProfileImage = filename.includes('profile') || filename.includes('avatar') || filename.includes('user') || filename.includes('partner');
+    if (isProfileImage && fs.existsSync(defaultProfilePath)) {
+      return res.sendFile(defaultProfilePath);
     }
 
-    // Default fallback to document placeholder
-    return res.sendFile(path.join(__dirname, 'defaults', 'default-document.png'));
+    if (fs.existsSync(defaultDocPath)) {
+      return res.sendFile(defaultDocPath);
+    }
+
+    return res.status(404).send('File Not Found');
   }
 });
 
