@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR USERS
 let usersCache = null;
 let usersCacheTimestamp = null;
-const USERS_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+const USERS_CACHE_TTL = 10 * 1000; // Cache lives for 2 minutes
 
 function clearUsersCache() {
   usersCache = null;
@@ -116,17 +116,15 @@ router.get('/', async (req, res) => {
     }
 
     // Pagination slice
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 50;
-    const startIndex = (pageNum - 1) * limitNum;
-    const paginatedList = allUsers.slice(startIndex, startIndex + limitNum);
+    // const pageNum = parseInt(page) || 1;
+    // const limitNum = parseInt(limit) || 50;
+    // const startIndex = (pageNum - 1) * limitNum;
+    // const paginatedList = allUsers.slice(startIndex, startIndex + limitNum);
 
     res.json({
       success: true,
       total: allUsers.length,
-      page: pageNum,
-      pages: Math.ceil(allUsers.length / limitNum),
-      data: paginatedList
+      data: allUsers
     });
   } catch (error) {
     console.error('Error fetching users:', error);

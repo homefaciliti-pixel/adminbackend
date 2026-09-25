@@ -14,7 +14,7 @@ function getTodayDateString() {
 // CACHE memory STORAGE FOR DASHBOARD STATS
 let dashboardStatsCache = null;
 let dashboardCacheTimestamp = null;
-const DASHBOARD_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+const DASHBOARD_CACHE_TTL = 10 * 1000; // Cache lives for 10 seconds 
 
 function clearDashboardCache() {
   dashboardStatsCache = null;
@@ -257,13 +257,13 @@ router.get('/pending-partners', async (req, res) => {
 
     list.sort((a, b) => b.id - a.id);
 
-    // ✅ THE CORRECTION: Add optional pagination so the list never gets too heavy
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
+    // THE CORRECTION: Add optional pagination so the list never gets too heavy
+    // const page = parseInt(req.query.page) || 1;
+    // const limit = parseInt(req.query.limit) || 50;
+    // const startIndex = (page - 1) * limit;
+    // const endIndex = page * limit;
 
-    const paginatedList = list.slice(startIndex, endIndex);
+    // const paginatedList = list.slice(startIndex, endIndex);
 
     res.json({
       success: true,

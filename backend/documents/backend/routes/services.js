@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR SERVICES
 let servicesCache = null;
 let servicesCacheTimestamp = null;
-const SERVICES_CACHE_TTL = 2 * 60 * 1000; // Cache lives for 2 minutes
+const SERVICES_CACHE_TTL = 10 * 1000; // Cache lives for 
 
 function clearServicesCache() {
   servicesCache = null;
@@ -66,35 +66,44 @@ function mapServiceRow(r, req) {
     item.categoryId = null;
     item.category_id = null;
   }
-  
   return item;
 }
 
-// GET all services
 router.get(['/', '/services'], async (req, res) => {
   try {
+    const { search } = req.query;
+    const isSearchEmpty = !search || search.trim() === '';
 
-    const { page = 1, limit = 50, search } = req.query;
-
-// Return from cache if valid and no custom search/pagination filtering is being applied dynamically
-    if (!search && servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL)) {
-      const pageNum = parseInt(page) || 1;
-      const limitNum = parseInt(limit) || 50;
-      const startIndex = (pageNum - 1) * limitNum;
-      const paginatedData = servicesCache.slice(startIndex, startIndex + limitNum);
-
+    //if cache search is empty, not just when 'search' parameter is completely absent
+    if (isSearchEmpty && servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL)) {
       return res.json({
         success: true,
         source: 'cache',
         total: servicesCache.length,
-        page: pageNum,
-        pages: Math.ceil(servicesCache.length / limitNum),
-        data: paginatedData,
-        services: paginatedData,
-        result: paginatedData
+        data: servicesCache,
+        services: servicesCache,
+        result: servicesCache
       });
     }
 
+    // If a real search query exists, filter from memory cache if valid, otherwise hit DB
+    if (!isSearchEmpty && servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL)) {
+      const q = search.toLowerCase();
+      const filtered = servicesCache.filter(s => 
+        (s.title && s.title.toLowerCase().includes(q)) ||
+        (s.description && s.description.toLowerCase().includes(q))
+      );
+      return res.json({
+        success: true,
+        source: 'cache-filtered',
+        total: filtered.length,
+        data: filtered,
+        services: filtered,
+        result: filtered
+      });
+    }
+
+    // Fallback to Database
     const [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
     const mapped = rows.map(r => mapServiceRow(r, req));
 
@@ -105,6 +114,7 @@ router.get(['/', '/services'], async (req, res) => {
     res.json({
       success: true,
       source: 'database',
+      total: mapped.length,
       data: mapped,
       services: mapped,
       result: mapped
@@ -113,6 +123,7 @@ router.get(['/', '/services'], async (req, res) => {
     console.error('Error fetching services:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch services', error: error.message });
   }
+  
 });
 
 // POST create service

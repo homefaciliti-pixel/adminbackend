@@ -14,7 +14,7 @@ function getTodayDateString() {
 // CACHE memory STORAGE FOR DASHBOARD STATS
 let dashboardStatsCache = null;
 let dashboardCacheTimestamp = null;
-const DASHBOARD_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
+const DASHBOARD_CACHE_TTL = 10 * 1000; // Cache lives for 10 seconds 
 
 function clearDashboardCache() {
   dashboardStatsCache = null;
@@ -73,26 +73,6 @@ router.get('/', async (req, res) => {
       db.query(`SELECT COUNT(*) as count FROM \`${dbName}\`.\`users\` WHERE role_id = 2`)
     ]);
 
-    // const [rows] = await db.query(`
-    //   SELECT
-    //     (SELECT COUNT(*) FROM node_users_v2) AS nodeUsersV2Count,
-    //     (SELECT COUNT(*) FROM users) AS nodeUsersCount,
-    //     (SELECT COUNT(*) FROM categories) AS totalCategories,
-    //     (SELECT COUNT(*) FROM services) AS totalServices,
-    //     (SELECT COUNT(*) FROM partners) AS nodePartnersCount,
-    //     (SELECT COUNT(*) FROM orders) AS totalOrders,
-    //     (SELECT COUNT(*) FROM orders WHERE status = 'Completed') AS completeOrders,
-    //     (SELECT COUNT(*) FROM orders WHERE status = 'Assigned') AS assignedOrders,
-    //     (SELECT COUNT(*) FROM orders WHERE status = 'In Progress') AS inProgressOrders,
-    //     (SELECT COUNT(*) FROM orders WHERE status = 'Cancelled') AS cancelOrders,
-    //     (SELECT COUNT(*) FROM orders WHERE serviceDate = ?) AS todayOrders,
-    //     (SELECT SUM(amount) FROM subscription_earnings) AS subEarningsVal,
-    //     (SELECT SUM(totalAmount) FROM booking_earnings) AS orderEarningsVal,
-    //     (SELECT COUNT(*) FROM support_tickets) AS totalSupporters,
-    //     (SELECT COUNT(*) FROM \`${dbName}\`.\`users\` WHERE deleted_at IS NULL) AS laravelUsersCount,
-    //     (SELECT COUNT(*) FROM \`${dbName}\`.\`users\` WHERE role_id = 2) AS laravelPartnersCount
-    // `, [todayStr]);
-
     const nodeUsersV2Count = parseInt(nodeUsersV2Rows[0]?.count || 0);
     const nodeUsersCount = parseInt(nodeUsersRows[0]?.count || 0);
     const totalCategories = parseInt(catRows[0]?.count || 0);
@@ -113,24 +93,7 @@ router.get('/', async (req, res) => {
     const laravelUsersCount = parseInt(laravelUsersRows[0]?.count || 0);
     const laravelPartnersCount = parseInt(laravelPartnersRows[0]?.count || 0);
 
-
-    // const nodeUsersV2Count = parseInt(r.nodeUsersV2Count || 0);
-    // const nodeUsersCount = parseInt(r.nodeUsersCount || 0);
-    // const laravelUsersCount = parseInt(r.laravelUsersCount || 0);
-    // const totalCategories = parseInt(r.totalCategories || 0);
-    // const totalServices = parseInt(r.totalServices || 0);
-    // const nodePartnersCount = parseInt(r.nodePartnersCount || 0);
-    // const laravelPartnersCount = parseInt(r.laravelPartnersCount || 0);
-    // const totalOrders = parseInt(r.totalOrders || 0);
-    // const completeOrders = parseInt(r.completeOrders || 0);
-    // const assignedOrders = parseInt(r.assignedOrders || 0);
-    // const inProgressOrders = parseInt(r.inProgressOrders || 0);
-    // const cancelOrders = parseInt(r.cancelOrders || 0);
-    // const todayOrders = parseInt(r.todayOrders || 0);
-    // const subEarningsVal = parseFloat(r.subEarningsVal || 0);
-    // const orderEarningsVal = parseFloat(r.orderEarningsVal || 0);
-    // const totalSupporters = parseInt(r.totalSupporters || 0);
-
+    
     const totalUsers = nodeUsersV2Count + nodeUsersCount + laravelUsersCount;
     const totalPartners = nodePartnersCount + laravelPartnersCount;
 
@@ -294,13 +257,13 @@ router.get('/pending-partners', async (req, res) => {
 
     list.sort((a, b) => b.id - a.id);
 
-    // ✅ THE CORRECTION: Add optional pagination so the list never gets too heavy
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
+    // THE CORRECTION: Add optional pagination so the list never gets too heavy
+    // const page = parseInt(req.query.page) || 1;
+    // const limit = parseInt(req.query.limit) || 50;
+    // const startIndex = (page - 1) * limit;
+    // const endIndex = page * limit;
 
-    const paginatedList = list.slice(startIndex, endIndex);
+    // const paginatedList = list.slice(startIndex, endIndex);
 
     res.json({
       success: true,

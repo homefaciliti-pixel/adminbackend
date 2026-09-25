@@ -5,7 +5,7 @@ const db = require('../db');
 // updated new code for the cache memory or storage 
 let categoryCache = null;
 let cacheTimestamp = null;
-const CACHE_TTL = 5 * 60 * 1000; // Cache lives for 5 minutes (5 * 60 seconds)
+const CACHE_TTL = 10 * 1000; // Cache lives for 10 seconds 
 
 function clearCategoryCache() {
   categoryCache = null;

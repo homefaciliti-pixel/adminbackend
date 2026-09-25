@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR PARTNERS
 let partnersCache = null;
 let partnersCacheTimestamp = null;
-const PARTNERS_CACHE_TTL = 2 * 60 * 1000;
+const PARTNERS_CACHE_TTL = 10 * 1000; // cache live for 10 sec only 
 
 function clearPartnersCache() {
   partnersCache = null;
@@ -406,11 +406,11 @@ router.get('/pending', async (req, res) => {
     list.sort((a, b) => b.id - a.id);
     
     // ✅ Pagination slice
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 50;
-    const startIndex = (pageNum - 1) * limitNum;
-    const endIndex = pageNum * limitNum;
-    const paginatedList = list.slice(startIndex, endIndex);
+    // const pageNum = parseInt(page) || 1;
+    // const limitNum = parseInt(limit) || 50;
+    // const startIndex = (pageNum - 1) * limitNum;
+    // const endIndex = pageNum * limitNum;
+    // const paginatedList = list.slice(startIndex, endIndex);
 
     res.json({
       success: true,

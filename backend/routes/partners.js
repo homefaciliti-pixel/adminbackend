@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR PARTNERS
 let partnersCache = null;
 let partnersCacheTimestamp = null;
-const PARTNERS_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
+const PARTNERS_CACHE_TTL = 10 * 1000; // cache live for 10 sec only 
 
 function clearPartnersCache() {
   partnersCache = null;
@@ -115,6 +115,9 @@ async function getAllPartners() {
     });
   });
 
+  partnersCache = all;
+  partnersCacheTimestamp = Date.now();
+
   return all;
 }
 
@@ -177,88 +180,162 @@ function mapPartner(r, req) {
 // GET all partners (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
-    const { name, mobile, city, state, date, status, isApproved, search, category, locality, paymentStatus, isPaid, payment, page = 1, limit = 50 } = req.query;
+    const {
+      name,
+      mobile,
+      city,
+      state,
+      date,
+      status,
+      isApproved,
+      search,
+      category,
+      locality,
+      paymentStatus,
+      isPaid,
+      payment
+    } = req.query;
 
     let list = await getAllPartners();
 
-    // 1. General search (Search Name / Mobile / Partner ID)
-    const searchVal = (search || req.query.q || req.query.query || '').trim().toLowerCase();
+    // General search (Name / Mobile / Partner ID / Email)
+    const searchVal = (
+      search ||
+      req.query.q ||
+      req.query.query ||
+      ''
+    ).trim().toLowerCase();
+
     if (searchVal !== '') {
-      list = list.filter(p =>
-        (p.name && p.name.toLowerCase().includes(searchVal)) ||
-        (p.mobile && p.mobile.toLowerCase().includes(searchVal)) ||
-        (p.id && String(p.id).toLowerCase().includes(searchVal)) ||
-        (p.email && p.email.toLowerCase().includes(searchVal))
+      list = list.filter(
+        p =>
+          (p.name && p.name.toLowerCase().includes(searchVal)) ||
+          (p.mobile && p.mobile.toLowerCase().includes(searchVal)) ||
+          (p.id && String(p.id).toLowerCase().includes(searchVal)) ||
+          (p.email && p.email.toLowerCase().includes(searchVal))
       );
     }
 
+    // Name filter
     if (name) {
       const q = name.toLowerCase();
-      list = list.filter(p => p.name && p.name.toLowerCase().includes(q));
-    }
-    if (mobile) {
-      const q = mobile.toLowerCase();
-      list = list.filter(p => p.mobile && p.mobile.toLowerCase().includes(q));
-    }
-    if (city) {
-      const q = city.toLowerCase();
-      list = list.filter(p => p.city && p.city.toLowerCase().includes(q));
-    }
-    if (state) {
-      const q = state.toLowerCase();
-      list = list.filter(p => p.state && p.state.toLowerCase().includes(q));
-    }
-    if (locality) {
-      const q = locality.toLowerCase();
-      list = list.filter(p => p.locality && p.locality.toLowerCase().includes(q));
-    }
-    if (category) {
-      const q = category.toLowerCase();
-      list = list.filter(p => p.category && p.category.toLowerCase().includes(q));
-    }
-    if (date) {
-      const q = date.toLowerCase();
-      list = list.filter(p => p.createdAt && p.createdAt.toLowerCase().includes(q));
+      list = list.filter(
+        p => p.name && p.name.toLowerCase().includes(q)
+      );
     }
 
-    // Payment status filter (Paid, Unpaid, all)
-    const payVal = (paymentStatus || isPaid || payment || '').trim().toLowerCase();
+    // Mobile filter
+    if (mobile) {
+      const q = mobile.toLowerCase();
+      list = list.filter(
+        p => p.mobile && p.mobile.toLowerCase().includes(q)
+      );
+    }
+
+    // City filter
+    if (city) {
+      const q = city.toLowerCase();
+      list = list.filter(
+        p => p.city && p.city.toLowerCase().includes(q)
+      );
+    }
+
+    // State filter
+    if (state) {
+      const q = state.toLowerCase();
+      list = list.filter(
+        p => p.state && p.state.toLowerCase().includes(q)
+      );
+    }
+
+    // Locality filter
+    if (locality) {
+      const q = locality.toLowerCase();
+      list = list.filter(
+        p => p.locality && p.locality.toLowerCase().includes(q)
+      );
+    }
+
+    // Category filter
+    if (category) {
+      const q = category.toLowerCase();
+      list = list.filter(
+        p => p.category && p.category.toLowerCase().includes(q)
+      );
+    }
+
+    // Date filter
+    if (date) {
+      const q = date.toLowerCase();
+      list = list.filter(
+        p => p.createdAt && p.createdAt.toLowerCase().includes(q)
+      );
+    }
+
+    // Payment status filter (Paid / Unpaid / All)
+    const payVal = (
+      paymentStatus ||
+      isPaid ||
+      payment ||
+      ''
+    ).trim().toLowerCase();
+
     if (payVal !== '' && payVal !== 'all') {
       list = list.filter(p => {
-        const pStatus = (p.isPaid === 1 || p.isPaid === '1' || p.isPaid === true || p.isPaid === 'Paid') ? 'paid' : 'unpaid';
+        const pStatus =
+          p.isPaid === 1 ||
+          p.isPaid === '1' ||
+          p.isPaid === true ||
+          p.isPaid === 'Paid'
+            ? 'paid'
+            : 'unpaid';
+
         return pStatus === payVal;
       });
     }
 
+    // Status filter
     if (status !== undefined) {
-      const statusVal = (status === 'true' || status === '1' || status === true);
-      list = list.filter(p => (p.status === statusVal));
+      const statusVal =
+        status === 'true' ||
+        status === '1' ||
+        status === true;
+
+      list = list.filter(
+        p => p.status === statusVal
+      );
     }
+
+    // Approved filter
     if (isApproved !== undefined) {
-      const isApprovedVal = (isApproved === 'true' || isApproved === '1' || isApproved === true);
-      list = list.filter(p => (p.isApproved === isApprovedVal));
+      const isApprovedVal =
+        isApproved === 'true' ||
+        isApproved === '1' ||
+        isApproved === true;
+
+      list = list.filter(
+        p => p.isApproved === isApprovedVal
+      );
     }
 
     // Order by ID descending
     list.sort((a, b) => b.id - a.id);
 
-// ✅ Pagination slice
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 50;
-    const startIndex = (pageNum - 1) * limitNum;
-    const endIndex = pageNum * limitNum;
-    const paginatedList = list.slice(startIndex, endIndex);
-
+    // Return complete list - NO PAGINATION
     res.json({
       success: true,
       total: list.length,
-      page: pageNum,
-      pages: Math.ceil(list.length / limitNum),
-      data: paginatedList.map(p => mapPartner(p, req))
+      data: list
     });
+
   } catch (error) {
     console.error('Error fetching partners:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch partners', error: error.message });
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch partners',
+      error: error.message
+    });
   }
 });
 
@@ -301,6 +378,8 @@ router.post('/', async (req, res) => {
         genderVal, expVal, servicesStr, aadhaarVal, panVal, bankVal, accVal, ifscVal, docsStr, createdDate
       ]
     );
+
+    clearPartnersCache();
 
     const [rows] = await db.query('SELECT * FROM partners WHERE id = ?', [result.insertId]);
     res.status(201).json({
@@ -401,11 +480,11 @@ router.get('/pending', async (req, res) => {
     list.sort((a, b) => b.id - a.id);
     
     // ✅ Pagination slice
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 50;
-    const startIndex = (pageNum - 1) * limitNum;
-    const endIndex = pageNum * limitNum;
-    const paginatedList = list.slice(startIndex, endIndex);
+    // const pageNum = parseInt(page) || 1;
+    // const limitNum = parseInt(limit) || 50;
+    // const startIndex = (pageNum - 1) * limitNum;
+    // const endIndex = pageNum * limitNum;
+    // const paginatedList = list.slice(startIndex, endIndex);
 
     res.json({
       success: true,
@@ -492,6 +571,8 @@ router.put('/:id/approve', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Partner not found' });
     }
+
+    clearPartnersCache();
 
     const [rows] = await db.query(selectQuery, selectParams);
     let partner = rows[0];
@@ -644,6 +725,8 @@ router.put('/:id/mark-paid', async (req, res) => {
       [displayId, partnerName, todayStr]
     );
 
+    clearPartnersCache();
+
     const [rows] = await db.query(selectQuery, selectParams);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Partner not found' });
@@ -764,6 +847,8 @@ router.put('/:id/disapprove', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Partner not found' });
     }
+
+    clearPartnersCache();
 
     const [rows] = await db.query(selectQuery, selectParams);
     let partner = rows[0];
@@ -1465,6 +1550,8 @@ router.put('/:id', async (req, res) => {
       await db.query(query, values);
     }
 
+    clearPartnersCache();
+
     let rows;
     if (isLaravel) {
       const [catRows] = await db.query(`SELECT id, title FROM \`${dbName}\`.\`categories\``);
@@ -1584,6 +1671,9 @@ router.delete('/:id', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Partner not found' });
     }
+
+    clearPartnersCache();
+
     res.json({
       success: true,
       message: 'Partner deleted successfully'
@@ -1756,6 +1846,8 @@ router.put('/:id/password', async (req, res) => {
       }
     }
 
+    clearPartnersCache();
+
     res.json({
       success: true,
       message: 'Partner password changed successfully'
@@ -1779,5 +1871,3 @@ router.get('/diagnostics-log/view', (req, res) => {
 });
 
 module.exports = router;
-
-

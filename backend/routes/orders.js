@@ -5,7 +5,7 @@ const db = require('../db');
 // IN-MEMORY CACHE STORAGE FOR ORDERS
 let ordersCache = null;
 let ordersCacheTimestamp = null;
-const ORDERS_CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
+const ORDERS_CACHE_TTL = 10 * 1000; // Cache lives for 10 sec only 
 
 function clearOrdersCache() {
   ordersCache = null;
@@ -387,17 +387,15 @@ router.get('/', async (req, res) => {
       }
 
       // Pagination Slice
-      const pageNum = parseInt(page) || 1;
-      const limitNum = parseInt(limit) || 50;
-      const startIndex = (pageNum - 1) * limitNum;
-      const paginatedList = list.slice(startIndex, startIndex + limitNum);
+      // const pageNum = parseInt(page) || 1;
+      // const limitNum = parseInt(limit) || 50;
+      // const startIndex = (pageNum - 1) * limitNum;
+      // const paginatedList = list.slice(startIndex, startIndex + limitNum);
 
       return res.json({ 
         success: true, 
         total: list.length,
-        page: pageNum,
-        pages: Math.ceil(list.length / limitNum),
-        data: paginatedList 
+        data : list        
       });
 
     } catch (error) {

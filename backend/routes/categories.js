@@ -5,7 +5,7 @@ const db = require('../db');
 // updated new code for the cache memory or storage 
 let categoryCache = null;
 let cacheTimestamp = null;
-const CACHE_TTL = 3 * 1000; // Cache lives for 3 seconds
+const CACHE_TTL = 10 * 1000; // Cache lives for 10 seconds 
 
 function clearCategoryCache() {
   categoryCache = null;
@@ -147,6 +147,9 @@ router.post('/', async (req, res) => {
       'INSERT INTO categories (title, slug, parent, image, status) VALUES (?, ?, ?, ?, ?)',
       [titleVal, slug, dbParentVal, imageVal, statusInt]
     );
+
+    clearCategoryCache();
+
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
@@ -211,16 +214,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
 
-    // Retrieve updated category
-    // const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    // const updatedCategory = {
-    //   ...rows[0],
-    //   id: rows[0].id,
-    //   image: formatImageUrl(rows[0].image, req),
-    //   parent: rows[0].parent === null ? 'None' : rows[0].parent,
-    //   status: rows[0].status === 1
-    // };
-
+    clearCategoryCache();
 
     // ✅ THE CORRECTION: Build the response object instantly from memory without a second DB query
     const updatedCategory = {
@@ -259,16 +253,12 @@ router.delete('/:id', async (req, res) => {
     }
     const categoryTitle = rows[0].title;
 
-    // // Delete sub-categories referencing this category title as parent
-    // await db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]);
-
-    // // Delete parent category
-    // await db.query('DELETE FROM categories WHERE id = ?', [numericId]);
-
     await Promise.all([
       db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]),
       db.query('DELETE FROM categories WHERE id = ?', [numericId])
     ]);
+
+    clearCategoryCache();
 
     res.json({
       success: true,
@@ -298,6 +288,9 @@ router.put('/:id/status', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
+
+    clearCategoryCache();
+
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
     res.json({
       success: true,
@@ -332,6 +325,9 @@ router.patch('/:id/status', async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
+
+    clearCategoryCache();
+
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
     res.json({
       success: true,
@@ -347,6 +343,7 @@ router.patch('/:id/status', async (req, res) => {
     console.error('Error toggling category status:', error);
     res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
   }
+
 });
 
 module.exports = router;
