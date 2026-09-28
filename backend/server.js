@@ -513,6 +513,33 @@ server.use('/api/amc', amcRouter);
 server.use('/api/pricing', pricingRouter);
 server.use('/api/v1/pricing', pricingRouter);
 
+// Base API status route for /api and /api/
+server.get(['/api', '/api/'], (req, res) => {
+  res.json({
+    success: true,
+    message: 'Home Faciliti Admin Backend API is Live and Running',
+    version: '1.0.0',
+    status: 'ok',
+    endpoints: [
+      '/api/dashboard',
+      '/api/orders',
+      '/api/partners',
+      '/api/services',
+      '/api/categories',
+      '/api/users',
+      '/api/pricing',
+      '/api/earnings',
+      '/api/settings',
+      '/api/banners',
+      '/api/reports',
+      '/api/support',
+      '/api/upload',
+      '/api/admins',
+      '/api/amc'
+    ]
+  });
+});
+
 // Compatibility route: the Flutter user app calls /api/checkout-api/:phone
 // The actual handler lives in partnersRouter at /api/partners/checkout-api/:phone
 // This forward ensures both URLs work without a Flutter app update.
