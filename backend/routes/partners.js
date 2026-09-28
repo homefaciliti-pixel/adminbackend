@@ -29,96 +29,104 @@ async function getAllPartners() {
 
   const dbName = process.env.DB_NAME || 'homef4fw_homefaci';
 
-  // Fetch from all tables in parallel to optimize latency, selecting only required fields to minimize RAM and payload size
-  const [
-    [nodeRows],
-    [laravelRows]
-  ] = await Promise.all([
-    db.query(`
-      SELECT 
-        id, name, email, mobile, city, state, locality, image, status, 
-        isApproved, isPaid, latitude, longitude, locationTime, createdAt, 
-        category, subCategory 
-      FROM partners
-    `),
-    db.query(`
-      SELECT 
-        u.id, 
-        u.name, 
-        u.email, 
-        u.mobile_number AS mobile, 
-        s.name AS state, 
-        c.name AS city, 
-        l.name AS locality,
-        cat.title AS categoryName,
-        subcat.title AS subCategoryName,
-        u.image, 
-        u.status, 
-        u.is_approval AS isApproved, 
-        u.created_at AS createdAt,
-        u.payment_status AS isPaid
-      FROM \`${dbName}\`.\`users\` u
-      LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
-      LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
-      LEFT JOIN \`${dbName}\`.\`localities\` l ON u.locality_id = l.id
-      LEFT JOIN \`${dbName}\`.\`categories\` cat ON u.category_id = cat.id
-      LEFT JOIN \`${dbName}\`.\`categories\` subcat ON u.sub_category_id = subcat.id
-      WHERE u.role_id = 2
-    `)
-  ]);
+  try {
+    // Fetch from all tables in parallel to optimize latency, selecting only required fields to minimize RAM and payload size
+    const [
+      [nodeRows],
+      [laravelRows]
+    ] = await Promise.all([
+      db.query(`
+        SELECT 
+          id, name, email, mobile, city, state, locality, image, status, 
+          isApproved, isPaid, latitude, longitude, locationTime, createdAt, 
+          category, subCategory 
+        FROM partners
+      `),
+      db.query(`
+        SELECT 
+          u.id, 
+          u.name, 
+          u.email, 
+          u.mobile_number AS mobile, 
+          s.name AS state, 
+          c.name AS city, 
+          l.name AS locality,
+          cat.title AS categoryName,
+          subcat.title AS subCategoryName,
+          u.image, 
+          u.status, 
+          u.is_approval AS isApproved, 
+          u.created_at AS createdAt,
+          u.payment_status AS isPaid
+        FROM \`${dbName}\`.\`users\` u
+        LEFT JOIN \`${dbName}\`.\`states\` s ON u.state_id = s.id
+        LEFT JOIN \`${dbName}\`.\`cities\` c ON u.city_id = c.id
+        LEFT JOIN \`${dbName}\`.\`localities\` l ON u.locality_id = l.id
+        LEFT JOIN \`${dbName}\`.\`categories\` cat ON u.category_id = cat.id
+        LEFT JOIN \`${dbName}\`.\`categories\` subcat ON u.sub_category_id = subcat.id
+        WHERE u.role_id = 2
+      `)
+    ]);
 
-  const all = [];
+    const all = [];
 
-  nodeRows.forEach(r => {
-    all.push({
-      id: r.id,
-      name: r.name || '',
-      email: r.email || '',
-      mobile: r.mobile || '',
-      city: r.city || '',
-      state: r.state || '',
-      locality: r.locality || '',
-      image: r.image || '',
-      status: r.status === 1 || r.status === true,
-      isApproved: r.isApproved === 1 || r.isApproved === true,
-      isPaid: (r.isPaid === 1 || r.isPaid === true || r.isPaid === 'Paid') ? 1 : 0,
-      latitude: r.latitude,
-      longitude: r.longitude,
-      locationTime: r.locationTime || '',
-      createdAt: r.createdAt || '',
-      category: r.category || '',
-      subCategory: r.subCategory || '',
-      source: 'Admin Partner (MySQL)'
+    nodeRows.forEach(r => {
+      all.push({
+        id: r.id,
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        city: r.city || '',
+        state: r.state || '',
+        locality: r.locality || '',
+        image: r.image || '',
+        status: r.status === 1 || r.status === true,
+        isApproved: r.isApproved === 1 || r.isApproved === true,
+        isPaid: (r.isPaid === 1 || r.isPaid === true || r.isPaid === 'Paid') ? 1 : 0,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        locationTime: r.locationTime || '',
+        createdAt: r.createdAt || '',
+        category: r.category || '',
+        subCategory: r.subCategory || '',
+        source: 'Admin Partner (MySQL)'
+      });
     });
-  });
 
-  laravelRows.forEach(r => {
-    all.push({
-      id: r.id + 10000000, // Offset Laravel IDs by 10,000,000
-      name: r.name || '',
-      email: r.email || '',
-      mobile: r.mobile || '',
-      city: r.city || '',
-      state: r.state || '',
-      locality: r.locality || '',
-      image: r.image || '',
-      status: r.status === 1 || r.status === '1' || r.status === true,
-      isApproved: r.isApproved === 1 || r.isApproved === '1' || r.isApproved === true,
-      isPaid: (r.isPaid === 1 || r.isPaid === '1') ? 1 : 0,
-      latitude: null,
-      longitude: null,
-      locationTime: '',
-      createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : '',
-      category: r.categoryName || '',
-      subCategory: r.subCategoryName || '',
-      source: 'App Partner (Laravel)'
+    laravelRows.forEach(r => {
+      all.push({
+        id: r.id + 10000000, // Offset Laravel IDs by 10,000,000
+        name: r.name || '',
+        email: r.email || '',
+        mobile: r.mobile || '',
+        city: r.city || '',
+        state: r.state || '',
+        locality: r.locality || '',
+        image: r.image || '',
+        status: r.status === 1 || r.status === '1' || r.status === true,
+        isApproved: r.isApproved === 1 || r.isApproved === '1' || r.isApproved === true,
+        isPaid: (r.isPaid === 1 || r.isPaid === '1') ? 1 : 0,
+        latitude: null,
+        longitude: null,
+        locationTime: '',
+        createdAt: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : '',
+        category: r.categoryName || '',
+        subCategory: r.subCategoryName || '',
+        source: 'App Partner (Laravel)'
+      });
     });
-  });
 
-  partnersCache = all;
-  partnersCacheTimestamp = Date.now();
+    partnersCache = all;
+    partnersCacheTimestamp = Date.now();
 
-  return all;
+    return all;
+  } catch (error) {
+    if (partnersCache && partnersCache.length > 0) {
+      console.warn('⚠️ DB Error fetching partners. Returning stale cache fallback:', error.message);
+      return partnersCache;
+    }
+    throw error;
+  }
 }
 
 // Helper to map DB partner object to API partner object (lists, doubles, booleans)

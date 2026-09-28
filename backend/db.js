@@ -8,7 +8,7 @@ require('dotenv').config();
 const pool = mysql.createPool({
   host:     process.env.DB_HOST     || 'homefaciliti.com',
   user:     process.env.DB_USER     || 'homef4fw_homefaci',
-  password: process.env.DB_PASSWORD || 'Xnj3*t%F36RDK+!',
+  password: process.env.DB_PASSWORD || 'Home1184#$%',
   database: process.env.DB_NAME     || 'homef4fw_homefaci',
   port:     parseInt(process.env.DB_PORT || '3306'),
 
@@ -17,7 +17,7 @@ const pool = mysql.createPool({
   maxIdle:            20,       // Keep up to 20 warm idle connections for instant responses
   idleTimeout:        20000,    // 20s - close idle connections gracefully
   queueLimit:         0,        // Queue incoming queries safely in Node RAM when pool limit reached
-  connectTimeout:     15000,    // 15s connection timeout
+  connectTimeout:     30000,    // 30s connection timeout for remote cross-region hosting
   enableKeepAlive:    true,
   keepAliveInitialDelay: 5000,  // 5s TCP keep-alive
   ssl: false
@@ -69,9 +69,13 @@ async function withRetry(operation, queryStr, values, maxRetries = 5) {
                                errMsg.includes('socket hang up') ||
                                errMsg.includes('closed');
 
+      if (errCode === 'ER_ACCESS_DENIED_ERROR') {
+        console.error('❌ MySQL Remote Access Denied Error. Please ensure Remote MySQL in cPanel allows % or Render IP:', errMsg);
+      }
+
       if (isConnectionLost && attempt < maxRetries) {
-        // Exponential backoff wait (100ms, 200ms, 300ms, 400ms, 500ms)
-        await new Promise(resolve => setTimeout(resolve, attempt * 100));
+        // Exponential backoff wait (300ms, 600ms, 900ms, 1200ms, 1500ms)
+        await new Promise(resolve => setTimeout(resolve, attempt * 300));
       } else {
         throw err;
       }
