@@ -35,11 +35,14 @@ function mapServiceRow(r, req) {
   
   const item = {
     ...r,
+    id: r.id,
+    title: r.title || r.name || '',
+    name: r.name || r.title || '',
     image: formatImageUrl(r.image, req),
     price: dbPrice,
     cutPrice: dbPrice,
     discount: discountVal,
-    status: r.status === 1,
+    status: r.status === 1 || r.status === true || r.status === '1',
     isHighlighted: r.isHighlighted !== null && r.isHighlighted !== undefined ? String(r.isHighlighted) : "",
     rating: r.rating !== null && r.rating !== undefined ? parseFloat(r.rating) : null,
     time: r.time !== null && r.time !== undefined ? r.time : null

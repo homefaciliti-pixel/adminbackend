@@ -74,9 +74,11 @@ router.get('/', async (req, res) => {
     const mapped = rows.map(r => ({
       ...r,
       id: r.id,
+      title: r.title,
+      name: r.name || r.title,
       image: formatImageUrl(r.image, req),
       parent: r.parent === null ? 'None' : r.parent,
-      status: r.status === 1
+      status: r.status === 1 || r.status === true
     }));
 
     // Save to cache if it's an unfiltered request
