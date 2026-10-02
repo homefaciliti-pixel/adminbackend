@@ -488,11 +488,11 @@ router.get('/pending', async (req, res) => {
     list.sort((a, b) => b.id - a.id);
     
     // ✅ Pagination slice
-    // const pageNum = parseInt(page) || 1;
-    // const limitNum = parseInt(limit) || 50;
-    // const startIndex = (pageNum - 1) * limitNum;
-    // const endIndex = pageNum * limitNum;
-    // const paginatedList = list.slice(startIndex, endIndex);
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 50;
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = pageNum * limitNum;
+    const paginatedList = list.slice(startIndex, endIndex);
 
     res.json({
       success: true,
