@@ -169,6 +169,80 @@ router.post('/', async (req, res) => {
   }
 });
 
+// GET single category by ID
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+
+  try {
+    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+    const r = rows[0];
+    const categoryData = {
+      ...r,
+      id: r.id,
+      title: r.title,
+      name: r.name || r.title,
+      image: formatImageUrl(r.image, req),
+      parent: r.parent === null ? 'None' : r.parent,
+      status: r.status === 1 || r.status === true
+    };
+    res.json({ success: true, data: categoryData, category: categoryData });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch category', error: error.message });
+  }
+});
+
+// GET /:id/subcategories - Fetch subcategories for a given category ID
+router.get('/:id/subcategories', async (req, res) => {
+  const { id } = req.params;
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+
+  try {
+    const [catRows] = await db.query('SELECT title FROM categories WHERE id = ?', [numericId]);
+    if (catRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+    const categoryTitle = catRows[0].title;
+
+    const [rows] = await db.query(
+      'SELECT * FROM categories WHERE parent = ? OR parent = ? ORDER BY id DESC',
+      [categoryTitle, String(numericId)]
+    );
+
+    const mapped = rows.map(r => ({
+      ...r,
+      id: r.id,
+      title: r.title,
+      name: r.name || r.title,
+      parent: r.parent,
+      category_id: numericId,
+      categoryId: numericId,
+      image: formatImageUrl(r.image, req),
+      status: r.status === 1 || r.status === true
+    }));
+
+    res.json({
+      success: true,
+      categoryId: numericId,
+      categoryTitle: categoryTitle,
+      total: mapped.length,
+      data: mapped,
+      subcategories: mapped
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch subcategories', error: error.message });
+  }
+});
+
 // PUT update category
 router.put('/:id', async (req, res) => {
   const { id } = req.params;

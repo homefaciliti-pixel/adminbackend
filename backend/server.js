@@ -461,6 +461,7 @@ server.get('/api/system/dbtest', async (req, res) => {
 const dashboardRouter = require('./routes/dashboard');
 const usersRouter = require('./routes/users');
 const categoriesRouter = require('./routes/categories');
+const subcategoriesRouter = require('./routes/subcategories');
 const servicesRouter = require('./routes/services');
 const ordersRouter = require('./routes/orders');
 const partnersRouter = require('./routes/partners');
@@ -481,6 +482,10 @@ server.use('/api/categories', categoriesRouter);
 server.use('/api/user/categories', categoriesRouter);
 server.use('/api/v1/categories', categoriesRouter);
 server.use('/api/app/categories', categoriesRouter);
+server.use('/api/subcategories', subcategoriesRouter);
+server.use('/api/user/subcategories', subcategoriesRouter);
+server.use('/api/v1/subcategories', subcategoriesRouter);
+server.use('/api/app/subcategories', subcategoriesRouter);
 server.use('/api/services', servicesRouter);
 server.use('/api/user/services', servicesRouter);
 server.use('/api/v1/services', servicesRouter);
@@ -526,6 +531,7 @@ server.get(['/api', '/api/'], (req, res) => {
       '/api/partners',
       '/api/services',
       '/api/categories',
+      '/api/subcategories',
       '/api/users',
       '/api/pricing',
       '/api/earnings',

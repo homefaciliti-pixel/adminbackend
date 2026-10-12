@@ -1,0 +1,763 @@
+======================================================================
+HOME FACILITI ADMIN PANEL - BACKEND API DOCUMENTATION
+======================================================================
+
+Base URL: https://adminbackend-1-h03r.onrender.com/api (Local: http://localhost:3000/api)
+
+----------------------------------------------------------------------
+1. DASHBOARD STATISTICS
+----------------------------------------------------------------------
+Endpoint: GET /api/dashboard
+Description: Fetch dashboard summary statistics (counts and total earnings).
+Response Format: JSON
+Response Example:
+{
+  "success": true,
+  "data": [
+    { "name": "Total Users", "totalAmount": 3, "imageIcon": "http://localhost:3000/icons/users.png" },
+    { "name": "Total Categories", "totalAmount": 3, "imageIcon": "http://localhost:3000/icons/categories.png" },
+    { "name": "Total Services", "totalAmount": 3, "imageIcon": "http://localhost:3000/icons/services.png" },
+    { "name": "Total Partners", "totalAmount": 2, "imageIcon": "http://localhost:3000/icons/partners.png" },
+    { "name": "Total Orders", "totalAmount": 4, "imageIcon": "http://localhost:3000/icons/orders.png" },
+    { "name": "Today Orders", "totalAmount": 2, "imageIcon": "http://localhost:3000/icons/today_orders.png" },
+    { "name": "Complete Orders", "totalAmount": 1, "imageIcon": "http://localhost:3000/icons/complete_orders.png" },
+    { "name": "Assigned Orders", "totalAmount": 1, "imageIcon": "http://localhost:3000/icons/assigned_orders.png" },
+    { "name": "In Progress Orders", "totalAmount": 1, "imageIcon": "http://localhost:3000/icons/in_progress_orders.png" },
+    { "name": "Cancel Orders", "totalAmount": 1, "imageIcon": "http://localhost:3000/icons/cancel_orders.png" },
+    { "name": "Total Supporters", "totalAmount": 2, "imageIcon": "http://localhost:3000/icons/supporters.png" },
+    { "name": "Subscription Earnings", "totalAmount": 200, "imageIcon": "http://localhost:3000/icons/subscription_earnings.png" },
+    { "name": "Order Earnings", "totalAmount": 2800, "imageIcon": "http://localhost:3000/icons/order_earnings.png" }
+  ]
+}
+
+----------------------------------------------------------------------
+2. USERS MANAGEMENT
+----------------------------------------------------------------------
+Endpoint: GET /api/users
+Description: Retrieve a list of users.
+Query Parameters (Optional):
+  - query: Search by name, email, or mobile (LIKE match)
+  - name: Filter by name (LIKE match)
+  - email: Filter by email (LIKE match)
+  - mobile: Filter by mobile number (LIKE match)
+Response Data: Array of User objects.
+
+Endpoint: GET /api/users/:id
+Description: Fetch details of a single user by ID.
+Response Data: Single User object.
+
+Endpoint: POST /api/users
+Description: Create a new user.
+Request Body (JSON):
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "mobile": "9876543210",
+  "address": "123 Street Name, Delhi"
+}
+Response Data: Created User object.
+
+Endpoint: DELETE /api/users/:id
+Description: Delete a user by ID.
+Response Data: { "success": true, "message": "User deleted successfully" }
+
+----------------------------------------------------------------------
+3. CATEGORIES MANAGEMENT
+----------------------------------------------------------------------
+Endpoint: GET /api/categories
+Description: Retrieve a list of categories.
+Query Parameters (Optional):
+  - title OR categoryName: Filter by category name (LIKE match)
+  - parent OR mainCategory: Filter by parent category name (LIKE match)
+  - status OR emailStatus: Filter by status ('true'/'false' or '1'/'0')
+Response Data: Array of Category objects. Note: parent category 'None' maps to database NULL.
+
+Endpoint: GET /api/categories/:id
+Description: Fetch details of a single category by ID.
+Response Data: Single Category object.
+
+Endpoint: GET /api/categories/:id/subcategories
+Description: Retrieve all subcategories belonging to this category ID.
+Response Data: Array of Subcategory objects.
+
+Endpoint: POST /api/categories
+Description: Add a new category.
+Request Body Option A (Standard):
+{
+  "title": "Cleaning",
+  "parent": "None",            // Use 'None' or omit for root main category
+  "image": "https://url-to-image.png",
+  "status": true
+}
+Request Body Option B (Alias Fields):
+{
+  "categoryName": "Cleaning",
+  "mainCategory": "None",
+  "image": "https://url-to-image.png",
+  "emailStatus": true
+}
+Response Data: Created Category object.
+
+Endpoint: PUT /api/categories/:id
+Description: Update category details. Accepts any properties from Option A or Option B.
+Response Data: Updated Category object.
+
+Endpoint: DELETE /api/categories/:id
+Description: Delete category by ID. Cascade-deletes all sub-categories having this category title as parent.
+Response Data: { "success": true, "message": "Category and its sub-categories deleted successfully" }
+
+Endpoint: PUT /api/categories/:id/status (or PATCH /api/categories/:id/status)
+Description: Toggle category active/inactive status.
+Request Body: { "status": true }
+Response Data: { "success": true, "message": "Category status updated to active", "data": { ... } }
+
+----------------------------------------------------------------------
+3.1. SUB-CATEGORIES MANAGEMENT (/api/subcategories)
+----------------------------------------------------------------------
+Subcategories are categories linked under a parent category.
+
+Endpoint: GET /api/subcategories
+Description: Retrieve a list of all subcategories.
+Query Parameters (Optional):
+  - category_id OR categoryId: Filter subcategories by Parent Category ID (e.g. ?category_id=3)
+  - parent OR category OR categoryName: Filter by Parent Category Title (e.g. ?parent=Cleaning)
+  - search OR q OR title: Search subcategories by title (LIKE match, e.g. ?search=Kitchen)
+  - status: Filter by active status ('true'/'false' or '1'/'0')
+Response Data: Array of Subcategory objects:
+{
+  "success": true,
+  "total": 5,
+  "data": [
+    {
+      "id": 12,
+      "title": "Kitchen Deep Cleaning",
+      "name": "Kitchen Deep Cleaning",
+      "slug": "kitchen-deep-cleaning",
+      "parent": "Cleaning",
+      "categoryName": "Cleaning",
+      "category_id": 3,
+      "categoryId": 3,
+      "image": "https://adminbackend-1-h03r.onrender.com/uploads/kitchen.png",
+      "status": true
+    }
+  ]
+}
+
+Endpoint: GET /api/subcategories/:id
+Description: Fetch details of a single subcategory by ID.
+Response Data: Single Subcategory object with resolved parent category ID and title.
+
+Endpoint: GET /api/subcategories/:id/services
+Description: Retrieve all services belonging to this subcategory ID.
+Response Data: Array of Service objects linked to this subcategory.
+
+Endpoint: POST /api/subcategories
+Description: Create a new subcategory under an existing parent category.
+Request Body (JSON):
+{
+  "title": "Sofa Cleaning",             // Required: Subcategory name
+  "category_id": 3,                     // Recommended: Parent category ID (Alias: categoryId)
+  // OR "parent": "Cleaning",          // Parent category title (if category_id is omitted)
+  "image": "https://url-to-image.png",  // Optional: Subcategory icon/image
+  "status": true                        // Optional: Boolean (Default: true)
+}
+Response Data:
+{
+  "success": true,
+  "message": "Subcategory created successfully",
+  "data": {
+    "id": 15,
+    "title": "Sofa Cleaning",
+    "name": "Sofa Cleaning",
+    "slug": "sofa-cleaning",
+    "parent": "Cleaning",
+    "categoryName": "Cleaning",
+    "category_id": 3,
+    "categoryId": 3,
+    "image": "https://adminbackend-1-h03r.onrender.com/uploads/sofa.png",
+    "status": true
+  }
+}
+
+Endpoint: PUT /api/subcategories/:id
+Description: Update subcategory details (title, parent category, image, status).
+Request Body (JSON): Accepts title, parent, category_id, image, status.
+Response Data: Updated Subcategory object.
+
+Endpoint: DELETE /api/subcategories/:id
+Description: Delete subcategory by ID.
+Response Data: { "success": true, "message": "Subcategory deleted successfully", "deletedId": 15 }
+
+Endpoint: PUT /api/subcategories/:id/status (or PATCH /api/subcategories/:id/status)
+Description: Toggle subcategory active/inactive status.
+Request Body (JSON):
+{
+  "status": true   // or false
+}
+Response Data: { "success": true, "message": "Subcategory status updated to active", "data": { ... } }
+
+----------------------------------------------------------------------
+4. SERVICES MANAGEMENT
+----------------------------------------------------------------------
+Endpoint: GET /api/services
+Description: Retrieve a list of services with optional category or subcategory filters.
+Query Parameters (Optional):
+  - category_id OR categoryId: Filter services by Main Category ID (e.g. ?category_id=3)
+  - sub_category_id OR subCategoryId: Filter services by Subcategory ID (e.g. ?sub_category_id=12)
+  - sub_category OR subCategory: Filter services by Subcategory name (e.g. ?sub_category=Kitchen)
+  - search: Search services by title or description
+Response Data: Array of Service objects. Includes categoryId, sub_category_id, sub_category, rating, time, and discount.
+
+Endpoint: POST /api/services
+Description: Add a new service linked to a category or subcategory.
+Request Body (JSON):
+{
+  "title": "Deep AC Repair",
+  "price": 799.00,
+  "discount": 100.00,          // Optional (Decimal value for service discount, defaults to 0.00)
+  "image": "https://url-to-image.png",
+  "description": "Thorough repair and gas charging",
+  "status": true,
+  "categoryId": 3,             // Optional/Required: Parent category ID (Alias: "category_id")
+  "sub_category_id": 12,       // Optional: Subcategory ID (Alias: "subCategoryId")
+  "sub_category": "AC Repair", // Optional: Subcategory name
+  "rating": 4.8,               // Optional (Decimal/Number value for service rating)
+  "time": "45 mins",           // Optional (String representation of service time/duration)
+  "isHighlighted": "Featured"  // Optional (Custom highlight text/tag string, defaults to "")
+}
+Response Data: Created Service object including sub_category_id and sub_category.
+
+Endpoint: PUT /api/services/:id
+Description: Update service details.
+Request Body (JSON): Accepts title, price, discount, image, description, status, categoryId, sub_category_id, sub_category, rating, time, isHighlighted.
+Response Data: Updated Service object.
+
+Endpoint: DELETE /api/services/:id
+Description: Delete service by ID.
+Response Data: { "success": true, "message": "Service deleted successfully" }
+
+----------------------------------------------------------------------
+5. ORDERS (SERVICE REQUESTS)
+----------------------------------------------------------------------
+Endpoint: GET /api/orders
+Description: Retrieve a list of all service requests/orders.
+Response Data: Array of Order objects. Assigned vendor name 'None' or no vendor maps to database NULL (returns '-' in response). Includes `vendorMobile` field.
+
+Endpoint: GET /api/orders/:id
+Description: Retrieve detailed information of a single service request/order by ID.
+Response Data: { "success": true, "data": Order object }
+
+Endpoint: POST /api/orders
+Description: Create a new order.
+Request Body (JSON):
+{
+  "serviceRequestNumber": "REQ2001",
+  "serviceName": "AC Repair",
+  "serviceAmount": 499.00,
+  "slotTime": "11:00 AM - 01:00 PM",
+  "serviceDate": "20-05-2026",
+  "city": "Delhi",
+  "locality": "Connaught Place",
+  "status": "Pending",
+  "vendorName": "-",          // Optional, use '-' or null if not yet assigned
+  "vendorMobile": "-",        // Optional (Mobile number of partner to assign, auto-resolves vendorName)
+  "address": "Block C, Connaught Place, Delhi"
+}
+Response Data: Created Order object.
+
+Endpoint: PUT /api/orders/:id
+Description: Update order details (e.g. assign vendor, update status, change slots).
+Request Body (JSON): Supports status, vendorName, vendorMobile, slotTime, serviceDate, city, locality, address.
+Response Data: Updated Order object.
+
+Endpoint: PUT /api/orders/:id/assign
+Description: Assign a partner/vendor to an order. Automatically transitions status to "Assigned" if vendorMobile/vendorName is provided, or "Pending" if empty.
+Request Body (JSON):
+{
+  "vendorMobile": "9911223344"  // Recommended: The mobile number of the partner to assign, OR use "vendorName"
+}
+Response Data: Updated Order object.
+
+Endpoint: DELETE /api/orders/:id
+Description: Delete an order by ID.
+Response Data: { "success": true, "message": "Order deleted successfully" }
+
+----------------------------------------------------------------------
+6. PARTNERS (VENDORS)
+----------------------------------------------------------------------
+Endpoint: GET /api/partners
+Description: Retrieve a list of partners. Each Partner object includes optional location tracking fields: `latitude` (String?), `longitude` (String?), and `locationTime` (String?).
+Query Parameters (Optional):
+  - search: General search keyword to filter by Name, Mobile, Partner ID, or Email
+  - name: Search by partner name (LIKE match)
+  - mobile: Search by mobile number (LIKE match)
+  - category: Filter by service category (LIKE match)
+  - state: Filter by state (LIKE match)
+  - city: Filter by city (LIKE match)
+  - locality: Filter by locality (LIKE match)
+  - date: Filter by joining date (LIKE match)
+  - paymentStatus / isPaid / payment: Filter by payment status ('Paid' or 'Unpaid')
+  - status: Filter by status ('true'/'false' or '1'/'0')
+  - isApproved: Filter by approval status ('true'/'false' or '1'/'0')
+Response Data: Array of Partner objects.
+
+Endpoint: GET /api/partners/pending
+Description: Retrieve a list of partners pending approval (isApproved = 0). Supports the same query parameters as the GET /api/partners route.
+Response Data: Array of Partner objects (including optional `latitude`, `longitude`, `locationTime` fields).
+
+Endpoint: GET /api/partners/filter-options
+Description: Fetch unique, non-empty, trimmed, and alphabetically sorted categories, states, cities, and localities options. Supports dependent query parameters:
+  - ?state=Rajasthan -> limits cities and localities to Rajasthan
+  - ?state=Rajasthan&city=Jaipur -> limits localities to Jaipur
+Response Data:
+{
+  "success": true,
+  "data": {
+    "categories": ["Carpenter", "Cleaning", ...],
+    "states": ["Delhi", "Rajasthan", ...],
+    "cities": ["Jaipur", "Jodhpur", ...],
+    "localities": ["Mansarovar", ...]
+  }
+}
+
+Endpoint: GET /api/partners/:id
+Description: Get full details of a single partner by ID.
+Response Data: Single Partner object (includes optional `latitude`, `longitude`, `locationTime` fields).
+
+Endpoint: GET /api/partners/active
+Description: Retrieve all active (online) partners, complete with coordinates, status, and current order count.
+Response Data:
+{
+  "success": true,
+  "message": "Active partners fetched successfully",
+  "data": [
+    {
+      "partnerId": "P010",
+      "profileImage": "https://adminbackend-1-h03r.onrender.com/uploads/1780521408892.png",
+      "name": "Amitkumar",
+      "phone": "8307511386",
+      "category": "AC Service & Repairing",
+      "subCategory": "AC Service",
+      "area": "Vaishali Nagar, Jaipur",
+      "latitude": 29.999999,
+      "longitude": 77.777777,
+      "currentOrders": 1,
+      "isOnline": true,
+      "activeAt": "2026-06-11T04:50:08.035Z",
+      "lastActive": "2026-06-11T04:50:08.035Z"
+    }
+  ]
+}
+
+Endpoint: POST /api/partners
+Description: Register a new partner.
+Request Body (JSON):
+{
+  "name": "Suresh Kumar",
+  "email": "suresh@gmail.com",
+  "mobile": "9911223344",
+  "city": "Delhi",
+  "state": "Delhi",
+  "locality": "Dwarka",
+  "address": "Sector 12, Dwarka, Delhi",
+  "image": "https://url.png",
+  "gender": "Male",
+  "experience": "4 Years",
+  "services": ["Plumbing", "AC Repair"],  // Can be array or comma-separated string
+  "aadhaarNumber": "123456789012",
+  "panNumber": "ABCDE1234F",
+  "bankName": "ICICI Bank",
+  "accountNumber": "98765432101",
+  "ifscCode": "ICIC0000456",
+  "documents": ["aadhaar.pdf"],          // Can be array or comma-separated string
+  "latitude": "28.6139",                 // Optional (String, partner's current latitude coordinate)
+  "longitude": "77.2090",                // Optional (String, partner's current longitude coordinate)
+  "locationTime": "2026-06-10T10:00:00Z" // Optional (String, timestamp of partner's last location update)
+}
+Response Data: Registered Partner object.
+
+Endpoint: PUT /api/partners/:id
+Description: Update partner details. Supports dynamic properties (including `latitude`, `longitude`, and `locationTime`).
+Response Data: Updated Partner object.
+
+Endpoint: PUT /api/partners/:id/approve
+Description: Approve partner. Sets isApproved = 1 and status = 1.
+Response Data: Approved Partner object.
+
+Endpoint: PUT /api/partners/:id/disapprove
+Description: Disapprove partner. Sets isApproved = 0.
+Response Data: Disapproved Partner object.
+
+Endpoint: DELETE /api/partners/:id
+Description: Delete partner by ID.
+Response Data: { "success": true, "message": "Partner deleted successfully" }
+
+----------------------------------------------------------------------
+7. EARNINGS
+----------------------------------------------------------------------
+Endpoint: GET /api/earnings/bookings
+Description: Fetch booking transactions and total aggregates.
+Query Parameters (Optional):
+  - query: Search transactionId, paymentMethod, extraServicePaymentMethod, or orderDate (LIKE match)
+  - transactionId: Filter by transactionId (LIKE match)
+  - paymentMethod: Filter by paymentMethod (LIKE match)
+  - orderDate: Filter by orderDate (LIKE match)
+Response Data Schema:
+{
+  "success": true,
+  "totalBookingEarnings": 2800.00,
+  "totalTransactions": 3,
+  "filteredBookingEarnings": 2800.00,
+  "filteredTransactions": 3,
+  "data": [ ... ]
+}
+
+Endpoint: POST /api/earnings/bookings
+Description: Add a new booking transaction.
+Request Body (JSON):
+{
+  "transactionId": "TXN1004",
+  "serviceAmount": 500.00,
+  "paymentMethod": "UPI",
+  "extraServiceAmount": 50.00,
+  "extraServicePaymentMethod": "Cash",
+  "totalAmount": 550.00,
+  "orderDate": "15-05-2026"
+}
+Response Data: Created Transaction object.
+
+Endpoint: GET /api/earnings/subscriptions
+Description: Fetch subscription purchases and aggregates.
+Query Parameters (Optional):
+  - query: Search partnerName, paymentMethod, status, or purchaseDate (LIKE match)
+  - partnerName: Filter by partner name (LIKE match)
+  - paymentMethod: Filter by payment method (LIKE match)
+  - status: Filter by status
+  - purchaseDate: Filter by purchase date (LIKE match)
+Response Data Schema:
+{
+  "success": true,
+  "totalSubscriptionsEarnings": 200.00,
+  "totalPlans": 2,
+  "filteredSubscriptionsEarnings": 200.00,
+  "filteredPlans": 2,
+  "data": [ ... ]
+}
+
+Endpoint: POST /api/earnings/subscriptions
+Description: Add a subscription transaction record.
+Request Body (JSON):
+{
+  "partnerName": "Govind",
+  "amount": 100.00,
+  "paymentMethod": "UPI",
+  "purchaseDate": "16-05-2026",
+  "status": "Paid"
+}
+Response Data: Created Subscription Earning object.
+
+----------------------------------------------------------------------
+8. CONTENT PAGES
+----------------------------------------------------------------------
+Endpoint: GET /api/pages
+Description: Retrieve list of all content pages (About Us, Terms and Conditions, Privacy Policy, Refund and Cancellation Policy).
+Note: Table is auto-created and seeded with 4 default pages on server boot if empty.
+Response Data: Array of Page objects.
+
+Endpoint: GET /api/pages/:id
+Description: Fetch a single content page by ID.
+Response Data: Single Page object.
+Error (404): { "success": false, "message": "Page not found" }
+
+Endpoint: POST /api/pages
+Description: Add a new content page.
+Request Body (JSON):
+{
+  "title": "About Us",
+  "description": "We provide the best on-demand home services."
+}
+Response Data: Created Page object.
+
+Endpoint: PUT /api/pages/:id
+Description: Update content page title and/or description.
+Request Body (JSON): { "title": "Updated Title", "description": "Updated content..." }
+Response Data: Updated Page object.
+
+Endpoint: DELETE /api/pages/:id
+Description: Delete a content page by ID.
+Response Data: { "success": true, "message": "Page deleted successfully" }
+
+----------------------------------------------------------------------
+9. CONFIGURATION & SETTINGS
+----------------------------------------------------------------------
+- BANNERS:
+  * GET /api/settings/banners: List all banners. Query param "title" filters (LIKE match).
+  * POST /api/settings/banners: Add banner. Body: { "title": "Offer", "image": "url", "status": true }
+  * PUT /api/settings/banners/:id: Update banner.
+  * DELETE /api/settings/banners/:id: Delete banner.
+
+- STATES:
+  * GET /api/settings/states: List states. Query param "name" filters (LIKE match).
+  * POST /api/settings/states: Add state. Body: { "name": "Haryana", "status": true }
+  * PUT /api/settings/states/:id: Update state.
+  * DELETE /api/settings/states/:id: Delete state. Cascade-deletes all cities and localities under this state name.
+
+- CITIES:
+  * GET /api/settings/cities: List cities. Query params "cityName" and "stateName" filter.
+  * POST /api/settings/cities: Add city. Body: { "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+  * PUT /api/settings/cities/:id: Update city.
+  * DELETE /api/settings/cities/:id: Delete city. Cascade-deletes all localities under this city name.
+
+- LOCALITIES:
+  * GET /api/settings/localities: List localities. Query params "localityName", "cityName", "stateName" filter.
+  * POST /api/settings/localities: Add locality. Body: { "localityName": "Sector 54", "cityName": "Gurugram", "stateName": "Haryana", "status": true }
+  * PUT /api/settings/localities/:id: Update locality.
+  * DELETE /api/settings/localities/:id: Delete locality.
+
+- COMMISSION SETTING:
+  * GET /api/settings/commission: Retrieve commission rate. Response: { "success": true, "commissionRate": 10.0 }
+  * PUT /api/settings/commission: Update commission rate. Body: { "commissionRate": 15.0 }
+
+- REVIEWS & RATINGS:
+  * GET /api/settings/reviews: Retrieve reviews list.
+  * POST /api/settings/reviews: Add review. Body: { "userName": "Rahul", "partnerName": "Govind", "serviceName": "AC Repair", "rating": 5.0, "reviewText": "Good" }
+  * PUT /api/settings/reviews/:id: Toggle review status. Body: { "status": true }
+  * DELETE /api/settings/reviews/:id: Delete review.
+
+- NOTIFICATIONS LOGS:
+  * GET /api/settings/notifications: List notification logs. Query params "title", "audience", "status" filter.
+  * POST /api/settings/notifications: Add notification log. Body: { "title": "Alert", "message": "Details", "audience": "All Partners", "status": true }
+  * PUT /api/settings/notifications/:id: Update log / Mark as sent. Body: { "isSent": true }
+  * DELETE /api/settings/notifications/:id: Delete notification.
+
+----------------------------------------------------------------------
+10. REPORTS
+----------------------------------------------------------------------
+Endpoints:
+  - Users Report: GET /api/reports/users
+  - Partners Report: GET /api/reports/partners
+  - Booking Earnings Report: GET /api/reports/earnings
+  - Subscriptions Report: GET /api/reports/subscriptions
+
+Query Parameters (Required):
+  - startDate: Start date filter (DD-MM-YYYY or YYYY-MM-DD format)
+  - endDate: End date filter (DD-MM-YYYY or YYYY-MM-DD format)
+  - query: General search keyword (LIKE match) — pass empty string "" to skip filtering
+  - export: Pass "csv" to download report as a raw CSV file — pass empty string "" for JSON response
+
+Error (400) if any parameter is missing:
+{ "success": false, "message": "startDate, endDate, query, and export parameters are required" }
+
+Example:
+  GET /api/reports/users?startDate=01-05-2026&endDate=31-05-2026&query=Rahul&export=
+  GET /api/reports/users?startDate=01-05-2026&endDate=31-05-2026&query=&export=csv
+
+----------------------------------------------------------------------
+11. SUPPORT TICKETS
+----------------------------------------------------------------------
+Endpoint: GET /api/support
+Description: Retrieve support tickets list.
+Query Parameters (Optional):
+  - query: Search UserName, Email, Subject, or Message (LIKE match)
+  - status: Filter by status (Open, Closed, etc.)
+Response Data: Array of Ticket objects.
+
+Endpoint: GET /api/support/:id
+Description: Fetch details of a single ticket by ID.
+Response Data: Ticket object.
+
+Endpoint: POST /api/support
+Description: File a new support ticket.
+Request Body (JSON):
+{
+  "userName": "Rahul",
+  "email": "rahul@gmail.com",
+  "mobile": "9876543210",
+  "subject": "AC cooling issue",
+  "message": "The repair did not fix the cooling problem."
+}
+Response Data: Created Support Ticket object.
+
+Endpoint: PUT /api/support/:id
+Description: Update support ticket status/details.
+Request Body (JSON): { "status": "Closed" }
+Response Data: Updated Ticket object.
+
+Endpoint: DELETE /api/support/:id
+Description: Delete support ticket by ID.
+Response Data: { "success": true, "message": "Ticket deleted successfully" }
+
+----------------------------------------------------------------------
+12. IMAGE UPLOAD
+----------------------------------------------------------------------
+Endpoint: POST /api/upload
+Description: Upload an image file (multipart/form-data) to the server and receive a dynamically hosted URL.
+Request Format: multipart/form-data
+Body Field:
+  - image: The image file to upload (JPEG, JPG, PNG, GIF, WEBP allowed). Max size 5MB.
+Response:
+{
+  "success": true,
+  "message": "Image uploaded successfully",
+  "data": {
+    "filename": "1780120322787-108485750.png",
+    "originalName": "avatar.png",
+    "mimetype": "image/png",
+    "size": 15420,
+    "url": "http://localhost:3000/uploads/1780120322787-108485750.png"
+  }
+}
+
+Statically Served Assets:
+URL: http://localhost:3000/uploads/:filename
+Description: Uploaded image files are publicly available and can be served statically by appending the filename to the host's `/uploads` path.
+
+======================================================================
+
+13. PARTNER MOBILE APP ENDPOINTS
+----------------------------------------------------------------------
+
+13.1 REGISTER AS NEW PARTNER
+---------------------------
+Endpoint: POST /api/auth/register
+Request Format: multipart/form-data
+Description: Registers a new partner. Uploads documents and hashes the password.
+Request Fields (Text): name, phone (mobile), email, address, state, city, locality, password, gender, category, subCategory, hasVehicle, services, aadharNumber, panNumber, bankName, accountHolder, accountNumber, ifscCode.
+Request Fields (Files - MANDATORY): profileImage, aadharFront, aadharBack, panImage, policeVerification.
+
+13.2 LOGIN PARTNER
+-----------------
+Endpoint: POST /api/auth/login
+Request Format: application/json
+Description: Logs in a partner using their phone number and password.
+Request Body: { "phone": "...", "password": "..." }
+
+13.3 UNIFIED PARTNER DASHBOARD
+------------------------------
+Endpoint: GET /api/partner/dashboard (PROTECTED - Requires Bearer Token)
+Description: Retrieves active banners, booking stats, monthly and daily earnings, and partner payment/approval status in a single aggregated payload.
+Response Example (Approved & Active):
+{
+  "isPaid": true,
+  "isApproved": true,
+  "bookingsStats": { "totalBooking": 5, "upcomingBooking": 2, "inProgressBooking": 1, "acceptedBooking": 3, "completedBooking": 2, "cancelBooking": 1 },
+  "earningsStats": { "totalEarning": 25000, "todayEarning": 10000, "monthlyEarning": 15000, "onlineEarning": 12000, "cashEarning": 13000, "payToCompany": 3250.00, "walletBalance": 8750.00 },
+  "banners": [ "http://localhost:3000/uploads/banner1.jpg" ]
+}
+
+Response Example (Pending Admin Approval):
+{
+  "isPaid": false,
+  "isApproved": false,
+  "bookingsStats": { "totalBooking": 0, "upcomingBooking": 0, "inProgressBooking": 0, "acceptedBooking": 0, "completedBooking": 0, "cancelBooking": 0 },
+  "earningsStats": { "totalEarning": 0, "todayEarning": 0, "monthlyEarning": 0, "onlineEarning": 0, "cashEarning": 0, "payToCompany": 0.00, "walletBalance": 0.00 },
+  "banners": [ "http://localhost:3000/uploads/banner1.jpg" ]
+}
+
+13.4 BOOKING WORK LIFECYCLE
+---------------------------
+* GET /api/bookings/:id (PROTECTED)
+  - Fetches full details of a single booking by ID.
+* POST /api/bookings/:id/start (PROTECTED)
+  - Moves booking status to 'In Progress'.
+* POST /api/bookings/send-complete-otp (PROTECTED)
+  - Generates and sends a 4-digit completion OTP to the customer phone number. Body: { "phone": "...", "countryCode": "...", "orderId": "..." }
+* POST /api/bookings/:id/complete (PROTECTED)
+  - Completes booking, processes commission, updates wallet/earnings, and logs transaction. Requires OTP verification. Body: { "paymentMethod": "Cash" / "UPI", "otp": "...", "customerPhone": "..." }. For Cash, 25% commission is added to payToCompany (due to company) and wallet balance is not credited. For UPI, standard commission rate is used and partner's share is credited to wallet balance. Bypass OTP with '1234'.
+
+13.5 DYNAMIC REGISTRATION DROPDOWNS
+-----------------------------------
+* GET /api/metadata/locations (PUBLIC)
+  - Fetches nested active states, cities, and localities hierarchy.
+* GET /api/metadata/categories (PUBLIC)
+  - Fetches active categories and nested subcategories with service title lists.
+
+13.6 PHONE OTP VERIFICATION
+---------------------------
+* POST /api/auth/send-otp (PUBLIC)
+  - Request a 4-digit OTP code for a phone number. Body: { "phone": "..." }. Returns: { "success": true, "message": "...", "otp": "..." } (returned for debugging/testing).
+* POST /api/auth/verify-otp (PUBLIC)
+  - Verify the requested OTP code for a phone number. Body: { "phone": "...", "otp": "..." }. Returns: { "success": true, "message": "..." }.
+
+14. STATUS TOGGLE APIs (Enable / Disable by ID)
+======================================================================
+All status toggle endpoints accept BOTH PUT and PATCH methods.
+They set the status of a record to active (true) or inactive (false) by ID.
+
+Request Body (JSON) - same for all:
+{
+  "status": true    // true = active/enable, false = inactive/disable
+}
+
+Response (JSON) - same format for all:
+{
+  "success": true,
+  "message": "Partner status updated to active",
+  "data": { ...updated record... }
+}
+
+----------------------------------------------------------------------
+14.1 PARTNER STATUS
+----------------------------------------------------------------------
+PUT  /api/partners/:id/status
+PATCH /api/partners/:id/status
+Description: Enable or disable a partner account by ID.
+Example: PUT /api/partners/3/status  Body: { "status": false }
+
+----------------------------------------------------------------------
+14.2 CATEGORY STATUS
+----------------------------------------------------------------------
+PUT  /api/categories/:id/status
+PATCH /api/categories/:id/status
+Description: Enable or disable a category by ID.
+Alias Field: "emailStatus" is also accepted in place of "status".
+Example: PUT /api/categories/2/status  Body: { "status": true }
+
+----------------------------------------------------------------------
+14.3 SERVICE STATUS
+----------------------------------------------------------------------
+PUT  /api/services/:id/status
+PATCH /api/services/:id/status
+Description: Enable or disable a service by ID.
+Example: PUT /api/services/5/status  Body: { "status": false }
+
+----------------------------------------------------------------------
+14.4 BANNER STATUS
+----------------------------------------------------------------------
+PUT  /api/settings/banners/:id/status
+PATCH /api/settings/banners/:id/status
+Description: Enable or disable a banner by ID.
+Example: PUT /api/settings/banners/1/status  Body: { "status": true }
+
+----------------------------------------------------------------------
+14.5 STATE STATUS
+----------------------------------------------------------------------
+PUT  /api/settings/states/:id/status
+PATCH /api/settings/states/:id/status
+Description: Enable or disable a state by ID.
+Example: PUT /api/settings/states/2/status  Body: { "status": false }
+
+----------------------------------------------------------------------
+14.6 CITY STATUS
+----------------------------------------------------------------------
+PUT  /api/settings/cities/:id/status
+PATCH /api/settings/cities/:id/status
+Description: Enable or disable a city by ID.
+Example: PUT /api/settings/cities/3/status  Body: { "status": true }
+
+----------------------------------------------------------------------
+14.7 LOCALITY STATUS
+----------------------------------------------------------------------
+PUT  /api/settings/localities/:id/status
+PATCH /api/settings/localities/:id/status
+Description: Enable or disable a locality by ID.
+Example: PUT /api/settings/localities/4/status  Body: { "status": false }
+
+----------------------------------------------------------------------
+14.8 REVIEW / RATING STATUS
+----------------------------------------------------------------------
+PUT  /api/settings/reviews/:id/status
+PATCH /api/settings/reviews/:id/status
+Description: Enable or disable a review/rating by ID.
+Example: PUT /api/settings/reviews/1/status  Body: { "status": true }
+

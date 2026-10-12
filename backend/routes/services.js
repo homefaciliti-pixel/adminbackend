@@ -12,6 +12,34 @@ function clearServicesCache() {
   servicesCacheTimestamp = null;
 }
 
+let servicesColumns = null;
+async function getServicesColumns() {
+  if (servicesColumns) return servicesColumns;
+  try {
+    const [cols] = await db.query("SHOW COLUMNS FROM services");
+    servicesColumns = new Set(cols.map(c => c.Field));
+    if (!servicesColumns.has('sub_category_id')) {
+      try {
+        await db.query("ALTER TABLE services ADD COLUMN `sub_category_id` INT NULL DEFAULT NULL");
+        servicesColumns.add('sub_category_id');
+      } catch (e) {
+        // Ignored if permissions restrict ALTER TABLE
+      }
+    }
+    if (!servicesColumns.has('sub_category')) {
+      try {
+        await db.query("ALTER TABLE services ADD COLUMN `sub_category` VARCHAR(255) NULL DEFAULT NULL");
+        servicesColumns.add('sub_category');
+      } catch (e) {
+        // Ignored if permissions restrict ALTER TABLE
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching services columns:', err.message);
+  }
+  return servicesColumns || new Set();
+}
+
 function formatImageUrl(img, req) {
   if (!img) return '';
   const host = req ? req.get('host') : 'adminbackend-1-h03r.onrender.com';
@@ -69,70 +97,99 @@ function mapServiceRow(r, req) {
     item.categoryId = null;
     item.category_id = null;
   }
+
+  if (r.sub_category_id !== undefined && r.sub_category_id !== null && r.sub_category_id !== '') {
+    let subCatId = r.sub_category_id;
+    if (typeof subCatId === 'string') {
+      const parsed = parseInt(subCatId, 10);
+      if (!isNaN(parsed)) subCatId = parsed;
+    }
+    item.subCategoryId = subCatId;
+    item.sub_category_id = subCatId;
+  } else {
+    item.subCategoryId = null;
+    item.sub_category_id = null;
+  }
+  item.subCategory = r.sub_category || r.subCategory || '';
+  item.sub_category = item.subCategory;
+
   return item;
 }
 
 router.get(['/', '/services'], async (req, res) => {
   try {
-    const { search } = req.query;
-    const isSearchEmpty = !search || search.trim() === '';
+    const { search, category_id, categoryId, sub_category_id, subCategoryId, sub_category, subCategory } = req.query;
+    const catIdFilter = category_id !== undefined ? category_id : categoryId;
+    const subCatIdFilter = sub_category_id !== undefined ? sub_category_id : subCategoryId;
+    const subCatNameFilter = sub_category || subCategory;
 
-    //if cache search is empty, not just when 'search' parameter is completely absent
-    if (isSearchEmpty && servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL)) {
+    const hasFilters = (search && search.trim() !== '') || catIdFilter !== undefined || subCatIdFilter !== undefined || subCatNameFilter;
+
+    let allServices = servicesCache;
+
+    if (!allServices || (Date.now() - servicesCacheTimestamp >= SERVICES_CACHE_TTL)) {
+      const [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
+      allServices = rows.map(r => mapServiceRow(r, req));
+      servicesCache = allServices;
+      servicesCacheTimestamp = Date.now();
+    }
+
+    if (!hasFilters) {
       return res.json({
         success: true,
         source: 'cache',
-        total: servicesCache.length,
-        data: servicesCache,
-        services: servicesCache,
-        result: servicesCache
+        total: allServices.length,
+        data: allServices,
+        services: allServices,
+        result: allServices
       });
     }
 
-    // If a real search query exists, filter from memory cache if valid, otherwise hit DB
-    if (!isSearchEmpty && servicesCache && (Date.now() - servicesCacheTimestamp < SERVICES_CACHE_TTL)) {
+    let filtered = allServices;
+
+    if (search && search.trim() !== '') {
       const q = search.toLowerCase();
-      const filtered = servicesCache.filter(s => 
+      filtered = filtered.filter(s => 
         (s.title && s.title.toLowerCase().includes(q)) ||
         (s.description && s.description.toLowerCase().includes(q))
       );
-      return res.json({
-        success: true,
-        source: 'cache-filtered',
-        total: filtered.length,
-        data: filtered,
-        services: filtered,
-        result: filtered
-      });
     }
 
-    // Fallback to Database
-    const [rows] = await db.query('SELECT * FROM services ORDER BY id DESC');
-    const mapped = rows.map(r => mapServiceRow(r, req));
+    if (catIdFilter !== undefined && catIdFilter !== null && catIdFilter !== '') {
+      const targetCatId = parseInt(catIdFilter, 10);
+      filtered = filtered.filter(s => s.category_id === targetCatId || s.categoryId === targetCatId);
+    }
 
-    // Save to cache
-    servicesCache = mapped;
-    servicesCacheTimestamp = Date.now();
+    if (subCatIdFilter !== undefined && subCatIdFilter !== null && subCatIdFilter !== '') {
+      const targetSubCatId = parseInt(subCatIdFilter, 10);
+      filtered = filtered.filter(s => s.sub_category_id === targetSubCatId || s.subCategoryId === targetSubCatId);
+    }
+
+    if (subCatNameFilter) {
+      const targetSubName = String(subCatNameFilter).toLowerCase();
+      filtered = filtered.filter(s => s.sub_category && s.sub_category.toLowerCase().includes(targetSubName));
+    }
 
     res.json({
       success: true,
-      source: 'database',
-      total: mapped.length,
-      data: mapped,
-      services: mapped,
-      result: mapped
+      source: 'filtered',
+      total: filtered.length,
+      data: filtered,
+      services: filtered,
+      result: filtered
     });
   } catch (error) {
     console.error('Error fetching services:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch services', error: error.message });
   }
-  
 });
 
 // POST create service
 router.post('/', async (req, res) => {
   const { title, price, image, description, status, rating, time, isHighlighted, discount, highlights } = req.body;
   const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
+  const subCategoryIdVal = req.body.sub_category_id !== undefined ? req.body.sub_category_id : req.body.subCategoryId;
+  const subCategoryVal = req.body.sub_category !== undefined ? req.body.sub_category : (req.body.subCategory || req.body.subCategoryName);
 
   if (!title || price === undefined || !description) {
     return res.status(400).json({ success: false, message: 'Title, Price, and Description are required' });
@@ -168,6 +225,28 @@ router.post('/', async (req, res) => {
     if (isNaN(dbCategoryId)) dbCategoryId = null;
   }
 
+  let dbSubCategoryId = null;
+  if (subCategoryIdVal !== undefined && subCategoryIdVal !== null && subCategoryIdVal !== '' && subCategoryIdVal !== 'null') {
+    dbSubCategoryId = parseInt(subCategoryIdVal, 10);
+    if (isNaN(dbSubCategoryId)) dbSubCategoryId = null;
+  }
+
+  // If categoryId wasn't passed but subCategoryId was passed, attempt to resolve parent category
+  if (dbCategoryId === null && dbSubCategoryId !== null) {
+    try {
+      const [subRows] = await db.query('SELECT parent FROM categories WHERE id = ?', [dbSubCategoryId]);
+      if (subRows.length > 0 && subRows[0].parent) {
+        const parentName = subRows[0].parent;
+        const [parentRows] = await db.query('SELECT id FROM categories WHERE title = ? LIMIT 1', [parentName]);
+        if (parentRows.length > 0) {
+          dbCategoryId = parentRows[0].id;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not auto-resolve parent category for subcategory:', e.message);
+    }
+  }
+
   const slug = title.trim().toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
@@ -179,6 +258,8 @@ router.post('/', async (req, res) => {
   }
 
   try {
+    const cols = await getServicesColumns();
+
     let query = 'INSERT INTO services (title, slug, price, image, description, status, isHighlighted, discount, highlights';
     const params = [title, slug, priceFloat, imageVal, description, statusInt, highlightedStr, discountVal, highlightsStr];
     let placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?';
@@ -187,6 +268,18 @@ router.post('/', async (req, res) => {
       query += ', category_id';
       placeholders += ', ?';
       params.push(dbCategoryId);
+    }
+
+    if (cols.has('sub_category_id') && dbSubCategoryId !== null) {
+      query += ', sub_category_id';
+      placeholders += ', ?';
+      params.push(dbSubCategoryId);
+    }
+
+    if (cols.has('sub_category') && subCategoryVal) {
+      query += ', sub_category';
+      placeholders += ', ?';
+      params.push(String(subCategoryVal));
     }
 
     if (ratingVal !== null) {
@@ -237,9 +330,12 @@ router.put('/:id', async (req, res) => {
   const highlightedVal = req.body.isHighlighted !== undefined ? req.body.isHighlighted : req.body.is_highlighted;
   const discountVal = req.body.discount;
   const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
+  const subCategoryIdVal = req.body.sub_category_id !== undefined ? req.body.sub_category_id : req.body.subCategoryId;
+  const subCategoryVal = req.body.sub_category !== undefined ? req.body.sub_category : (req.body.subCategory || req.body.subCategoryName);
   const highlightsVal = req.body.highlights;
 
   try {
+    const cols = await getServicesColumns();
     const [existingRows] = await db.query('SELECT * FROM services WHERE id = ?', [id]);
     if (existingRows.length === 0) {
       return res.status(404).json({ success: false, message: 'Service not found' });
@@ -312,6 +408,20 @@ router.put('/:id', async (req, res) => {
       fields.push('`category_id` = ?');
       values.push(dbCategoryId);
     }
+    if (subCategoryIdVal !== undefined && cols.has('sub_category_id')) {
+      let dbSubCatId = null;
+      if (subCategoryIdVal !== null && subCategoryIdVal !== '' && subCategoryIdVal !== 'null') {
+        const strVal = String(subCategoryIdVal);
+        dbSubCatId = strVal.startsWith('c') ? parseInt(strVal.slice(1)) : parseInt(strVal);
+        if (isNaN(dbSubCatId)) dbSubCatId = null;
+      }
+      fields.push('`sub_category_id` = ?');
+      values.push(dbSubCatId);
+    }
+    if (subCategoryVal !== undefined && cols.has('sub_category')) {
+      fields.push('`sub_category` = ?');
+      values.push(subCategoryVal === '' || subCategoryVal === null ? null : String(subCategoryVal));
+    }
     if (ratingVal !== undefined) {
       fields.push('`rating` = ?');
       values.push(ratingVal === '' || ratingVal === null ? null : parseFloat(ratingVal));
@@ -336,7 +446,7 @@ router.put('/:id', async (req, res) => {
       if (rows.length === 0) {
         return res.status(404).json({ success: false, message: 'Service not found' });
       }
-      const responseData = mapServiceRow(rows[0]);
+      const responseData = mapServiceRow(rows[0], req);
       return res.json({
         success: true,
         message: 'Service updated (no changes made)',
@@ -357,7 +467,7 @@ router.put('/:id', async (req, res) => {
 
     // Retrieve updated service
     const [rows] = await db.query('SELECT * FROM services WHERE id = ?', [id]);
-    const responseData = mapServiceRow(rows[0]);
+    const responseData = mapServiceRow(rows[0], req);
 
     res.json({
       success: true,
