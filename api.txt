@@ -282,6 +282,40 @@ Endpoint: DELETE /api/orders/:id
 Description: Delete an order by ID.
 Response Data: { "success": true, "message": "Order deleted successfully" }
 
+Endpoint: POST /api/orders/webhook/whatsapp
+Description: Create/book an order directly from WhatsApp Chatbot or Bulk Marketing automation.
+Request Body (JSON):
+{
+  "customer_phone": "9876543210",
+  "customer_name": "Rohan Sharma",
+  "service_name": "AC Repair",
+  "total_amount": 499.00,
+  "address": "Mansarovar, Jaipur"
+}
+Response Data:
+{
+  "success": true,
+  "message": "WhatsApp order saved successfully",
+  "order_id": 105,
+  "serviceRequestNumber": "#REQ 2026-123456"
+}
+
+Endpoint: POST /api/webhook/whatsapp-order
+Description: Webhook for WhatsApp AI bot and marketing orders.
+Request Body (JSON):
+{
+  "customer_phone": "9876543210",
+  "customer_name": "Rohan Sharma",
+  "order_details": "Deep House Cleaning",
+  "total_amount": 1999.00
+}
+Response Data:
+{
+  "success": true,
+  "message": "Order booked and saved to database successfully",
+  "order_id": 106
+}
+
 ----------------------------------------------------------------------
 6. PARTNERS (VENDORS)
 ----------------------------------------------------------------------

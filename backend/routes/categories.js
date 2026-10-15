@@ -243,6 +243,61 @@ router.get('/:id/subcategories', async (req, res) => {
   }
 });
 
+// POST /:id/subcategories - Create subcategory for a given category ID
+router.post('/:id/subcategories', async (req, res) => {
+  const { id } = req.params;
+  const numericId = id.startsWith('c') ? parseInt(id.slice(1)) : parseInt(id);
+  if (isNaN(numericId)) {
+    return res.status(400).json({ success: false, message: 'Invalid Category ID format' });
+  }
+
+  const titleVal = req.body.title || req.body.categoryName;
+  const imageVal = req.body.image || '';
+  const statusVal = req.body.status !== undefined ? req.body.status : true;
+  
+  if (!titleVal) {
+    return res.status(400).json({ success: false, message: 'Subcategory Name (title) is required' });
+  }
+
+  try {
+    const [parentRows] = await db.query('SELECT title FROM categories WHERE id = ?', [numericId]);
+    if (parentRows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Parent category not found' });
+    }
+    const parentTitle = parentRows[0].title;
+
+    const statusInt = statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0;
+    const slug = titleVal.trim().toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+
+    const [result] = await db.query(
+      'INSERT INTO categories (title, slug, parent, image, status) VALUES (?, ?, ?, ?, ?)',
+      [titleVal, slug, parentTitle, imageVal, statusInt]
+    );
+
+    clearCategoryCache();
+
+    res.status(201).json({
+      success: true,
+      message: 'Subcategory created successfully',
+      data: {
+        id: result.insertId,
+        title: titleVal,
+        parent: parentTitle,
+        category_id: numericId,
+        categoryId: numericId,
+        image: formatImageUrl(imageVal, req),
+        status: statusInt === 1
+      }
+    });
+  } catch (error) {
+    console.error('Error creating subcategory:', error);
+    res.status(500).json({ success: false, message: 'Failed to create subcategory', error: error.message });
+  }
+});
+
 // PUT update category
 router.put('/:id', async (req, res) => {
   const { id } = req.params;

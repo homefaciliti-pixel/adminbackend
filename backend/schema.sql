@@ -56,6 +56,8 @@ INSERT INTO `services` (`id`, `title`, `price`, `image`, `description`, `status`
 CREATE TABLE IF NOT EXISTS `orders` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `serviceRequestNumber` VARCHAR(100) NOT NULL,
+  `customerName` VARCHAR(255) NOT NULL,    -- added customerName, 
+  `customerMobile` VARCHAR(50) NOT NULL,  --customerMobile  
   `serviceName` VARCHAR(255) NOT NULL,
   `serviceAmount` DECIMAL(10, 2) NOT NULL,
   `slotTime` VARCHAR(100) NOT NULL,

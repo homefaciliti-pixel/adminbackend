@@ -1,5 +1,5 @@
 const express = require('express');
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
 const db = require('../db');
 
 // In-memory cache for subcategories
@@ -47,14 +47,15 @@ async function getCategoryMaps() {
 }
 
 // -------------------------------------------------------------
-// GET /api/subcategories
+// GET /api/subcategories or GET /api/categories/:id/subcategories
 // Fetch all subcategories (optional filtering by category_id, parent, search, status)
 // -------------------------------------------------------------
 router.get('/', async (req, res) => {
   try {
     const { category_id, categoryId, parent, category, categoryName, search, q, title, status } = req.query;
+    const routeParentId = req.params && req.params.id ? req.params.id : undefined;
 
-    const isFiltered = category_id !== undefined || categoryId !== undefined || parent || category || categoryName || search || q || title || status !== undefined;
+    const isFiltered = routeParentId !== undefined || category_id !== undefined || categoryId !== undefined || parent || category || categoryName || search || q || title || status !== undefined;
 
     if (!isFiltered && subcategoryCache && (Date.now() - subcategoryCacheTimestamp < SUBCATEGORY_CACHE_TTL)) {
       return res.json({
@@ -73,8 +74,8 @@ router.get('/', async (req, res) => {
     let query = "SELECT * FROM categories WHERE parent IS NOT NULL AND parent != '' AND parent != 'None'";
     const params = [];
 
-    // Filter by Parent Category ID
-    const catIdParam = category_id !== undefined ? category_id : categoryId;
+    // Filter by Parent Category ID (from route params or query)
+    const catIdParam = routeParentId !== undefined ? routeParentId : (category_id !== undefined ? category_id : categoryId);
     if (catIdParam !== undefined && catIdParam !== null && catIdParam !== '') {
       const parsedCatId = parseInt(catIdParam, 10);
       const parentTitle = idToTitle[parsedCatId];
@@ -261,7 +262,7 @@ router.get('/:id/services', async (req, res) => {
 router.post('/', async (req, res) => {
   const titleVal = req.body.title || req.body.name || req.body.subCategoryName || req.body.categoryName;
   const parentVal = req.body.parent || req.body.category || req.body.mainCategory || req.body.categoryName;
-  const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
+  const categoryIdVal = (req.params && req.params.id) ? req.params.id : (req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId);
   const imageVal = req.body.image || '';
   const statusVal = req.body.status !== undefined ? req.body.status : true;
 

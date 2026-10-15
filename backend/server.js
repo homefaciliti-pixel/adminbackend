@@ -474,6 +474,7 @@ const uploadRouter = require('./routes/upload');
 const adminsRouter = require('./routes/admins');
 const amcRouter = require('./routes/amc');
 const pricingRouter = require('./routes/pricing');
+const webhookRoutes = require('./routes/webhook');
 
 // Register API Routes
 server.use('/api/dashboard', dashboardRouter);
@@ -517,6 +518,7 @@ server.use('/api/admins', adminsRouter);
 server.use('/api/amc', amcRouter);
 server.use('/api/pricing', pricingRouter);
 server.use('/api/v1/pricing', pricingRouter);
+server.use('/api/webhook', webhookRoutes);
 
 // Base API status route for /api and /api/
 server.get(['/api', '/api/'], (req, res) => {
@@ -541,7 +543,8 @@ server.get(['/api', '/api/'], (req, res) => {
       '/api/support',
       '/api/upload',
       '/api/admins',
-      '/api/amc'
+      '/api/amc',
+      '/api/webhook'
     ]
   });
 });

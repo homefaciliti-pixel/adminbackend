@@ -120,10 +120,10 @@ async function getAllOrders(req) {
     [laravelOrders = []]
   ] = await Promise.all([
     db.query('SELECT id, name, mobile FROM partners').catch(err => { console.warn('Order fetch partners error:', err.message); return [[]]; }),
-    db.query(`SELECT id, name, mobile_number FROM \`${dbName}\`.\`users\` WHERE role_id = 2`).catch(err => { console.warn('Order fetch laravel partners error:', err.message); return [[]]; }),
+    db.query(`SELECT id, name, mobile_number FROM \`\${dbName}\`.\`users\` WHERE role_id = 2`).catch(err => { console.warn('Order fetch laravel partners error:', err.message); return [[]]; }),
     db.query("SELECT phone, name FROM node_users_v2 WHERE phone IS NOT NULL AND phone != ''").catch(err => { console.warn('Order fetch v2Users error:', err.message); return [[]]; }),
-    db.query('SELECT * FROM orders').catch(err => { console.warn('Order fetch orders error:', err.message); return [[]]; }),
-    db.query('SELECT * FROM node_orders_v2').catch(err => { console.warn('Order fetch nodeV2Orders error:', err.message); return [[]]; }),
+    db.query('SELECT id, serviceRequestNumber, customerName, customerMobile, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, vendorMobile, address, createdAt, latitude, longitude FROM orders').catch(err => { console.warn('Order fetch orders error:', err.message); return [[]]; }),
+    db.query('SELECT id, userPhone, serviceName, price, date, status, bookingStatus, partnerName, partnerPhone, address, payment, createdAt FROM node_orders_v2').catch(err => { console.warn('Order fetch v2Orders error:', err.message); return [[]]; }),
     db.query(`
       SELECT 
         oi.id, 
@@ -139,9 +139,9 @@ async function getAllOrders(req) {
         o.payment_method,
         u.name AS customer_name,
         u.mobile_number AS customer_mobile
-      FROM \`${dbName}\`.\`order_items\` oi
-      LEFT JOIN \`${dbName}\`.\`orders\` o ON oi.order_id = o.id
-      LEFT JOIN \`${dbName}\`.\`users\` u ON o.user_id = u.id
+      FROM \`\${dbName}\`.\`order_items\` oi
+      LEFT JOIN \`\${dbName}\`.\`orders\` o ON oi.order_id = o.id
+      LEFT JOIN \`\${dbName}\`.\`users\` u ON o.user_id = u.id
     `).catch(err => { console.warn('Order fetch laravelOrders error:', err.message); return [[]]; })
   ]);
 
@@ -198,8 +198,8 @@ async function getAllOrders(req) {
       latitude: r.latitude,
       longitude: r.longitude,
       source: 'Admin Panel (MySQL)',
-      customerName: '-',
-      customerMobile: '-',
+      customerName: r.customerName || 'Guest User',
+      customerMobile: r.customerMobile || '-',
       customerPhone: '-',
       userPhone: '-',
       phone: '-',
@@ -224,15 +224,15 @@ async function getAllOrders(req) {
       : (r.address || '');
 
     const createdStr = r.createdAt 
-      ? new Date(r.createdAt).toLocaleString('en-US') 
+      ? new Date(Number(r.createdAt) || r.createdAt).toLocaleString('en-US') 
       : '';
 
-    const orderYear = r.createdAt ? new Date(r.createdAt).getFullYear() : new Date().getFullYear();
+    const orderYear = r.createdAt ? new Date(Number(r.createdAt) || r.createdAt).getFullYear() : new Date().getFullYear();
     const paddedId = String(r.id).padStart(4, '0');
     const reqNum = `#REQ ${orderYear}-${paddedId}`;
 
     // Resolve customerName and customerMobile
-    let customerName = addrObj.name || '';
+    let customerName = addrObj.name || addrObj.customerName || '';
     if (!customerName && r.userPhone) {
       customerName = v2UsersMap[r.userPhone] || '';
     }
@@ -240,7 +240,7 @@ async function getAllOrders(req) {
       customerName = 'Guest User';
     }
 
-    const customerMobile = addrObj.userPhone || r.userPhone || '-';
+    const customerMobile = addrObj.userPhone || addrObj.mobile || r.userPhone || '-';
     const pPhone = r.partnerPhone || partnerMobileMap[r.partnerName] || '';
 
     list.push({
@@ -327,21 +327,20 @@ async function getAllOrders(req) {
     });
   });
 
-
-// Helper: Safely parse timestamp from order item for descending sort
-function parseOrderTimestamp(item) {
-  if (item.createdTimestamp) return item.createdTimestamp;
-  if (typeof item.createdAt === 'number') return item.createdAt;
-  if (item.createdAt) {
-    const parsed = Date.parse(item.createdAt);
-    if (!isNaN(parsed)) return parsed;
+  // Helper: Safely parse timestamp from order item for descending sort
+  function parseOrderTimestamp(item) {
+    if (item.createdTimestamp) return item.createdTimestamp;
+    if (typeof item.createdAt === 'number') return item.createdAt;
+    if (item.createdAt) {
+      const parsed = Date.parse(item.createdAt);
+      if (!isNaN(parsed)) return parsed;
+    }
+    if (item.serviceDate) {
+      const parsed = Date.parse(item.serviceDate);
+      if (!isNaN(parsed)) return parsed;
+    }
+    return item.id || 0;
   }
-  if (item.serviceDate) {
-    const parsed = Date.parse(item.serviceDate);
-    if (!isNaN(parsed)) return parsed;
-  }
-  return item.id || 0;
-}
 
   // Sort by Creation Timestamp descending so newest orders always appear at the top
   list.sort((a, b) => {
@@ -357,6 +356,61 @@ function parseOrderTimestamp(item) {
 
   return list;
 }
+
+
+// ─────────────────────────────────────────────
+// POST /api/orders/webhook/whatsapp — WhatsApp & Bulk Marketing Webhook
+// ─────────────────────────────────────────────
+router.post('/webhook/whatsapp', async (req, res) => {
+    try {
+        const orderData = req.body;
+        const { customer_phone, customer_name, service_name, total_amount, address } = orderData;
+
+        if (!customer_phone) {
+            return res.status(400).json({ success: false, message: 'Customer phone is required' });
+        }
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const todayStr = `${year}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const serviceRequestNumber = `#REQ ${year}-${Date.now().toString().slice(-6)}`;
+
+        const serviceName = service_name || 'WhatsApp Order';
+        const serviceAmount = parseFloat(total_amount || 0);
+        const customerPhone = customer_phone || '';
+        const customerName = customer_name || 'WhatsApp Customer';
+        const orderAddress = address || 'WhatsApp Chat';
+
+        // 1. Insert into main orders table
+        const [result] = await db.query(
+            `INSERT INTO orders 
+            (serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, vendorMobile, address, createdAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending', '-', '-', ?, ?)`,
+            [serviceRequestNumber, serviceName, serviceAmount, '10:00 AM - 12:00 PM', todayStr, 'Jaipur', '', orderAddress, now.toLocaleString('en-US')]
+        );
+
+        // 2. Insert into node_orders_v2 for real-time Flutter sync
+        await db.query(
+            `INSERT INTO node_orders_v2 
+            (userPhone, serviceName, price, date, status, bookingStatus, productId, description, timeSlot, address, payment, createdAt)
+            VALUES (?, ?, ?, ?, 'Pending', 'searching', ?, ?, ?, ?, ?, ?)`,
+            [customerPhone, serviceName, serviceAmount.toFixed(2), todayStr, serviceName, `Ordered by ${customerName} via WhatsApp`, '10:00 AM - 12:00 PM', orderAddress, JSON.stringify({ paymentMethod: 'COD', amountPaid: serviceAmount }), Date.now()]
+        ).catch(err => console.warn('Failed to sync WhatsApp order to node_orders_v2:', err.message));
+
+        clearOrdersCache();
+
+        return res.status(200).json({ 
+            success: true, 
+            message: 'WhatsApp order saved successfully',
+            order_id: result.insertId,
+            serviceRequestNumber 
+        });
+
+    } catch (error) {
+        console.error('WhatsApp Webhook Error:', error);
+        return res.status(500).json({ success: false, message: 'Internal Server Error', error: error.message });
+    }
+});
 
 // ─────────────────────────────────────────────
 // GET /api/orders  — List all orders (admin panel)
@@ -885,9 +939,23 @@ router.put('/:id/assign', async (req, res) => {
 // POST /api/orders  — Create new order with optional auto-assign
 // ─────────────────────────────────────────────
 router.post('/', async (req, res) => {
+
+  console.log('=== Incoming Create Order Request ===');
+  console.log('req.body:', req.body);
+
   const now = new Date();
   const year = now.getFullYear();
   const todayStr = `${year}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const customerName = req.body.customerName || req.body.customer_name || req.body.name || 'Guest User';
+  const customerMobile = req.body.customerMobile || req.body.customer_mobile || req.body.phone || req.body.mobile || req.body.userPhone || '';
+
+
+  console.log('Parsed customerName:', customerName);
+  console.log('Parsed customerMobile:', customerMobile);
+
+  // const customerName = req.body.customerName || 'Guest User';   
+  // const customerMobile = req.body.customerMobile || req.body.mobile || req.body.userPhone || '';
 
   const serviceName = req.body.serviceName || req.body.title || req.body.name || req.body.productId || 'Home Service';
   const serviceAmount = parseFloat(req.body.serviceAmount || req.body.price || req.body.amount || 0);
@@ -955,10 +1023,10 @@ router.post('/', async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO orders 
-      (serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, vendorMobile, address, createdAt, latitude, longitude)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (serviceRequestNumber, customerName, customerMobile, serviceName, serviceAmount, slotTime, serviceDate, city, locality, status, vendorName, vendorMobile, address, createdAt, latitude, longitude)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        serviceRequestNumber, serviceName, serviceAmount, slotTime, serviceDate,
+        serviceRequestNumber, customerName, customerMobile, serviceName, serviceAmount, slotTime, serviceDate,
         city, locality, assignedStatus, dbVendorName, dbVendorMobile,
         address, cTime,
         hasCoordinates ? orderLat.toString() : null,
@@ -996,7 +1064,7 @@ router.post('/', async (req, res) => {
       message: 'Order created successfully',
       data: {
         id: result.insertId,
-        serviceRequestNumber, serviceName,
+        serviceRequestNumber, customerName, customerMobile, serviceName,
         serviceAmount, slotTime, serviceDate,
         city, locality,
         status: assignedStatus,
@@ -1012,5 +1080,6 @@ router.post('/', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to create order', error: error.message });
   }
 });
+
 
 module.exports = router;
