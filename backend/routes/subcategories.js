@@ -32,7 +32,7 @@ function formatImageUrl(img, req) {
 // Helper: build map of parent categories (id -> title & title -> id)
 async function getCategoryMaps() {
   try {
-    const [rows] = await db.query("SELECT id, title FROM categories WHERE parent IS NULL OR parent = '' OR parent = 'None'");
+    const [rows] = await db.query("SELECT id, title FROM categories WHERE parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category'");
     const idToTitle = {};
     const titleToId = {};
     rows.forEach(r => {
@@ -70,8 +70,8 @@ router.get('/', async (req, res) => {
 
     const { idToTitle, titleToId } = await getCategoryMaps();
 
-    // Subcategories are categories where parent IS NOT NULL and parent != 'None' and parent != ''
-    let query = "SELECT * FROM categories WHERE parent IS NOT NULL AND parent != '' AND parent != 'None'";
+    // Subcategories are categories where parent IS NOT NULL, not empty, not 'None', and not 'Main Category'
+    let query = "SELECT * FROM categories WHERE parent IS NOT NULL AND parent != '' AND parent != 'None' AND parent != 'Main Category'";
     const params = [];
 
     // Filter by Parent Category ID (from route params or query)
@@ -91,8 +91,14 @@ router.get('/', async (req, res) => {
     // Filter by Parent Category Name
     const parentParam = parent || category || categoryName;
     if (parentParam) {
-      query += " AND parent LIKE ?";
-      params.push(`%${parentParam}%`);
+      const resolvedId = titleToId[parentParam.toLowerCase()];
+      if (resolvedId) {
+        query += " AND (parent LIKE ? OR parent = ?)";
+        params.push(`%${parentParam}%`, String(resolvedId));
+      } else {
+        query += " AND parent LIKE ?";
+        params.push(`%${parentParam}%`);
+      }
     }
 
     // Search by Subcategory Title / Name
@@ -114,8 +120,9 @@ router.get('/', async (req, res) => {
     const [rows] = await db.query(query, params);
 
     const mapped = rows.map(r => {
-      const parentName = r.parent || '';
-      const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(parentName, 10) || null);
+      const rawParent = r.parent || '';
+      const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
+      const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
 
       return {
         id: r.id,
@@ -161,15 +168,16 @@ router.get('/:id', async (req, res) => {
   }
 
   try {
-    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    const [rows] = await db.query("SELECT * FROM categories WHERE id = ? AND parent IS NOT NULL AND parent != '' AND parent != 'None' AND parent != 'Main Category'", [numericId]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Subcategory not found' });
     }
 
     const r = rows[0];
-    const { titleToId } = await getCategoryMaps();
-    const parentName = r.parent || '';
-    const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(parentName, 10) || null);
+    const { idToTitle, titleToId } = await getCategoryMaps();
+    const rawParent = r.parent || '';
+    const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
+    const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
 
     const data = {
       id: r.id,
@@ -271,14 +279,16 @@ router.post('/', async (req, res) => {
   }
 
   let finalParent = parentVal;
+  const { idToTitle, titleToId } = await getCategoryMaps();
 
   // If category_id was provided instead of parent title, resolve parent title
-  if ((!finalParent || finalParent === 'None') && categoryIdVal !== undefined && categoryIdVal !== null && categoryIdVal !== '') {
-    const { idToTitle } = await getCategoryMaps();
+  if ((!finalParent || finalParent === 'None' || finalParent === 'Main Category') && categoryIdVal !== undefined && categoryIdVal !== null && categoryIdVal !== '') {
     finalParent = idToTitle[parseInt(categoryIdVal, 10)] || String(categoryIdVal);
+  } else if (finalParent && !isNaN(parseInt(finalParent, 10)) && idToTitle[parseInt(finalParent, 10)]) {
+    finalParent = idToTitle[parseInt(finalParent, 10)];
   }
 
-  if (!finalParent || finalParent === 'None') {
+  if (!finalParent || finalParent === 'None' || finalParent === 'Main Category') {
     return res.status(400).json({
       success: false,
       message: 'Parent category (parent or category_id) is required for a subcategory'
@@ -346,9 +356,11 @@ router.put('/:id', async (req, res) => {
 
   try {
     let finalParent = parentVal;
+    const { idToTitle, titleToId } = await getCategoryMaps();
     if (categoryIdVal !== undefined && categoryIdVal !== null && categoryIdVal !== '') {
-      const { idToTitle } = await getCategoryMaps();
       finalParent = idToTitle[parseInt(categoryIdVal, 10)] || String(categoryIdVal);
+    } else if (finalParent && !isNaN(parseInt(finalParent, 10)) && idToTitle[parseInt(finalParent, 10)]) {
+      finalParent = idToTitle[parseInt(finalParent, 10)];
     }
 
     const fields = [];
@@ -397,10 +409,10 @@ router.put('/:id', async (req, res) => {
     clearSubcategoryCache();
 
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    const r = rows[0];
-    const { titleToId } = await getCategoryMaps();
-    const parentName = r.parent || '';
-    const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(parentName, 10) || null);
+    const { idToTitle, titleToId } = await getCategoryMaps();
+    const rawParent = r.parent || '';
+    const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
+    const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
 
     const updatedData = {
       id: r.id,
@@ -439,7 +451,7 @@ router.delete('/:id', async (req, res) => {
   }
 
   try {
-    const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
+    const [rows] = await db.query("SELECT * FROM categories WHERE id = ? AND parent IS NOT NULL AND parent != '' AND parent != 'None' AND parent != 'Main Category'", [numericId]);
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Subcategory not found' });
     }

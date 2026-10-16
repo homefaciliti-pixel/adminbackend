@@ -32,10 +32,10 @@ function formatImageUrl(img, req) {
 // GET all categories (with optional search/filtering)
 router.get('/', async (req, res) => {
   try {
-    const { title, categoryName, parent, mainCategory, status, emailStatus } = req.query;
+    const { title, categoryName, parent, mainCategory, status, emailStatus, all, include_subcategories } = req.query;
 
     // If no search or filters are applied, check the cache first!
-    const isFiltered = title || categoryName || parent || mainCategory || status !== undefined || emailStatus !== undefined;
+    const isFiltered = title || categoryName || parent || mainCategory || status !== undefined || emailStatus !== undefined || all || include_subcategories;
     
     if (!isFiltered && categoryCache && (Date.now() - cacheTimestamp < CACHE_TTL)) {
       return res.json({
@@ -58,8 +58,15 @@ router.get('/', async (req, res) => {
 
     const searchParent = parent || mainCategory;
     if (searchParent) {
-      query += ' AND parent LIKE ?';
-      params.push(`%${searchParent}%`);
+      if (searchParent === 'None' || searchParent === 'Main Category') {
+        query += " AND (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category')";
+      } else {
+        query += ' AND parent = ?';
+        params.push(searchParent);
+      }
+    } else if (all !== 'true' && include_subcategories !== 'true') {
+      // By default, /api/categories returns ONLY Main Categories! Subcategories belong in /api/subcategories
+      query += " AND (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category')";
     }
 
     const searchStatus = status !== undefined ? status : emailStatus;
@@ -77,7 +84,7 @@ router.get('/', async (req, res) => {
       title: r.title,
       name: r.name || r.title,
       image: formatImageUrl(r.image, req),
-      parent: r.parent === null ? 'None' : r.parent,
+      parent: (r.parent === null || r.parent === '' || r.parent === 'None') ? 'Main Category' : r.parent,
       status: r.status === 1 || r.status === true
     }));
 
@@ -105,18 +112,18 @@ router.get('/search', async (req, res) => {
   try {
     let rows;
     if (q.trim() === '') {
-      [rows] = await db.query('SELECT * FROM categories ORDER BY id DESC');
+      [rows] = await db.query("SELECT * FROM categories WHERE (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category') ORDER BY id DESC");
     } else {
       [rows] = await db.query(
-        'SELECT * FROM categories WHERE title LIKE ? OR parent LIKE ? ORDER BY id DESC',
-        [`%${q}%`, `%${q}%`]
+        "SELECT * FROM categories WHERE (parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category') AND title LIKE ? ORDER BY id DESC",
+        [`%${q}%`]
       );
     }
     const mapped = rows.map(r => ({
       ...r,
       id: r.id,
       image: formatImageUrl(r.image, req),
-      parent: r.parent === null ? 'None' : r.parent,
+      parent: (r.parent === null || r.parent === '' || r.parent === 'None') ? 'Main Category' : r.parent,
       status: r.status === 1
     }));
     res.json({ success: true, data: mapped, categories: mapped, result: mapped });
@@ -137,7 +144,7 @@ router.post('/', async (req, res) => {
   }
   
   const statusInt = statusVal === true || statusVal === 1 || statusVal === 'true' ? 1 : 0;
-  const dbParentVal = parentVal === 'None' || !parentVal ? null : parentVal;
+  const dbParentVal = (parentVal === 'None' || !parentVal) ? 'Main Category' : parentVal;
   
   const slug = titleVal.trim().toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
