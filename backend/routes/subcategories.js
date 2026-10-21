@@ -409,7 +409,7 @@ router.put('/:id', async (req, res) => {
     clearSubcategoryCache();
 
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
-    const { idToTitle, titleToId } = await getCategoryMaps();
+    const r = rows[0];
     const rawParent = r.parent || '';
     const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
     const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
