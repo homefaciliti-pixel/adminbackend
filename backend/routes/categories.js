@@ -78,15 +78,55 @@ router.get('/', async (req, res) => {
 
     query += ' ORDER BY id DESC';
     const [rows] = await db.query(query, params);
-    const mapped = rows.map(r => ({
-      ...r,
-      id: r.id,
-      title: r.title,
-      name: r.name || r.title,
-      image: formatImageUrl(r.image, req),
-      parent: (r.parent === null || r.parent === '' || r.parent === 'None') ? 'Main Category' : r.parent,
-      status: r.status === 1 || r.status === true
-    }));
+
+    // Fetch all subcategories so they are nested under each category for User App
+    const subMap = {};
+    try {
+      const [subRows] = await db.query(
+        "SELECT * FROM categories WHERE parent IS NOT NULL AND parent != '' AND parent != 'None' AND parent != 'Main Category' ORDER BY id ASC"
+      );
+      subRows.forEach(sub => {
+        const pKey = String(sub.parent || '').trim().toLowerCase();
+        if (!subMap[pKey]) subMap[pKey] = [];
+        const formattedSub = {
+          ...sub,
+          id: sub.id,
+          title: sub.title,
+          name: sub.name || sub.title,
+          slug: sub.slug,
+          parent: sub.parent,
+          image: formatImageUrl(sub.image, req),
+          status: sub.status === 1 || sub.status === true
+        };
+        subMap[pKey].push(formattedSub);
+      });
+    } catch (subErr) {
+      console.error('Error fetching nested subcategories:', subErr.message);
+    }
+
+    const mapped = rows.map(r => {
+      const titleKey = String(r.title || '').trim().toLowerCase();
+      const idKey = String(r.id);
+      const subs = subMap[titleKey] || subMap[idKey] || [];
+      const resolvedSubs = subs.map(s => ({
+        ...s,
+        category_id: r.id,
+        categoryId: r.id
+      }));
+
+      return {
+        ...r,
+        id: r.id,
+        title: r.title,
+        name: r.name || r.title,
+        image: formatImageUrl(r.image, req),
+        parent: (r.parent === null || r.parent === '' || r.parent === 'None') ? 'Main Category' : r.parent,
+        status: r.status === 1 || r.status === true,
+        subcategories: resolvedSubs,
+        sub_categories: resolvedSubs,
+        subCategories: resolvedSubs
+      };
+    });
 
     // Save to cache if it's an unfiltered request
     if (!isFiltered) {
@@ -190,6 +230,24 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
     const r = rows[0];
+
+    // Fetch child subcategories for this category
+    const [subRows] = await db.query(
+      "SELECT * FROM categories WHERE parent = ? OR parent = ? ORDER BY id ASC",
+      [r.title, String(numericId)]
+    );
+    const subs = subRows.map(sub => ({
+      ...sub,
+      id: sub.id,
+      title: sub.title,
+      name: sub.name || sub.title,
+      parent: sub.parent,
+      category_id: numericId,
+      categoryId: numericId,
+      image: formatImageUrl(sub.image, req),
+      status: sub.status === 1 || sub.status === true
+    }));
+
     const categoryData = {
       ...r,
       id: r.id,
@@ -197,7 +255,10 @@ router.get('/:id', async (req, res) => {
       name: r.name || r.title,
       image: formatImageUrl(r.image, req),
       parent: r.parent === null ? 'None' : r.parent,
-      status: r.status === 1 || r.status === true
+      status: r.status === 1 || r.status === true,
+      subcategories: subs,
+      sub_categories: subs,
+      subCategories: subs
     };
     res.json({ success: true, data: categoryData, category: categoryData });
   } catch (error) {

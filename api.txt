@@ -65,12 +65,12 @@ Response Data: { "success": true, "message": "User deleted successfully" }
 3. CATEGORIES MANAGEMENT
 ----------------------------------------------------------------------
 Endpoint: GET /api/categories
-Description: Retrieve a list of categories.
+Description: Retrieve a list of categories. Each main category automatically includes nested 'subcategories' (aliases: sub_categories, subCategories) for instant use in User App.
 Query Parameters (Optional):
   - title OR categoryName: Filter by category name (LIKE match)
   - parent OR mainCategory: Filter by parent category name (LIKE match)
   - status OR emailStatus: Filter by status ('true'/'false' or '1'/'0')
-Response Data: Array of Category objects. Note: parent category 'None' maps to database NULL.
+Response Data: Array of Category objects. Each object includes id, title, name, image, status, and nested 'subcategories' array.
 
 Endpoint: GET /api/categories/:id
 Description: Fetch details of a single category by ID.
