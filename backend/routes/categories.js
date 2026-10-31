@@ -394,9 +394,7 @@ router.get('/:id/subcategories', async (req, res) => {
       categoryTitle: categoryTitle,
       categoryId: String(numericId),
       total: mapped.length,
-      subcategories: mapped,
-      data: mapped,
-      result: mapped
+      subcategories: mapped
     });
   } catch (error) {
     console.error('Error fetching subcategories:', error);

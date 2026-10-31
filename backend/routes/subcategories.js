@@ -266,9 +266,7 @@ router.get('/', async (req, res) => {
       success: true,
       category: topCategory || 'All Categories',
       total: mapped.length,
-      subcategories: mapped,
-      data: mapped,
-      result: mapped
+      subcategories: mapped
     });
   } catch (error) {
     console.error('Error fetching subcategories:', error);
