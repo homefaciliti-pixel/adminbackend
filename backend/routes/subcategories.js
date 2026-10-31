@@ -2,14 +2,12 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const db = require('../db');
 
-// In-memory cache for subcategories
-let subcategoryCache = null;
-let subcategoryCacheTimestamp = null;
-const SUBCATEGORY_CACHE_TTL = 10 * 1000; // 10 seconds
+// In-memory cache map for subcategories (supports URL/filter based caching)
+const subcategoryCache = new Map();
+const SUBCATEGORY_CACHE_TTL = 30 * 1000; // 30 seconds TTL
 
 function clearSubcategoryCache() {
-  subcategoryCache = null;
-  subcategoryCacheTimestamp = null;
+  subcategoryCache.clear();
 }
 
 function formatImageUrl(img, req) {
@@ -173,6 +171,14 @@ function formatSubcategoryItem(r, matchedServices, idToTitle, titleToId, idToIma
 // -------------------------------------------------------------
 router.get('/', async (req, res) => {
   try {
+    const cacheKey = req.originalUrl || req.url || 'default';
+    if (subcategoryCache.has(cacheKey)) {
+      const cached = subcategoryCache.get(cacheKey);
+      if (Date.now() - cached.timestamp < SUBCATEGORY_CACHE_TTL) {
+        return res.json(cached.data);
+      }
+    }
+
     const { category_id, categoryId, parent, category, categoryName, search, q, title, status } = req.query;
     const routeParentId = req.params && req.params.id ? req.params.id : undefined;
 
@@ -246,10 +252,7 @@ router.get('/', async (req, res) => {
       return formatSubcategoryItem(r, matched, idToTitle, titleToId, idToImage, req);
     });
 
-    if (!isFiltered) {
-      subcategoryCache = mapped;
-      subcategoryCacheTimestamp = Date.now();
-    }
+
 
     // Determine parent category name for top level
     let topCategory = parentParam || null;
@@ -262,12 +265,19 @@ router.get('/', async (req, res) => {
       if (allSame) topCategory = firstParent;
     }
 
-    res.json({
+    const responsePayload = {
       success: true,
       category: topCategory || 'All Categories',
       total: mapped.length,
       subcategories: mapped
+    };
+
+    subcategoryCache.set(cacheKey, {
+      timestamp: Date.now(),
+      data: responsePayload
     });
+
+    res.json(responsePayload);
   } catch (error) {
     console.error('Error fetching subcategories:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch subcategories', error: error.message });
@@ -283,6 +293,14 @@ router.get('/:id', async (req, res) => {
   const numericId = parseInt(id, 10);
   if (isNaN(numericId)) {
     return res.status(400).json({ success: false, message: 'Invalid Subcategory ID format' });
+  }
+
+  const cacheKey = `single_${numericId}`;
+  if (subcategoryCache.has(cacheKey)) {
+    const cached = subcategoryCache.get(cacheKey);
+    if (Date.now() - cached.timestamp < SUBCATEGORY_CACHE_TTL) {
+      return res.json(cached.data);
+    }
   }
 
   try {
@@ -308,12 +326,19 @@ router.get('/:id', async (req, res) => {
     const matched = matchServicesForSubcategory(r, resolvedCatId, allServices);
     const data = formatSubcategoryItem(r, matched, idToTitle, titleToId, idToImage, req);
 
-    res.json({
+    const singlePayload = {
       success: true,
       category: parentName,
       data,
       subcategory: data
+    };
+
+    subcategoryCache.set(cacheKey, {
+      timestamp: Date.now(),
+      data: singlePayload
     });
+
+    res.json(singlePayload);
   } catch (error) {
     console.error('Error fetching subcategory:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch subcategory', error: error.message });
@@ -329,6 +354,14 @@ router.get('/:id/services', async (req, res) => {
   const numericId = parseInt(id, 10);
   if (isNaN(numericId)) {
     return res.status(400).json({ success: false, message: 'Invalid Subcategory ID format' });
+  }
+
+  const cacheKey = `services_${numericId}`;
+  if (subcategoryCache.has(cacheKey)) {
+    const cached = subcategoryCache.get(cacheKey);
+    if (Date.now() - cached.timestamp < SUBCATEGORY_CACHE_TTL) {
+      return res.json(cached.data);
+    }
   }
 
   try {
@@ -364,7 +397,7 @@ router.get('/:id/services', async (req, res) => {
 
     const mappedServices = services.map(s => formatServiceItem(s, sub, resolvedCatId, req));
 
-    res.json({
+    const servicesPayload = {
       success: true,
       category: parentName,
       subcategory: sub.title,
@@ -373,7 +406,14 @@ router.get('/:id/services', async (req, res) => {
       total: mappedServices.length,
       data: mappedServices,
       services: mappedServices
+    };
+
+    subcategoryCache.set(cacheKey, {
+      timestamp: Date.now(),
+      data: servicesPayload
     });
+
+    res.json(servicesPayload);
   } catch (error) {
     console.error('Error fetching services for subcategory:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch services for subcategory', error: error.message });
@@ -557,6 +597,34 @@ router.put('/:id', async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// -------------------------------------------------------------
+// DELETE /api/subcategories/all or DELETE /api/subcategories
+// Delete all subcategories
+// -------------------------------------------------------------
+const deleteAllSubcategoriesHandler = async (req, res) => {
+  try {
+    const [result] = await db.query(
+      "DELETE FROM categories WHERE parent IS NOT NULL AND parent != '' AND parent != 'None' AND parent != 'Main Category'"
+    );
+
+    clearSubcategoryCache();
+
+    res.json({
+      success: true,
+      message: `All subcategories deleted successfully (${result.affectedRows} removed)`,
+      deletedCount: result.affectedRows
+    });
+  } catch (error) {
+    console.error('Error deleting all subcategories:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete all subcategories', error: error.message });
+  }
+};
+
+router.delete('/all', deleteAllSubcategoriesHandler);
+router.delete('/', deleteAllSubcategoriesHandler);
+router.post('/delete-all', deleteAllSubcategoriesHandler);
+
+// -------------------------------------------------------------
 // DELETE /api/subcategories/:id
 // Delete a subcategory by ID
 // -------------------------------------------------------------
@@ -637,5 +705,7 @@ const toggleStatusHandler = async (req, res) => {
 
 router.put('/:id/status', toggleStatusHandler);
 router.patch('/:id/status', toggleStatusHandler);
+
+router.clearSubcategoryCache = clearSubcategoryCache;
 
 module.exports = router;
