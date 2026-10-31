@@ -117,28 +117,60 @@ Response Data: { "success": true, "message": "Category status updated to active"
 Subcategories are categories linked under a parent category.
 
 Endpoint: GET /api/subcategories
-Description: Retrieve a list of all subcategories.
+Description: Retrieve a list of all subcategories (supports filtering by category_id, parent, search, status). Each subcategory automatically includes its nested 'services' array with full pricing and details for User App.
 Query Parameters (Optional):
-  - category_id OR categoryId: Filter subcategories by Parent Category ID (e.g. ?category_id=3)
+  - category_id OR categoryId: Filter subcategories by Parent Category ID (e.g. ?category_id=7)
   - parent OR category OR categoryName: Filter by Parent Category Title (e.g. ?parent=Cleaning)
   - search OR q OR title: Search subcategories by title (LIKE match, e.g. ?search=Kitchen)
-  - status: Filter by active status ('true'/'false' or '1'/'0')
-Response Data: Array of Subcategory objects:
+  - status: Filter by active status ('true'/'false' or '1'/'0' or 'active')
+Response Data:
 {
   "success": true,
-  "total": 5,
-  "data": [
+  "category": "Cleaning",
+  "total": 2,
+  "subcategories": [
     {
-      "id": 12,
-      "title": "Kitchen Deep Cleaning",
-      "name": "Kitchen Deep Cleaning",
-      "slug": "kitchen-deep-cleaning",
-      "parent": "Cleaning",
+      "id": "7_sub_1",
+      "subCategoryId": "7_sub_1",
+      "categoryId": "7",
+      "category_id": 7,
+      "name": "Full Home Deep Cleaning",
+      "title": "Full Home Deep Cleaning",
+      "subCategoryName": "Full Home Deep Cleaning",
       "categoryName": "Cleaning",
-      "category_id": 3,
-      "categoryId": 3,
-      "image": "https://adminbackend-1-h03r.onrender.com/uploads/kitchen.png",
-      "status": true
+      "image": "https://adminbackend-1-h03r.onrender.com/uploads/cleaning.png",
+      "subCategoryImage": "https://adminbackend-1-h03r.onrender.com/uploads/cleaning.png",
+      "categoryImage": "https://adminbackend-1-h03r.onrender.com/uploads/cleaning.png",
+      "parent": "Cleaning",
+      "status": "active",
+      "services": [
+        {
+          "id": "1",
+          "serviceId": "1",
+          "productDbId": "1",
+          "productId": "2 BHK Full Home Deep Cleaning",
+          "title": "2 BHK Full Home Deep Cleaning",
+          "name": "2 BHK Full Home Deep Cleaning",
+          "serviceName": "2 BHK Full Home Deep Cleaning",
+          "description": "2 BHK Full Home Deep Cleaning by professional experts with 100% satisfaction guarantee.",
+          "image": "https://adminbackend-1-h03r.onrender.com/uploads/srv1.png",
+          "price": 2499,
+          "cutPrice": 3499,
+          "discount": 29,
+          "rating": 4.8,
+          "reviewsCount": 120,
+          "category": "7",
+          "category_id": "7",
+          "categoryId": "7",
+          "subCategoryId": "7_sub_1",
+          "sub_category_id": "7_sub_1",
+          "subCategory": "Full Home Deep Cleaning",
+          "sub_category": "Full Home Deep Cleaning",
+          "status": "active",
+          "hasVariants": false,
+          "variants": []
+        }
+      ]
     }
   ]
 }

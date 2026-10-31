@@ -29,21 +29,142 @@ function formatImageUrl(img, req) {
   return `${protocol}://${host}/uploads/${cleanFilename}`;
 }
 
-// Helper: build map of parent categories (id -> title & title -> id)
-async function getCategoryMaps() {
+// Helper: build map of parent categories (id -> title & title -> id & id -> image)
+async function getCategoryMaps(req) {
   try {
-    const [rows] = await db.query("SELECT id, title FROM categories WHERE parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category'");
+    const [rows] = await db.query("SELECT id, title, image FROM categories WHERE parent IS NULL OR parent = '' OR parent = 'None' OR parent = 'Main Category'");
     const idToTitle = {};
     const titleToId = {};
+    const idToImage = {};
     rows.forEach(r => {
       idToTitle[r.id] = r.title;
       titleToId[r.title.toLowerCase()] = r.id;
+      const formattedImg = formatImageUrl(r.image, req);
+      idToImage[r.id] = formattedImg;
+      idToImage[r.title.toLowerCase()] = formattedImg;
     });
-    return { idToTitle, titleToId, mainCategories: rows };
+    return { idToTitle, titleToId, idToImage, mainCategories: rows };
   } catch (err) {
     console.error('Error fetching category maps:', err.message);
-    return { idToTitle: {}, titleToId: {}, mainCategories: [] };
+    return { idToTitle: {}, titleToId: {}, idToImage: {}, mainCategories: [] };
   }
+}
+
+// Helper: format a single service item matching the user app requirements
+function formatServiceItem(s, sub, resolvedCatId, req) {
+  const priceVal = parseFloat(s.price) || 0;
+  let cutPriceVal = s.cutPrice !== undefined && s.cutPrice !== null && s.cutPrice !== '' ? parseFloat(s.cutPrice) : priceVal;
+  let discountVal = s.discount !== undefined && s.discount !== null && s.discount !== '' ? parseFloat(s.discount) : 0;
+  if (!discountVal && cutPriceVal > priceVal) {
+    discountVal = Math.round(((cutPriceVal - priceVal) / cutPriceVal) * 100);
+  }
+
+  let variantsArr = [];
+  if (Array.isArray(s.variants)) {
+    variantsArr = s.variants;
+  } else if (typeof s.variants === 'string' && s.variants.trim()) {
+    try {
+      variantsArr = JSON.parse(s.variants);
+    } catch (e) {
+      variantsArr = [];
+    }
+  }
+
+  const sId = String(s.id);
+  const catIdStr = String(resolvedCatId || s.category_id || (sub ? (sub.categoryId || sub.category_id) : '') || '');
+  const subIdStr = sub ? String(sub.id) : String(s.sub_category_id || '');
+  const subTitle = sub ? (sub.title || sub.name) : (s.sub_category || '');
+  const sTitle = s.title || s.name || '';
+
+  return {
+    id: sId,
+    serviceId: sId,
+    productDbId: sId,
+    productId: s.productId || sTitle,
+    title: sTitle,
+    name: s.name || sTitle,
+    serviceName: sTitle,
+    description: s.description || `${sTitle} by professional experts with 100% satisfaction guarantee.`,
+    image: formatImageUrl(s.image, req),
+    price: priceVal,
+    cutPrice: cutPriceVal,
+    discount: discountVal,
+    rating: s.rating !== null && s.rating !== undefined ? parseFloat(s.rating) : 4.8,
+    reviewsCount: s.reviewsCount !== null && s.reviewsCount !== undefined ? parseInt(s.reviewsCount, 10) : 120,
+    category: catIdStr,
+    category_id: catIdStr,
+    categoryId: catIdStr,
+    subCategoryId: subIdStr,
+    sub_category_id: subIdStr,
+    subCategory: subTitle,
+    sub_category: subTitle,
+    status: (s.status === 1 || s.status === true || s.status === 'active' || s.status === '1') ? 'active' : 'inactive',
+    hasVariants: s.hasVariants === true || s.hasVariants === 1 || false,
+    variants: variantsArr
+  };
+}
+
+// Helper: match services belonging to a subcategory
+function matchServicesForSubcategory(sub, resolvedCatId, allServices) {
+  const subIdStr = String(sub.id).trim().toLowerCase();
+  const subTitleLower = String(sub.title || '').trim().toLowerCase();
+  const parentCatIdStr = resolvedCatId ? String(resolvedCatId).trim().toLowerCase() : '';
+
+  return allServices.filter(s => {
+    // 1. Direct sub_category_id match
+    if (s.sub_category_id !== undefined && s.sub_category_id !== null && s.sub_category_id !== '') {
+      if (String(s.sub_category_id).trim().toLowerCase() === subIdStr) return true;
+    }
+    // 2. Direct sub_category title match
+    if (s.sub_category && String(s.sub_category).trim().toLowerCase() === subTitleLower) {
+      return true;
+    }
+    // 3. Service category_id equals subcategory id directly
+    if (s.category_id && String(s.category_id).trim().toLowerCase() === subIdStr) {
+      return true;
+    }
+    // 4. Service belongs to parent category and matches subcategory name/keywords
+    if (parentCatIdStr && s.category_id && String(s.category_id).trim().toLowerCase() === parentCatIdStr) {
+      const sTitleLower = String(s.title || s.name || '').toLowerCase();
+      if (sTitleLower.includes(subTitleLower)) return true;
+      const subWords = subTitleLower.split(/[\s,&]+/).filter(w => w.length > 3 && !['home', 'deep', 'cleaning', 'services'].includes(w));
+      if (subWords.length > 0 && subWords.some(w => sTitleLower.includes(w))) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+// Helper: format a subcategory object with all aliases & nested services
+function formatSubcategoryItem(r, matchedServices, idToTitle, titleToId, idToImage, req) {
+  const rawParent = r.parent || '';
+  const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
+  const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
+  const catIdStr = resolvedCatId ? String(resolvedCatId) : (rawParent ? String(rawParent) : '');
+  const subIdStr = String(r.id);
+  const subImg = formatImageUrl(r.image, req);
+  const catImg = (idToImage && (idToImage[resolvedCatId] || idToImage[parentName.toLowerCase()])) || subImg;
+
+  const servicesList = (matchedServices || []).map(s => formatServiceItem(s, r, resolvedCatId, req));
+
+  return {
+    id: subIdStr,
+    subCategoryId: subIdStr,
+    categoryId: catIdStr,
+    category_id: resolvedCatId,
+    name: r.title,
+    title: r.title,
+    subCategoryName: r.title,
+    categoryName: parentName,
+    image: subImg,
+    subCategoryImage: subImg,
+    categoryImage: catImg,
+    parent: parentName,
+    status: (r.status === 1 || r.status === true || r.status === 'active' || r.status === '1') ? 'active' : 'inactive',
+    slug: r.slug,
+    services: servicesList
+  };
 }
 
 // -------------------------------------------------------------
@@ -57,18 +178,7 @@ router.get('/', async (req, res) => {
 
     const isFiltered = routeParentId !== undefined || category_id !== undefined || categoryId !== undefined || parent || category || categoryName || search || q || title || status !== undefined;
 
-    if (!isFiltered && subcategoryCache && (Date.now() - subcategoryCacheTimestamp < SUBCATEGORY_CACHE_TTL)) {
-      return res.json({
-        success: true,
-        source: 'cache',
-        total: subcategoryCache.length,
-        data: subcategoryCache,
-        subcategories: subcategoryCache,
-        result: subcategoryCache
-      });
-    }
-
-    const { idToTitle, titleToId } = await getCategoryMaps();
+    const { idToTitle, titleToId, idToImage } = await getCategoryMaps(req);
 
     // Subcategories are categories where parent IS NOT NULL, not empty, not 'None', and not 'Main Category'
     let query = "SELECT * FROM categories WHERE parent IS NOT NULL AND parent != '' AND parent != 'None' AND parent != 'Main Category'";
@@ -110,32 +220,30 @@ router.get('/', async (req, res) => {
 
     // Filter by Status
     if (status !== undefined) {
-      const statusInt = (status === 'true' || status === '1' || status === true) ? 1 : 0;
+      const statusInt = (status === 'true' || status === '1' || status === true || status === 'active') ? 1 : 0;
       query += " AND status = ?";
       params.push(statusInt);
     }
 
-    query += " ORDER BY id DESC";
+    query += " ORDER BY id ASC";
 
     const [rows] = await db.query(query, params);
+
+    // Fetch all services to nest under their respective subcategories
+    let allServices = [];
+    try {
+      const [sRows] = await db.query("SELECT * FROM services ORDER BY id ASC");
+      allServices = sRows;
+    } catch (sErr) {
+      console.error('Error fetching services for subcategories:', sErr.message);
+    }
 
     const mapped = rows.map(r => {
       const rawParent = r.parent || '';
       const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
       const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
-
-      return {
-        id: r.id,
-        title: r.title,
-        name: r.title,
-        slug: r.slug,
-        parent: parentName,
-        categoryName: parentName,
-        category_id: resolvedCatId,
-        categoryId: resolvedCatId,
-        image: formatImageUrl(r.image, req),
-        status: r.status === 1 || r.status === true
-      };
+      const matched = matchServicesForSubcategory(r, resolvedCatId, allServices);
+      return formatSubcategoryItem(r, matched, idToTitle, titleToId, idToImage, req);
     });
 
     if (!isFiltered) {
@@ -143,11 +251,23 @@ router.get('/', async (req, res) => {
       subcategoryCacheTimestamp = Date.now();
     }
 
+    // Determine parent category name for top level
+    let topCategory = parentParam || null;
+    if (!topCategory && catIdParam) {
+      topCategory = idToTitle[parseInt(catIdParam, 10)] || null;
+    }
+    if (!topCategory && mapped.length > 0) {
+      const firstParent = mapped[0].parent;
+      const allSame = mapped.every(m => m.parent === firstParent);
+      if (allSame) topCategory = firstParent;
+    }
+
     res.json({
       success: true,
+      category: topCategory || 'All Categories',
       total: mapped.length,
-      data: mapped,
       subcategories: mapped,
+      data: mapped,
       result: mapped
     });
   } catch (error) {
@@ -174,26 +294,25 @@ router.get('/:id', async (req, res) => {
     }
 
     const r = rows[0];
-    const { idToTitle, titleToId } = await getCategoryMaps();
+    const { idToTitle, titleToId, idToImage } = await getCategoryMaps(req);
     const rawParent = r.parent || '';
     const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
     const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
 
-    const data = {
-      id: r.id,
-      title: r.title,
-      name: r.title,
-      slug: r.slug,
-      parent: parentName,
-      categoryName: parentName,
-      category_id: resolvedCatId,
-      categoryId: resolvedCatId,
-      image: formatImageUrl(r.image, req),
-      status: r.status === 1 || r.status === true
-    };
+    let allServices = [];
+    try {
+      const [sRows] = await db.query("SELECT * FROM services ORDER BY id ASC");
+      allServices = sRows;
+    } catch (e) {
+      allServices = [];
+    }
+
+    const matched = matchServicesForSubcategory(r, resolvedCatId, allServices);
+    const data = formatSubcategoryItem(r, matched, idToTitle, titleToId, idToImage, req);
 
     res.json({
       success: true,
+      category: parentName,
       data,
       subcategory: data
     });
@@ -221,36 +340,36 @@ router.get('/:id/services', async (req, res) => {
     }
 
     const sub = subRows[0];
+    const { idToTitle, titleToId } = await getCategoryMaps(req);
+    const rawParent = sub.parent || '';
+    const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
+    const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
 
-    // Fetch services linked to this subcategory (by sub_category_id, sub_category title, or category_id)
     let services = [];
     try {
-      const [res] = await db.query(
-        "SELECT * FROM services WHERE (sub_category_id = ? OR category_id = ? OR sub_category = ?) ORDER BY id DESC",
+      const [resDb] = await db.query(
+        "SELECT * FROM services WHERE (sub_category_id = ? OR category_id = ? OR sub_category = ?) ORDER BY id ASC",
         [numericId, numericId, sub.title]
       );
-      services = res;
+      services = resDb;
     } catch (e) {
-      // Fallback if sub_category_id or sub_category column does not exist
       try {
-        const [res] = await db.query(
-          "SELECT * FROM services WHERE category_id = ? ORDER BY id DESC",
+        const [resDb2] = await db.query(
+          "SELECT * FROM services WHERE category_id = ? ORDER BY id ASC",
           [numericId]
         );
-        services = res;
+        services = resDb2;
       } catch (err2) {
         services = [];
       }
     }
 
-    const mappedServices = services.map(s => ({
-      ...s,
-      image: formatImageUrl(s.image, req),
-      status: s.status === 1 || s.status === true
-    }));
+    const mappedServices = services.map(s => formatServiceItem(s, sub, resolvedCatId, req));
 
     res.json({
       success: true,
+      category: parentName,
+      subcategory: sub.title,
       subcategoryId: numericId,
       subcategoryTitle: sub.title,
       total: mappedServices.length,
@@ -269,67 +388,69 @@ router.get('/:id/services', async (req, res) => {
 // -------------------------------------------------------------
 router.post('/', async (req, res) => {
   const titleVal = req.body.title || req.body.name || req.body.subCategoryName || req.body.categoryName;
-  const parentVal = req.body.parent || req.body.category || req.body.mainCategory || req.body.categoryName;
-  const categoryIdVal = (req.params && req.params.id) ? req.params.id : (req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId);
-  const imageVal = req.body.image || '';
+  const parentVal = req.body.parent || req.body.category || req.body.mainCategory;
+  const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
+  const imageVal = req.body.image || req.body.subCategoryImage || '';
   const statusVal = req.body.status !== undefined ? req.body.status : true;
 
   if (!titleVal) {
-    return res.status(400).json({ success: false, message: 'Subcategory Title/Name is required' });
+    return res.status(400).json({ success: false, message: 'Subcategory title/name is required' });
   }
-
-  let finalParent = parentVal;
-  const { idToTitle, titleToId } = await getCategoryMaps();
-
-  // If category_id was provided instead of parent title, resolve parent title
-  if ((!finalParent || finalParent === 'None' || finalParent === 'Main Category') && categoryIdVal !== undefined && categoryIdVal !== null && categoryIdVal !== '') {
-    finalParent = idToTitle[parseInt(categoryIdVal, 10)] || String(categoryIdVal);
-  } else if (finalParent && !isNaN(parseInt(finalParent, 10)) && idToTitle[parseInt(finalParent, 10)]) {
-    finalParent = idToTitle[parseInt(finalParent, 10)];
-  }
-
-  if (!finalParent || finalParent === 'None' || finalParent === 'Main Category') {
-    return res.status(400).json({
-      success: false,
-      message: 'Parent category (parent or category_id) is required for a subcategory'
-    });
-  }
-
-  const statusInt = (statusVal === true || statusVal === 1 || statusVal === 'true') ? 1 : 0;
-  const slug = titleVal.trim().toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
 
   try {
+    const { idToTitle, titleToId, idToImage } = await getCategoryMaps(req);
+
+    let finalParent = null;
+    let finalCatId = null;
+
+    if (categoryIdVal !== undefined && categoryIdVal !== null && categoryIdVal !== '') {
+      const numericCatId = parseInt(categoryIdVal, 10);
+      if (idToTitle[numericCatId]) {
+        finalParent = idToTitle[numericCatId];
+        finalCatId = numericCatId;
+      } else {
+        finalParent = String(categoryIdVal);
+        finalCatId = numericCatId || null;
+      }
+    } else if (parentVal) {
+      finalParent = parentVal;
+      finalCatId = titleToId[parentVal.toLowerCase()] || (parseInt(parentVal, 10) || null);
+    }
+
+    if (!finalParent || finalParent === 'None' || finalParent === 'Main Category') {
+      return res.status(400).json({
+        success: false,
+        message: 'A valid parent category (category_id or parent) is required for a subcategory'
+      });
+    }
+
+    const statusInt = (statusVal === true || statusVal === 1 || statusVal === 'true' || statusVal === 'active') ? 1 : 0;
+    const slug = titleVal.trim().toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+
     const [result] = await db.query(
       'INSERT INTO categories (title, slug, parent, image, status) VALUES (?, ?, ?, ?, ?)',
-      [titleVal, slug, finalParent, imageVal, statusInt]
+      [titleVal.trim(), slug, finalParent, imageVal, statusInt]
     );
 
     clearSubcategoryCache();
 
-    const { titleToId } = await getCategoryMaps();
-    const resolvedCatId = titleToId[finalParent.toLowerCase()] || (parseInt(categoryIdVal, 10) || null);
-
-    const createdData = {
+    const createdSub = formatSubcategoryItem({
       id: result.insertId,
-      title: titleVal,
-      name: titleVal,
+      title: titleVal.trim(),
       slug: slug,
       parent: finalParent,
-      categoryName: finalParent,
-      category_id: resolvedCatId,
-      categoryId: resolvedCatId,
-      image: formatImageUrl(imageVal, req),
-      status: statusInt === 1
-    };
+      image: imageVal,
+      status: statusInt
+    }, [], idToTitle, titleToId, idToImage, req);
 
     res.status(201).json({
       success: true,
       message: 'Subcategory created successfully',
-      data: createdData,
-      subcategory: createdData
+      data: createdSub,
+      subcategory: createdSub
     });
   } catch (error) {
     console.error('Error creating subcategory:', error);
@@ -351,12 +472,12 @@ router.put('/:id', async (req, res) => {
   const titleVal = req.body.title || req.body.name || req.body.subCategoryName || req.body.categoryName;
   const parentVal = req.body.parent || req.body.category || req.body.mainCategory;
   const categoryIdVal = req.body.category_id !== undefined ? req.body.category_id : req.body.categoryId;
-  const imageVal = req.body.image;
+  const imageVal = req.body.image || req.body.subCategoryImage;
   const statusVal = req.body.status;
 
   try {
     let finalParent = parentVal;
-    const { idToTitle, titleToId } = await getCategoryMaps();
+    const { idToTitle, titleToId, idToImage } = await getCategoryMaps(req);
     if (categoryIdVal !== undefined && categoryIdVal !== null && categoryIdVal !== '') {
       finalParent = idToTitle[parseInt(categoryIdVal, 10)] || String(categoryIdVal);
     } else if (finalParent && !isNaN(parseInt(finalParent, 10)) && idToTitle[parseInt(finalParent, 10)]) {
@@ -390,7 +511,7 @@ router.put('/:id', async (req, res) => {
 
     if (statusVal !== undefined) {
       fields.push('`status` = ?');
-      values.push((statusVal === true || statusVal === 1 || statusVal === 'true') ? 1 : 0);
+      values.push((statusVal === true || statusVal === 1 || statusVal === 'true' || statusVal === 'active') ? 1 : 0);
     }
 
     if (fields.length === 0) {
@@ -410,22 +531,20 @@ router.put('/:id', async (req, res) => {
 
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [numericId]);
     const r = rows[0];
+
+    let allServices = [];
+    try {
+      const [sRows] = await db.query("SELECT * FROM services ORDER BY id ASC");
+      allServices = sRows;
+    } catch (e) {
+      allServices = [];
+    }
+
     const rawParent = r.parent || '';
     const parentName = idToTitle[rawParent] || (titleToId[rawParent.toLowerCase()] ? rawParent : (idToTitle[parseInt(rawParent, 10)] || rawParent));
     const resolvedCatId = titleToId[parentName.toLowerCase()] || (parseInt(rawParent, 10) || null);
-
-    const updatedData = {
-      id: r.id,
-      title: r.title,
-      name: r.title,
-      slug: r.slug,
-      parent: parentName,
-      categoryName: parentName,
-      category_id: resolvedCatId,
-      categoryId: resolvedCatId,
-      image: formatImageUrl(r.image, req),
-      status: r.status === 1 || r.status === true
-    };
+    const matched = matchServicesForSubcategory(r, resolvedCatId, allServices);
+    const updatedData = formatSubcategoryItem(r, matched, idToTitle, titleToId, idToImage, req);
 
     res.json({
       success: true,
@@ -487,7 +606,7 @@ const toggleStatusHandler = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Status is required' });
   }
 
-  const statusInt = (statusVal === true || statusVal === 1 || statusVal === 'true') ? 1 : 0;
+  const statusInt = (statusVal === true || statusVal === 1 || statusVal === 'true' || statusVal === 'active') ? 1 : 0;
 
   try {
     const [result] = await db.query('UPDATE categories SET status = ? WHERE id = ?', [statusInt, numericId]);
@@ -504,11 +623,12 @@ const toggleStatusHandler = async (req, res) => {
       success: true,
       message: `Subcategory status updated to ${statusInt === 1 ? 'active' : 'inactive'}`,
       data: {
-        id: r.id,
+        id: String(r.id),
+        subCategoryId: String(r.id),
         title: r.title,
         name: r.title,
         parent: r.parent,
-        status: r.status === 1
+        status: statusInt === 1 ? 'active' : 'inactive'
       }
     });
   } catch (error) {

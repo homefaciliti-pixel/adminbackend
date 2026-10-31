@@ -275,38 +275,131 @@ router.get('/:id/subcategories', async (req, res) => {
   }
 
   try {
-    const [catRows] = await db.query('SELECT title FROM categories WHERE id = ?', [numericId]);
+    const [catRows] = await db.query('SELECT title, image FROM categories WHERE id = ?', [numericId]);
     if (catRows.length === 0) {
       return res.status(404).json({ success: false, message: 'Category not found' });
     }
-    const categoryTitle = catRows[0].title;
+    const cat = catRows[0];
+    const categoryTitle = cat.title;
+    const catImg = formatImageUrl(cat.image, req);
 
     const [rows] = await db.query(
-      'SELECT * FROM categories WHERE parent = ? OR parent = ? ORDER BY id DESC',
+      'SELECT * FROM categories WHERE parent = ? OR parent = ? ORDER BY id ASC',
       [categoryTitle, String(numericId)]
     );
 
-    const mapped = rows.map(r => ({
-      ...r,
-      id: r.id,
-      title: r.title,
-      name: r.name || r.title,
-      parent: r.parent,
-      category_id: numericId,
-      categoryId: numericId,
-      image: formatImageUrl(r.image, req),
-      status: r.status === 1 || r.status === true
-    }));
+    let allServices = [];
+    try {
+      const [sRows] = await db.query("SELECT * FROM services ORDER BY id ASC");
+      allServices = sRows;
+    } catch (e) {
+      allServices = [];
+    }
+
+    const mapped = rows.map(r => {
+      const subIdStr = String(r.id).trim().toLowerCase();
+      const subTitleLower = String(r.title || '').trim().toLowerCase();
+      const parentCatIdStr = String(numericId);
+
+      const matched = allServices.filter(s => {
+        if (s.sub_category_id !== undefined && s.sub_category_id !== null && s.sub_category_id !== '') {
+          if (String(s.sub_category_id).trim().toLowerCase() === subIdStr) return true;
+        }
+        if (s.sub_category && String(s.sub_category).trim().toLowerCase() === subTitleLower) {
+          return true;
+        }
+        if (s.category_id && String(s.category_id).trim().toLowerCase() === subIdStr) {
+          return true;
+        }
+        if (s.category_id && String(s.category_id).trim().toLowerCase() === parentCatIdStr) {
+          const sTitleLower = String(s.title || s.name || '').toLowerCase();
+          if (sTitleLower.includes(subTitleLower)) return true;
+          const subWords = subTitleLower.split(/[\s,&]+/).filter(w => w.length > 3 && !['home', 'deep', 'cleaning', 'services'].includes(w));
+          if (subWords.length > 0 && subWords.some(w => sTitleLower.includes(w))) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      const subImg = formatImageUrl(r.image, req);
+      const servicesList = matched.map(s => {
+        const priceVal = parseFloat(s.price) || 0;
+        let cutPriceVal = s.cutPrice !== undefined && s.cutPrice !== null && s.cutPrice !== '' ? parseFloat(s.cutPrice) : priceVal;
+        let discountVal = s.discount !== undefined && s.discount !== null && s.discount !== '' ? parseFloat(s.discount) : 0;
+        if (!discountVal && cutPriceVal > priceVal) {
+          discountVal = Math.round(((cutPriceVal - priceVal) / cutPriceVal) * 100);
+        }
+
+        let variantsArr = [];
+        if (Array.isArray(s.variants)) {
+          variantsArr = s.variants;
+        } else if (typeof s.variants === 'string' && s.variants.trim()) {
+          try { variantsArr = JSON.parse(s.variants); } catch (e) { variantsArr = []; }
+        }
+
+        const sId = String(s.id);
+        const sTitle = s.title || s.name || '';
+
+        return {
+          id: sId,
+          serviceId: sId,
+          productDbId: sId,
+          productId: s.productId || sTitle,
+          title: sTitle,
+          name: s.name || sTitle,
+          serviceName: sTitle,
+          description: s.description || `${sTitle} by professional experts with 100% satisfaction guarantee.`,
+          image: formatImageUrl(s.image, req),
+          price: priceVal,
+          cutPrice: cutPriceVal,
+          discount: discountVal,
+          rating: s.rating !== null && s.rating !== undefined ? parseFloat(s.rating) : 4.8,
+          reviewsCount: s.reviewsCount !== null && s.reviewsCount !== undefined ? parseInt(s.reviewsCount, 10) : 120,
+          category: String(numericId),
+          category_id: String(numericId),
+          categoryId: String(numericId),
+          subCategoryId: String(r.id),
+          sub_category_id: String(r.id),
+          subCategory: r.title,
+          sub_category: r.title,
+          status: (s.status === 1 || s.status === true || s.status === 'active' || s.status === '1') ? 'active' : 'inactive',
+          hasVariants: s.hasVariants === true || s.hasVariants === 1 || false,
+          variants: variantsArr
+        };
+      });
+
+      return {
+        id: String(r.id),
+        subCategoryId: String(r.id),
+        categoryId: String(numericId),
+        category_id: numericId,
+        name: r.title,
+        title: r.title,
+        subCategoryName: r.title,
+        categoryName: categoryTitle,
+        image: subImg,
+        subCategoryImage: subImg,
+        categoryImage: catImg,
+        parent: categoryTitle,
+        status: (r.status === 1 || r.status === true || r.status === 'active' || r.status === '1') ? 'active' : 'inactive',
+        slug: r.slug,
+        services: servicesList
+      };
+    });
 
     res.json({
       success: true,
-      categoryId: numericId,
+      category: categoryTitle,
       categoryTitle: categoryTitle,
+      categoryId: String(numericId),
       total: mapped.length,
+      subcategories: mapped,
       data: mapped,
-      subcategories: mapped
+      result: mapped
     });
   } catch (error) {
+    console.error('Error fetching subcategories:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch subcategories', error: error.message });
   }
 });
