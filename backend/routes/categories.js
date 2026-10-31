@@ -317,14 +317,6 @@ router.get('/:id/subcategories', async (req, res) => {
         if (s.category_id && String(s.category_id).trim().toLowerCase() === subIdStr) {
           return true;
         }
-        if (s.category_id && String(s.category_id).trim().toLowerCase() === parentCatIdStr) {
-          const sTitleLower = String(s.title || s.name || '').toLowerCase();
-          if (sTitleLower.includes(subTitleLower)) return true;
-          const subWords = subTitleLower.split(/[\s,&]+/).filter(w => w.length > 3 && !['home', 'deep', 'cleaning', 'services'].includes(w));
-          if (subWords.length > 0 && subWords.some(w => sTitleLower.includes(w))) {
-            return true;
-          }
-        }
         return false;
       });
 
@@ -355,13 +347,13 @@ router.get('/:id/subcategories', async (req, res) => {
           title: sTitle,
           name: s.name || sTitle,
           serviceName: sTitle,
-          description: s.description || `${sTitle} by professional experts with 100% satisfaction guarantee.`,
+          description: s.description || '',
           image: formatImageUrl(s.image, req),
           price: priceVal,
           cutPrice: cutPriceVal,
           discount: discountVal,
-          rating: s.rating !== null && s.rating !== undefined ? parseFloat(s.rating) : 4.8,
-          reviewsCount: s.reviewsCount !== null && s.reviewsCount !== undefined ? parseInt(s.reviewsCount, 10) : 120,
+          rating: s.rating !== null && s.rating !== undefined ? parseFloat(s.rating) : null,
+          reviewsCount: s.reviewsCount !== null && s.reviewsCount !== undefined ? parseInt(s.reviewsCount, 10) : 0,
           category: String(numericId),
           category_id: String(numericId),
           categoryId: String(numericId),

@@ -82,13 +82,13 @@ function formatServiceItem(s, sub, resolvedCatId, req) {
     title: sTitle,
     name: s.name || sTitle,
     serviceName: sTitle,
-    description: s.description || `${sTitle} by professional experts with 100% satisfaction guarantee.`,
+    description: s.description || '',
     image: formatImageUrl(s.image, req),
     price: priceVal,
     cutPrice: cutPriceVal,
     discount: discountVal,
-    rating: s.rating !== null && s.rating !== undefined ? parseFloat(s.rating) : 4.8,
-    reviewsCount: s.reviewsCount !== null && s.reviewsCount !== undefined ? parseInt(s.reviewsCount, 10) : 120,
+    rating: s.rating !== null && s.rating !== undefined ? parseFloat(s.rating) : null,
+    reviewsCount: s.reviewsCount !== null && s.reviewsCount !== undefined ? parseInt(s.reviewsCount, 10) : 0,
     category: catIdStr,
     category_id: catIdStr,
     categoryId: catIdStr,
@@ -106,29 +106,17 @@ function formatServiceItem(s, sub, resolvedCatId, req) {
 function matchServicesForSubcategory(sub, resolvedCatId, allServices) {
   const subIdStr = String(sub.id).trim().toLowerCase();
   const subTitleLower = String(sub.title || '').trim().toLowerCase();
-  const parentCatIdStr = resolvedCatId ? String(resolvedCatId).trim().toLowerCase() : '';
 
   return allServices.filter(s => {
-    // 1. Direct sub_category_id match
+    // Only match services actually linked to this subcategory in admin
     if (s.sub_category_id !== undefined && s.sub_category_id !== null && s.sub_category_id !== '') {
       if (String(s.sub_category_id).trim().toLowerCase() === subIdStr) return true;
     }
-    // 2. Direct sub_category title match
     if (s.sub_category && String(s.sub_category).trim().toLowerCase() === subTitleLower) {
       return true;
     }
-    // 3. Service category_id equals subcategory id directly
     if (s.category_id && String(s.category_id).trim().toLowerCase() === subIdStr) {
       return true;
-    }
-    // 4. Service belongs to parent category and matches subcategory name/keywords
-    if (parentCatIdStr && s.category_id && String(s.category_id).trim().toLowerCase() === parentCatIdStr) {
-      const sTitleLower = String(s.title || s.name || '').toLowerCase();
-      if (sTitleLower.includes(subTitleLower)) return true;
-      const subWords = subTitleLower.split(/[\s,&]+/).filter(w => w.length > 3 && !['home', 'deep', 'cleaning', 'services'].includes(w));
-      if (subWords.length > 0 && subWords.some(w => sTitleLower.includes(w))) {
-        return true;
-      }
     }
     return false;
   });
