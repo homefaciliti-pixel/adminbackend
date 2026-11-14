@@ -30,19 +30,20 @@ function formatImageUrl(img, req) {
 
 function mapServiceRow(r, req) {
   if (!r) return null;
-  const dbPrice = parseFloat(r.price);
-  const discountVal = r.discount !== null && r.discount !== undefined ? parseFloat(r.discount) : 0.00;
-  
-  const item = {
-    ...r,
-    image: formatImageUrl(r.image, req),
-    price: dbPrice,
-    cutPrice: dbPrice,
-    discount: discountVal,
-    status: r.status === 1,
-    isHighlighted: r.isHighlighted !== null && r.isHighlighted !== undefined ? String(r.isHighlighted) : "",
-    rating: r.rating !== null && r.rating !== undefined ? parseFloat(r.rating) : null,
-    time: r.time !== null && r.time !== undefined ? r.time : null
+  const dbPrice = r.price !== null && r.price !== undefined
+  ? String(r.price)
+  : '0';
+
+const discountVal = r.discount !== null && r.discount !== undefined
+  ? parseFloat(r.discount)
+  : 0.00;
+
+const item = {
+  ...r,
+  image: formatImageUrl(r.image, req),
+  price: dbPrice,
+  cutPrice: dbPrice,
+  discount: discountVal,
   };
   
   if (r.category_id !== undefined && r.category_id !== null && r.category_id !== '') {
@@ -177,7 +178,17 @@ router.post('/', async (req, res) => {
 
   try {
     let query = 'INSERT INTO services (title, slug, price, image, description, status, isHighlighted, discount, highlights';
-    const params = [title, slug, priceFloat, imageVal, description, statusInt, highlightedStr, discountVal, highlightsStr];
+  const params = [
+  title,
+  slug,
+  String(priceFloat),
+  imageVal,
+  description,
+  statusInt,
+  highlightedStr,
+  discountVal,
+  highlightsStr
+];
     let placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?';
 
     if (dbCategoryId !== null) {
@@ -281,10 +292,11 @@ router.put('/:id', async (req, res) => {
         dbDiscount = 0.00;
       }
 
-      fields.push('`price` = ?');
-      values.push(dbPrice);
-      fields.push('`discount` = ?');
-      values.push(dbDiscount);
+    fields.push('`price` = ?');
+values.push(String(dbPrice));
+
+fields.push('`discount` = ?');
+values.push(dbDiscount);
     }
 
     if (imageVal !== undefined) {
