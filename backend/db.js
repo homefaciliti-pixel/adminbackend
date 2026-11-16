@@ -45,7 +45,7 @@ const tablePrefix =
     ? process.env.DB_PREFIX
     : (
         dbHost === 'homefaciliti.com' ||
-        process.env.DB_USER === 'homef4fw_homefaci'
+        process.env.DB_USER === 'Home1184#$%'
       )
       ? 'node_'
       : '';
