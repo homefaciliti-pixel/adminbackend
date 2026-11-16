@@ -15,7 +15,7 @@ const connectionLimit = Math.max(
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'homefaciliti.com',
   user: process.env.DB_USER || 'homef4fw_homefaci',
-  password: process.env.DB_PASSWORD,
+  password: process.env.DB_PASSWORD || 'Home1184#$%',
   database: process.env.DB_NAME || 'homef4fw_homefaci',
   port: parseInt(process.env.DB_PORT || '3306', 10),
 
@@ -27,7 +27,7 @@ const pool = mysql.createPool({
   queueLimit: 50,
 
   // Connection Settings
-  connectTimeout: 15000,
+  connectTimeout: 10000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 5000,
 
@@ -45,7 +45,7 @@ const tablePrefix =
     ? process.env.DB_PREFIX
     : (
         dbHost === 'homefaciliti.com' ||
-        process.env.DB_USER === 'Home1184#$%'
+    process.env.DB_USER === 'homef4fw_homefaci'
       )
       ? 'node_'
       : '';
