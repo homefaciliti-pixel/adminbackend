@@ -4,7 +4,7 @@ const db = require('../db');
 
 // In-memory cache map for subcategories (supports URL/filter based caching)
 const subcategoryCache = new Map();
-const SUBCATEGORY_CACHE_TTL = 30 * 1000; // 30 seconds TTL
+const SUBCATEGORY_CACHE_TTL = 10 * 1000; // 10 seconds TTL
 
 function clearSubcategoryCache() {
   subcategoryCache.clear();

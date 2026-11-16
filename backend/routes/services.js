@@ -67,7 +67,7 @@ function mapServiceRow(r, req) {
     title: r.title || r.name || '',
     name: r.name || r.title || '',
     image: formatImageUrl(r.image, req),
-    price: dbPrice,
+    price: r.price !== null && r.price !== undefined ? String(r.price) : '',
     cutPrice: dbPrice,
     discount: discountVal,
     status: r.status === 1 || r.status === true || r.status === '1',
