@@ -98,44 +98,52 @@ function getColorForName(name) {
 }
 
 server.use('/uploads', async (req, res, next) => {
-  const filePath = path.join(__dirname, 'uploads', req.path);
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    return express.static(path.join(__dirname, 'uploads'))(req, res, next);
-  } else {
-    const filename = req.path.replace(/^\//, ''); // Remove leading slash
-    if (!filename) {
-      return res.status(404).send('Not Found');
-    }
+  const filename = path.basename(req.path || '');
+  if (!filename || filename === '.' || filename === '/') {
+    return res.status(404).send('Not Found');
+  }
 
-    // Try to load/restore from database if missing from disk
+  const filePath = path.join(__dirname, 'uploads', filename);
+
+  // 1. If file already exists on local disk, serve immediately with caching headers
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.sendFile(filePath);
+  }
+
+  // For video files (mp4, mov, avi, etc.), return 404 directly — don't serve a PNG fallback
+  const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
+  const ext = path.extname(filename).toLowerCase();
+  if (videoExtensions.includes(ext)) {
+    return res.status(404).json({ error: 'Video file not found: ' + filename });
+  }
+
+  // 2. Try to restore from database if missing from disk
+  try {
     const { loadFileFromDb } = require('./filePersistence');
     const dbFile = await loadFileFromDb(filename, filePath);
-    if (dbFile) {
+    if (dbFile && fs.existsSync(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
       return res.sendFile(filePath);
     }
-
-    // For video files (mp4, mov, avi, etc.), return 404 directly — don't serve a PNG fallback
-    const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
-    const ext = path.extname(filename).toLowerCase();
-    if (videoExtensions.includes(ext)) {
-      return res.status(404).json({ error: 'Video file not found: ' + filename });
-    }
-
-    // Direct fast fallback to default placeholders without querying MySQL DB to prevent connection limit errors
-    const defaultProfilePath = path.join(__dirname, 'defaults', 'default-profile.png');
-    const defaultDocPath = path.join(__dirname, 'defaults', 'default-document.png');
-
-    const isProfileImage = filename.includes('profile') || filename.includes('avatar') || filename.includes('user') || filename.includes('partner');
-    if (isProfileImage && fs.existsSync(defaultProfilePath)) {
-      return res.sendFile(defaultProfilePath);
-    }
-
-    if (fs.existsSync(defaultDocPath)) {
-      return res.sendFile(defaultDocPath);
-    }
-
-    return res.status(404).send('File Not Found');
+  } catch (err) {
+    console.error('Error restoring file from DB:', err.message);
   }
+
+  // 3. Direct fast fallback to default placeholders without querying MySQL DB to prevent connection limit errors
+  const defaultProfilePath = path.join(__dirname, 'defaults', 'default-profile.png');
+  const defaultDocPath = path.join(__dirname, 'defaults', 'default-document.png');
+
+  const isProfileImage = filename.includes('profile') || filename.includes('avatar') || filename.includes('user') || filename.includes('partner');
+  if (isProfileImage && fs.existsSync(defaultProfilePath)) {
+    return res.sendFile(defaultProfilePath);
+  }
+
+  if (fs.existsSync(defaultDocPath)) {
+    return res.sendFile(defaultDocPath);
+  }
+
+  return res.status(404).send('File Not Found');
 });
 
 // Smart redirect route for Refer & Earn links

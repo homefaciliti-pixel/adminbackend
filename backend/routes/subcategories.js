@@ -8,6 +8,12 @@ const SUBCATEGORY_CACHE_TTL = 10 * 1000; // 10 seconds TTL
 
 function clearSubcategoryCache() {
   subcategoryCache.clear();
+  try {
+    const catRoute = require('./categories');
+    if (catRoute && typeof catRoute.clearCategoryCache === 'function') {
+      catRoute.clearCategoryCache();
+    }
+  } catch (e) {}
 }
 
 function formatImageUrl(img, req) {

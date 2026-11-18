@@ -7,6 +7,9 @@ const missingFilesCache = new Set();
 // Periodically clear missing files cache every 10 minutes so newly uploaded files are eventually picked up
 setInterval(() => missingFilesCache.clear(), 10 * 60 * 1000);
 
+// In-flight restores map to coalesce duplicate parallel requests for the same image
+const inFlightRestores = new Map();
+
 /**
  * Reads a local file, encodes it as base64, and saves it to node_uploaded_files table.
  * @param {string} filename The name of the file (e.g. uniqueSuffix + ext)
@@ -41,39 +44,53 @@ async function saveFileToDb(filename, filepath, mimetype) {
  */
 async function loadFileFromDb(filename, destPath) {
   if (!filename) return null;
+  const cleanBasename = path.basename(filename);
   
   // Fast path: If we already know this file isn't in DB, don't query MySQL at all
-  if (missingFilesCache.has(filename)) {
+  if (missingFilesCache.has(filename) || missingFilesCache.has(cleanBasename)) {
     return null;
   }
 
-  try {
-    const cleanBasename = path.basename(filename);
-    const [rows] = await db.query(
-      'SELECT file_data, mime_type FROM uploaded_files WHERE filename = ? OR filename = ? OR filename LIKE ? LIMIT 1',
-      [filename, cleanBasename, `%/${cleanBasename}`]
-    );
-    if (rows.length > 0) {
-      const buffer = Buffer.from(rows[0].file_data, 'base64');
-      
-      // Ensure target directory exists
-      const dir = path.dirname(destPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+  // If another concurrent request is already restoring this same image, share the promise
+  if (inFlightRestores.has(cleanBasename)) {
+    return inFlightRestores.get(cleanBasename);
+  }
+
+  const restorePromise = (async () => {
+    try {
+      // Use exact index lookup on filename — avoids scanning 8GB table
+      const [rows] = await db.query(
+        'SELECT file_data, mime_type FROM uploaded_files WHERE filename = ? OR filename = ? LIMIT 1',
+        [filename, cleanBasename]
+      );
+      if (rows && rows.length > 0 && rows[0].file_data) {
+        const buffer = Buffer.from(rows[0].file_data, 'base64');
+        
+        // Ensure target directory exists
+        const dir = path.dirname(destPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        await fs.promises.writeFile(destPath, buffer);
+        console.log(`[loadFileFromDb] Successfully restored ${cleanBasename} from DB to local disk.`);
+        return { buffer, mimeType: rows[0].mime_type };
       }
       
-      await fs.promises.writeFile(destPath, buffer);
-      console.log(`[loadFileFromDb] Successfully restored ${filename} from DB to local disk.`);
-      return { buffer, mimeType: rows[0].mime_type };
+      // Cache that file is missing to avoid spamming DB on subsequent image requests
+      missingFilesCache.add(filename);
+      missingFilesCache.add(cleanBasename);
+      return null;
+    } catch (err) {
+      console.error(`[loadFileFromDb] Failed to load ${cleanBasename} from DB:`, err.message);
+      return null;
+    } finally {
+      inFlightRestores.delete(cleanBasename);
     }
-    
-    // Cache that file is missing to avoid spamming DB on subsequent image requests
-    missingFilesCache.add(filename);
-    return null;
-  } catch (err) {
-    console.error(`[loadFileFromDb] Failed to load ${filename} from DB:`, err.message);
-    return null;
-  }
+  })();
+
+  inFlightRestores.set(cleanBasename, restorePromise);
+  return restorePromise;
 }
 
 module.exports = {

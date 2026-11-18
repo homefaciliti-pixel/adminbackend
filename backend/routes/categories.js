@@ -542,7 +542,7 @@ router.delete('/:id', async (req, res) => {
     const categoryTitle = rows[0].title;
 
     await Promise.all([
-      db.query('DELETE FROM categories WHERE parent = ?', [categoryTitle]),
+      db.query('DELETE FROM categories WHERE parent = ? OR parent = ?', [categoryTitle, String(numericId)]),
       db.query('DELETE FROM categories WHERE id = ?', [numericId])
     ]);
 
@@ -633,5 +633,7 @@ router.patch('/:id/status', async (req, res) => {
   }
 
 });
+
+router.clearCategoryCache = clearCategoryCache;
 
 module.exports = router;
