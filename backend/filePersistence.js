@@ -1,97 +1,251 @@
+
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 
-// In-memory cache for missing files to prevent spamming MySQL when images are requested repeatedly
-const missingFilesCache = new Set();
-// Periodically clear missing files cache every 10 minutes so newly uploaded files are eventually picked up
-setInterval(() => missingFilesCache.clear(), 10 * 60 * 1000);
+// ============================================================
+// FILE CACHE MANAGEMENT
+// ============================================================
 
-// In-flight restores map to coalesce duplicate parallel requests for the same image
-const inFlightRestores = new Map();
+// Stores only filenames confirmed missing from the database.
+const missingFilesCache = new Set();
+
+// Prevents duplicate database queries for the same filename.
+const pendingLoads = new Map();
+
+// Clear missing-file cache every 10 minutes.
+const CACHE_CLEAR_INTERVAL = 10 * 60 * 1000;
+
+const cacheTimer = setInterval(() => {
+  missingFilesCache.clear();
+}, CACHE_CLEAR_INTERVAL);
+
+// Do not keep the Node.js process alive only for this timer.
+if (typeof cacheTimer.unref === 'function') {
+  cacheTimer.unref();
+}
+
+// Always use a consistent filename cache key.
+function getCacheKey(filename) {
+  return path.basename(String(filename).replace(/\\/g, '/'));
+}
+
+// ============================================================
+// SAVE FILE TO DATABASE
+// ============================================================
 
 /**
- * Reads a local file, encodes it as base64, and saves it to node_uploaded_files table.
- * @param {string} filename The name of the file (e.g. uniqueSuffix + ext)
- * @param {string} filepath The absolute path to the local file
- * @param {string} mimetype The MIME type of the file
+ * Reads a local file, converts it to Base64,
+ * and saves it in uploaded_files table.
+ *
+ * Database column:
+ * file_data LONGTEXT
  */
 async function saveFileToDb(filename, filepath, mimetype) {
   try {
-    if (!fs.existsSync(filepath)) {
-      console.warn(`[saveFileToDb] File does not exist locally: ${filepath}`);
+    if (!filename || !filepath) {
+      console.warn('[saveFileToDb] Filename or filepath is missing.');
       return;
     }
+
+    if (!fs.existsSync(filepath)) {
+      console.warn(
+        `[saveFileToDb] File does not exist locally: ${filepath}`
+      );
+      return;
+    }
+
     const data = await fs.promises.readFile(filepath);
+
+    if (!data || data.length === 0) {
+      console.warn(
+        `[saveFileToDb] File is empty: ${filename}`
+      );
+      return;
+    }
+
+    // Convert image/file into Base64 for LONGTEXT storage.
     const base64Data = data.toString('base64');
-    
+
     await db.query(
-      'INSERT INTO uploaded_files (filename, file_data, mime_type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE file_data = ?, mime_type = ?',
-      [filename, base64Data, mimetype, base64Data, mimetype]
+      `INSERT INTO uploaded_files
+        (filename, file_data, mime_type)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        file_data = VALUES(file_data),
+        mime_type = VALUES(mime_type)`,
+      [
+        filename,
+        base64Data,
+        mimetype || 'application/octet-stream'
+      ]
     );
-    missingFilesCache.delete(filename);
-    console.log(`[saveFileToDb] Successfully saved ${filename} to DB.`);
+
+    // Clear missing cache after successful upload.
+    missingFilesCache.delete(getCacheKey(filename));
+
+    console.log(
+      `[saveFileToDb] Successfully saved ${filename} to DB.`
+    );
+
   } catch (err) {
-    console.error(`[saveFileToDb] Failed to save ${filename} to DB:`, err.message);
+    console.error(
+      `[saveFileToDb] Failed to save ${filename} to DB:`,
+      err.message
+    );
   }
 }
 
+// ============================================================
+// FETCH FILE FROM DATABASE
+// ============================================================
+
 /**
- * Loads a file from node_uploaded_files table and recreates it locally.
- * @param {string} filename The name of the file to load
- * @param {string} destPath The absolute target path where the file should be written
+ * Fetches file data from MySQL using exact index lookups only.
+ * Avoids LIKE '%/filename' which causes full 8GB table scans.
+ *
+ * Multiple simultaneous requests for the same file
+ * share a single database query via pendingLoads Map.
+ */
+async function fetchFileFromDb(filename) {
+  const cacheKey = getCacheKey(filename);
+
+  // Return existing request if already running.
+  if (pendingLoads.has(cacheKey)) {
+    return pendingLoads.get(cacheKey);
+  }
+
+  const loadPromise = (async () => {
+    const cleanBasename = path.basename(
+      String(filename).replace(/\\/g, '/')
+    );
+
+    // Use exact index lookup ONLY — avoids scanning the 8GB table.
+    // Both variants (full path and basename) are tried.
+    const [rows] = await db.query(
+      `SELECT file_data, mime_type
+       FROM uploaded_files
+       WHERE filename = ?
+          OR filename = ?
+       LIMIT 1`,
+      [
+        filename,
+        cleanBasename
+      ]
+    );
+
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    const fileData = rows[0].file_data;
+
+    if (
+      fileData === null ||
+      fileData === undefined ||
+      fileData === ''
+    ) {
+      console.warn(
+        `[fetchFileFromDb] Empty file data for ${filename}`
+      );
+      return null;
+    }
+
+    // file_data is LONGTEXT containing Base64.
+    const buffer = Buffer.from(String(fileData), 'base64');
+
+    if (buffer.length === 0) {
+      console.warn(
+        `[fetchFileFromDb] Invalid Base64 data for ${filename}`
+      );
+      return null;
+    }
+
+    return {
+      buffer,
+      mimeType:
+        rows[0].mime_type || 'application/octet-stream'
+    };
+  })();
+
+  pendingLoads.set(cacheKey, loadPromise);
+
+  try {
+    return await loadPromise;
+  } finally {
+    pendingLoads.delete(cacheKey);
+  }
+}
+
+// ============================================================
+// LOAD FILE FROM DATABASE AND RESTORE LOCALLY
+// ============================================================
+
+/**
+ * Loads a file from MySQL and recreates it on local disk.
+ *
+ * @param {string} filename
+ * @param {string} destPath
  * @returns {Promise<{buffer: Buffer, mimeType: string} | null>}
  */
 async function loadFileFromDb(filename, destPath) {
-  if (!filename) return null;
-  const cleanBasename = path.basename(filename);
-  
-  // Fast path: If we already know this file isn't in DB, don't query MySQL at all
-  if (missingFilesCache.has(filename) || missingFilesCache.has(cleanBasename)) {
+  if (!filename || !destPath) {
     return null;
   }
 
-  // If another concurrent request is already restoring this same image, share the promise
-  if (inFlightRestores.has(cleanBasename)) {
-    return inFlightRestores.get(cleanBasename);
+  const cacheKey = getCacheKey(filename);
+
+  // Skip repeated queries for confirmed missing files.
+  if (missingFilesCache.has(cacheKey)) {
+    return null;
   }
 
-  const restorePromise = (async () => {
-    try {
-      // Use exact index lookup on filename — avoids scanning 8GB table
-      const [rows] = await db.query(
-        'SELECT file_data, mime_type FROM uploaded_files WHERE filename = ? OR filename = ? LIMIT 1',
-        [filename, cleanBasename]
-      );
-      if (rows && rows.length > 0 && rows[0].file_data) {
-        const buffer = Buffer.from(rows[0].file_data, 'base64');
-        
-        // Ensure target directory exists
-        const dir = path.dirname(destPath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        
-        await fs.promises.writeFile(destPath, buffer);
-        console.log(`[loadFileFromDb] Successfully restored ${cleanBasename} from DB to local disk.`);
-        return { buffer, mimeType: rows[0].mime_type };
-      }
-      
-      // Cache that file is missing to avoid spamming DB on subsequent image requests
-      missingFilesCache.add(filename);
-      missingFilesCache.add(cleanBasename);
-      return null;
-    } catch (err) {
-      console.error(`[loadFileFromDb] Failed to load ${cleanBasename} from DB:`, err.message);
-      return null;
-    } finally {
-      inFlightRestores.delete(cleanBasename);
-    }
-  })();
+  try {
+    const file = await fetchFileFromDb(filename);
 
-  inFlightRestores.set(cleanBasename, restorePromise);
-  return restorePromise;
+    if (!file) {
+      // Cache only after a successful query confirms no record
+      // or the record has empty file data.
+      missingFilesCache.add(cacheKey);
+      return null;
+    }
+
+    // Create destination directory if it does not exist.
+    const dir = path.dirname(destPath);
+
+    await fs.promises.mkdir(dir, {
+      recursive: true
+    });
+
+    // Restore file from database to local disk.
+    await fs.promises.writeFile(
+      destPath,
+      file.buffer
+    );
+
+    console.log(
+      `[loadFileFromDb] Successfully restored ${filename} from DB.`
+    );
+
+    return {
+      buffer: file.buffer,
+      mimeType: file.mimeType
+    };
+
+  } catch (err) {
+    // Do not cache connection/database errors as missing files.
+    console.error(
+      `[loadFileFromDb] Failed to load ${filename} from DB:`,
+      err.message
+    );
+
+    return null;
+  }
 }
+
+// ============================================================
+// EXPORT FUNCTIONS
+// ============================================================
 
 module.exports = {
   saveFileToDb,
