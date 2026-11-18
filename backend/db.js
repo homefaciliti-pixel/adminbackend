@@ -17,19 +17,19 @@ const pool = mysql.createPool({
   user: process.env.DB_USER || 'homef4fw_homefaci',
   password: process.env.DB_PASSWORD || 'Home1184#$%',
   database: process.env.DB_NAME || 'homef4fw_homefaci',
-  port: parseInt(process.env.DB_PORT || '3306', 10),
+  port: parseInt(process.env.DB_PORT || '3306'),
 
   // Connection Pool Settings
   waitForConnections: true,
-  connectionLimit: connectionLimit,
-  maxIdle: Math.min(2, connectionLimit),
-  idleTimeout: 30000,
-  queueLimit: 50,
+  connectionLimit: 8,
+  maxIdle: 4,
+  idleTimeout: 60000,
+  queueLimit: 0,
 
   // Connection Settings
-  connectTimeout: 10000,
+  connectTimeout: 20000,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 5000,
+  keepAliveInitialDelay: 10000,
 
   ssl: false
 });
