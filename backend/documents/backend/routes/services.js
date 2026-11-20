@@ -29,10 +29,17 @@ function formatImageUrl(img, req) {
 }
 
 function mapServiceRow(r, req) {
+
   if (!r) return null;
   const dbPrice = r.price !== null && r.price !== undefined
   ? String(r.price)
   : '0';
+
+  const rawCutPrice = r.cutPrice !== undefined && r.cutPrice !== null && r.cutPrice !== ''
+    ? String(r.cutPrice).trim()
+    : (r.cut_price !== undefined && r.cut_price !== null && r.cut_price !== ''
+      ? String(r.cut_price).trim()
+      : dbPrice);
 
 const discountVal = r.discount !== null && r.discount !== undefined
   ? parseFloat(r.discount)
@@ -42,15 +49,17 @@ const item = {
   ...r,
   image: formatImageUrl(r.image, req),
   price: dbPrice,
-  cutPrice: dbPrice,
+  cutPrice: rawCutPrice,
   discount: discountVal,
   };
   
   if (r.category_id !== undefined && r.category_id !== null && r.category_id !== '') {
     let catId = r.category_id;
+
     if (typeof catId === 'string') {
       if (catId.startsWith('c')) {
-        const parsed = parseInt(catId.slice(1), 10);
+        const cleaned = catId.startsWith('c') ? catId.slice(1) : catId;
+        const parsed = parseInt(cleaned, 10);
         if (!isNaN(parsed)) {
           catId = parsed;
         }
@@ -60,7 +69,9 @@ const item = {
           catId = parsed;
         }
       }
+
     }
+
     item.categoryId = catId;
     item.category_id = catId;
   } else {
@@ -136,23 +147,22 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Title, Price, and Description are required' });
   }
 
-  const inputPrice = parseFloat(price) || 0.00;
+  //price save with the text   (e.g. "50 rs sq/ft" ya "500")
+  const rawPriceStr = String(price).trim();
+
+  const inputPrice = parseFloat(rawPriceStr) || 0.00;
   const inputCutPrice = req.body.cutPrice !== undefined && req.body.cutPrice !== null && req.body.cutPrice !== '' ? parseFloat(req.body.cutPrice) : 0.00;
   const inputDiscountPercent = discount !== undefined && discount !== null && discount !== '' ? parseFloat(discount) : 0.00;
 
-  let priceFloat = inputPrice;
+  // let priceFloat = inputPrice;
   let discountVal = 0.00;
 
   if (inputCutPrice > inputPrice) {
-    priceFloat = inputCutPrice;
     discountVal = inputCutPrice - inputPrice;
   } else if (inputDiscountPercent > 0) {
-    priceFloat = inputPrice;
     discountVal = inputPrice * (inputDiscountPercent / 100);
-  } else {
-    priceFloat = inputPrice;
-    discountVal = 0.00;
   }
+
   const statusInt = status === true || status === 1 || status === 'true' ? 1 : 0;
   const highlightedStr = isHighlighted !== undefined && isHighlighted !== null ? String(isHighlighted) : "";
   const imageVal = image || '';
@@ -181,7 +191,7 @@ router.post('/', async (req, res) => {
   const params = [
   title,
   slug,
-  String(priceFloat),
+  rawPriceStr, // here now store complete text based price 
   imageVal,
   description,
   statusInt,
@@ -265,12 +275,15 @@ router.put('/:id', async (req, res) => {
     // Recalculate price and discount logic based on inputs and database state
     let hasPriceUpdate = (priceVal !== undefined || req.body.cutPrice !== undefined || req.body.discount !== undefined);
     if (hasPriceUpdate) {
+      const rawPriceInput = priceVal !== undefined && priceVal !== null && String(priceVal).trim() !== ''
+        ? String(priceVal).trim()
+        : null;
       const currentOriginalPrice = parseFloat(current.price) || 0.00;
       const currentDiscountVal = current.discount !== null ? parseFloat(current.discount) : 0.00;
       const currentFinalPrice = Math.max(0, currentOriginalPrice - currentDiscountVal);
       const currentDiscountPercent = currentOriginalPrice > 0 ? (currentDiscountVal / currentOriginalPrice) * 100 : 0.00;
 
-      const inputPrice = priceVal !== undefined ? parseFloat(priceVal) : currentFinalPrice;
+      const inputPrice = rawPriceInput !== null ? parseFloat(rawPriceInput) : currentFinalPrice;
       const inputCutPrice = req.body.cutPrice !== undefined 
         ? (req.body.cutPrice === '' || req.body.cutPrice === null ? 0.00 : parseFloat(req.body.cutPrice)) 
         : currentOriginalPrice;
@@ -281,22 +294,34 @@ router.put('/:id', async (req, res) => {
       let dbPrice = inputPrice;
       let dbDiscount = 0.00;
 
-      if (inputCutPrice > inputPrice) {
-        dbPrice = inputCutPrice;
+      if (!isNaN(inputPrice) && !isNaN(inputCutPrice) && inputCutPrice > inputPrice) {
         dbDiscount = inputCutPrice - inputPrice;
-      } else if (inputDiscountPercent > 0) {
-        dbPrice = inputPrice;
+      } else if (!isNaN(inputPrice) && !isNaN(inputDiscountPercent) && inputDiscountPercent > 0) {
         dbDiscount = inputPrice * (inputDiscountPercent / 100);
-      } else {
-        dbPrice = inputPrice;
-        dbDiscount = 0.00;
       }
+      
 
-    fields.push('`price` = ?');
-values.push(String(dbPrice));
+      // Agar priceVal diya gaya hai toh original text/string save karein; warna current.price rakhein
+      const finalPriceToSave = rawPriceInput !== null
+        ? rawPriceInput
+        : (current.price !== null && current.price !== undefined ? String(current.price) : '0');
 
-fields.push('`discount` = ?');
-values.push(dbDiscount);
+      // if (inputCutPrice > inputPrice) {
+      //   dbPrice = inputCutPrice;
+      //   dbDiscount = inputCutPrice - inputPrice;
+      // } else if (inputDiscountPercent > 0) {
+      //   dbPrice = inputPrice;
+      //   dbDiscount = inputPrice * (inputDiscountPercent / 100);
+      // } else {
+      //   dbPrice = inputPrice;
+      //   dbDiscount = 0.00;
+      // }
+
+     fields.push('`price` = ?');
+     values.push(finalPriceToSave);
+
+     fields.push('`discount` = ?');
+     values.push(isNaN(dbDiscount) ? 0.00 : dbDiscount);
     }
 
     if (imageVal !== undefined) {
