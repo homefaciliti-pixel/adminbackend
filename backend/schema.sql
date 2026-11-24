@@ -71,7 +71,9 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `paymentMethod` VARCHAR(100) NOT NULL DEFAULT 'UPI'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO `orders` (`id`, `serviceRequestNumber`, `serviceName`, `serviceAmount`, `slotTime`, `serviceDate`, `city`, `locality`, `status`, `vendorName`, `address`, `createdAt`) VALUES
+INSERT INTO `orders` (
+  `id`, `serviceRequestNumber`, `serviceName`, `customerName`, `customerMobile`, `serviceAmount`, `slotTime`, `serviceDate`, `city`, `locality`, `status`, `vendorName`, `address`, `createdAt`, `paymentMethod`
+  ) VALUES
 (1, 'REQ1001', 'Sofa Cleaning', 599.00, '10:00 AM - 12:00 PM', '15-05-2026', 'Delhi', 'Connaught Place', 'Pending', 'Govind', 'H.No 12, Block B, CP, New Delhi', '14-05-2026 04:30 PM'),
 (2, 'REQ1002', 'AC Repair', 499.00, '02:00 PM - 04:00 PM', '16-05-2026', 'Jaipur', 'Malviya Nagar', 'Assigned', 'Mahesh Kumar', '45, Gali 2, Malviya Nagar, Jaipur', '15-05-2026 10:15 AM'),
 (3, 'REQ1003', 'Deep House Cleaning', 1999.00, '09:00 AM - 01:00 PM', '12-05-2026', 'Noida', 'Sector 62', 'Completed', 'Govind', 'Flat 402, Tower T2, Sector 62, Noida', '11-05-2026 01:00 PM'),
