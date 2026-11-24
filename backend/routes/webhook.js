@@ -17,7 +17,7 @@ router.post('/whatsapp-order', async (req, res) => {
         } = orderData;
 
         // Basic validation
-        if (!customer_phone) {
+        if (!mobile) {
             return res.status(400).json({ success: false, message: 'Customer phone is required' });
         }
 
