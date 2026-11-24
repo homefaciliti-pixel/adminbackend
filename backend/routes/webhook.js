@@ -9,8 +9,8 @@ router.post('/whatsapp-order', async (req, res) => {
         const orderData = req.body;
 
         const {
-            customer_phone,
-            customer_name,
+            mobile,
+            name,
             order_details,
             total_amount,
             ai_response_summary
@@ -22,13 +22,13 @@ router.post('/whatsapp-order', async (req, res) => {
         }
 
         const query = `
-            INSERT INTO orders (customer_phone, customer_name, items, total_amount, status, created_at) 
+            INSERT INTO orders (mobile, name, items, total_amount, status, created_at) 
             VALUES (?, ?, ?, ?, 'Pending', NOW())
         `;
         
         const values = [
-            customer_phone, 
-            customer_name || 'WhatsApp Customer', 
+            mobile, 
+            name || 'WhatsApp Customer', 
             JSON.stringify(order_details || ai_response_summary), 
             total_amount || 0
         ];
